@@ -30,4 +30,4 @@ Open http://localhost:3000
 
 ## Status
 
-Phase 0 — Static teaser page.
+Phase 0 complete — Static teaser page live at https://bornyesterday.tech
