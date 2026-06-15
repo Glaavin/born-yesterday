@@ -17,7 +17,7 @@ Key reframes since the original brief:
 - "Skepticism **Score**" / "Born Yesterday **Score**" → **Skepticism Indicator** (categorical, *not* a score).
 - LLM analysis *inside* the report → **no LLMs in the MVP**; LLM-dependent features deferred.
 - "No editorial language, facts only" → **findings stay factual and sourced; editorial voice lives in the chrome** (see §2).
-- Stack: → **Astro + Cloudflare Pages/Workers/D1**.
+- Stack: → **Next.js 16 + Vercel** (Tailwind v4, serverless Postgres). Cloudflare/Astro appeared in earlier drafts without repo provenance and is parked as a scale-time option (§14).
 
 ---
 
@@ -130,7 +130,7 @@ The **inverted unit economics** are the critical risk: an enriched report costs 
 - **Tiering:** free near-zero MVP report; expensive enrichment unlocked only when traffic/revenue justify it.
 - **Free-data-first:** prefer open-source/free sources (open WHOIS libraries, public DNS/SSL/DMARC checks) over paid APIs; paid APIs are a deliberate, gated cost.
 - **No hot-path LLM:** users always see a cached report or a "generating, check back" state — never a real-time LLM call on page load.
-- **Rate limit:** 3 searches/day per session (Cloudflare-enforced) at MVP, protecting cost and abuse surface.
+- **Rate limit:** 3 searches/day per session (app/DB-backed) at MVP, protecting cost and abuse surface.
 
 ---
 
@@ -172,11 +172,12 @@ SLA for content corrections: **72-hour public / 48-hour internal.** The editoria
 
 ## 14. Tech stack
 
-- **Framework:** Astro + TypeScript; vanilla HTML/CSS for the design system.
-- **Infra:** Cloudflare Pages / Workers / D1; Cloudflare Email Routing; Cloudflare-enforced rate limiting.
-- **Registrar/DNS:** Porkbun → Cloudflare.
-- **Repo:** private GitHub (`Glaavin`), gitflow-lite branch protection.
-- **Legacy:** Vercel-hosted teaser (Phase 0).
+- **Framework:** Next.js 16 (App Router) + TypeScript on Vercel; Tailwind v4 (`@theme` tokens) for the design system.
+- **Data:** Vercel Postgres / Neon (serverless Postgres); Vercel Cron for background refresh; rate limiting app/DB-backed via `search_quota`.
+- **Email:** corrections@ inbound via Cloudflare Email Routing or a mailbox provider (DNS-level, host-independent).
+- **Registrar/DNS:** Porkbun → Vercel.
+- **Repo:** private GitHub (`Glaavin`), gitflow-lite branch protection; pnpm.
+- **Parked (scale-time option):** Cloudflare Pages/Workers/D1/R2 — cheaper edge primitives worth revisiting when traffic justifies a migration. Deferring to the existing Vercel repo now does not blow the MVP economics (per-report cost is dominated by free external APIs, not hosting); Cloudflare would trim the ~$20/mo Vercel-Pro floor toward ~$0 at scale.
 
 ---
 

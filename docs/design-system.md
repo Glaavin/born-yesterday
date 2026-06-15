@@ -76,7 +76,7 @@ The report card's status pill mirrors the active result state in words ("Checks 
 
 - **Animation tech:** **Rive** — its built-in state machine matches the "input state → transition" model directly. (Lottie was considered; it is export-from-After-Effects and linear, requiring JS segment orchestration for state logic.)
 - **MVP phasing:** ship a **static SVG placeholder** for each state. Build the layer architecture and state contract now; slot the Rive file in post-MVP with zero layout change. The provided `BY_egg.png` is raster — redraw as SVG for crisp wordmark overlap and future animation.
-- **Layering:** the mascot occupies a **separate, higher z-index layer** than the wordmark, within a shared positioned container, so the egg sits in the "." of the wordmark. In Astro, the mascot is the only hydrated island on the page; everything else stays static (keeps the page fast and cheap, per the cost-reduction principle).
+- **Layering:** the mascot occupies a **separate, higher z-index layer** than the wordmark, within a shared positioned container, so the egg sits in the "." of the wordmark. In Next.js, the mascot is a **client component** (it will host the Rive runtime later); the wordmark and everything else stay server-rendered/static (keeps the page fast and cheap, per the cost-reduction principle).
 
 ---
 

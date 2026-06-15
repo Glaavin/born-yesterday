@@ -149,21 +149,21 @@ Every regeneration **appends** to `signal_history` rather than overwriting. Over
 
 ## 4. Technical stack
 
-Deliberately boring, deliberately cheap. Cloudflare-native so operating cost stays near zero. (Consistent with PRODUCT.md §14.)
+Deliberately boring, deliberately cheap. Next.js on Vercel with serverless Postgres; cost stays low at MVP traffic. (Consistent with PRODUCT.md §14.) Cloudflare's edge primitives (D1/Workers/R2) are **parked as a scale-time cost optimization**, not dismissed — revisit when traffic justifies it.
 
 | Layer | Choice | Why |
 |---|---|---|
-| Frontend | Astro, deployed to Cloudflare Pages; **vanilla HTML/CSS** for the design system | Server-rendered, near-zero JS, fast permalinks. Avoid Next.js |
-| API / signal collection | Cloudflare Workers (TypeScript) | Edge, generous free tier |
-| Database | Cloudflare D1 (SQLite) | Free tier, queryable from Workers |
-| Object storage | Cloudflare R2 | Cached raw Wayback HTML to avoid re-hitting their API; no egress fees |
-| Background jobs | Cloudflare Cron Triggers + Queues | Weekly refresh |
-| Rate limiting | Cloudflare (see §7a) | 3 searches/day/session |
-| Email | Cloudflare Email Routing → corrections@ | Corrections intake (watchlist email deferred) |
-| Analytics | **Basic at launch** (Cloudflare Web Analytics — free, cookie-less); advanced funnel/insights in Sprint 1.8 | No Google Analytics — wrong vibe |
-| Mascot animation | Rive (post-MVP); static SVG placeholder at MVP | See design-system.md §4 |
+| Frontend | Next.js 16 (App Router) + TypeScript on Vercel; **Tailwind v4** (`@theme` tokens) for the design system | Server components by default, minimal client JS, fast permalinks |
+| API / signal collection | Next.js route handlers / server actions (Vercel Functions) | 8s generation budget fits Vercel function limits |
+| Database | Vercel Postgres / Neon (serverless Postgres) | Serverless, generous free tier; access via Drizzle or direct SQL |
+| Object storage | Vercel Blob (or none at MVP — small cached HTML can live in `external_cache`) | R2 remains an option at scale (no-egress) |
+| Background jobs | Vercel Cron (weekly refresh); stale-refresh via `after()` / `waitUntil` | Dedicated queue (Upstash QStash) deferred |
+| Rate limiting | DB-backed via `search_quota` (see §7a) | 3 searches/day/session; no extra service needed |
+| Email | corrections@ inbound via Cloudflare Email Routing or a mailbox provider (DNS-level, host-independent) | Outbound (later, watchlist) via Resend |
+| Analytics | **Basic at launch** (Vercel Web Analytics — privacy-friendly); advanced funnel/insights in Sprint 1.8 | No Google Analytics — wrong vibe |
+| Mascot animation | Rive via `@rive-app/react-canvas` (post-MVP); static placeholder at MVP | See design-system.md §4 |
 
-**Expected fixed monthly cost: $5–15. Ceiling at ~10K reports/mo: under $50.**
+**Expected fixed monthly cost: ~$20/mo (Vercel Pro — required for a commercial/ad-supported site) + low usage; still far inside the $3K/mo budget. Cloudflare would trim this toward ~$0 at MVP scale (the parked option).**
 
 ### External services used (all free)
 
@@ -175,7 +175,7 @@ Deliberately boring, deliberately cheap. Cloudflare-native so operating cost sta
 | Cloudflare DoH | DNS (SPF, DMARC, A) | Free, fast, no auth |
 | Wayback CDX API | Snapshot enumeration | `web.archive.org/cdx/search/cdx`. ~1 req/sec, exponential backoff |
 | Wayback raw fetch | HTML for regex scan | `web.archive.org/web/<ts>/<url>`. Same etiquette |
-| PhishTank | Phishing list | Download free dump weekly, store in D1 |
+| PhishTank | Phishing list | Download free dump weekly, store in Postgres |
 | URLhaus | Malware/phish list | Free API `urlhaus-api.abuse.ch` |
 | Trustpilot | Reputation | Scrape public search page, polite, cache 7 days |
 | BBB | Reputation | Scrape public search page, polite, cache 7 days |
@@ -186,35 +186,35 @@ Deliberately boring, deliberately cheap. Cloudflare-native so operating cost sta
 
 ## 5. Data model
 
-Minimum viable D1 schema. Migrate forward additively — never drop columns.
+Minimum viable Postgres schema (Vercel Postgres / Neon). Migrate forward additively — never drop columns. Timestamps are unix epoch (`BIGINT`) to match the request-flow logic in §6.
 
 ```sql
 -- One row per domain we've ever processed
 CREATE TABLE domains (
   domain TEXT PRIMARY KEY,                 -- normalized, lowercase, no scheme, no www
-  first_seen_at INTEGER NOT NULL,
-  last_refreshed_at INTEGER NOT NULL,
+  first_seen_at BIGINT NOT NULL,
+  last_refreshed_at BIGINT NOT NULL,
   search_count INTEGER NOT NULL DEFAULT 0
 );
 
 -- Current cached report per domain. Overwritten on refresh.
 CREATE TABLE reports (
   domain TEXT PRIMARY KEY REFERENCES domains(domain),
-  generated_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL,             -- generated_at + 7 days
-  report_json TEXT NOT NULL,
+  generated_at BIGINT NOT NULL,
+  expires_at BIGINT NOT NULL,              -- generated_at + 7 days
+  report_json TEXT NOT NULL,               -- JSONB is fine too
   skepticism_state TEXT NOT NULL,          -- 'green' | 'amber' | 'red' | 'blue' (4-state contract)
   schema_version INTEGER NOT NULL
 );
 
 -- Longitudinal record. Append-only. The proprietary moat.
 CREATE TABLE signal_history (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   domain TEXT NOT NULL REFERENCES domains(domain),
-  captured_at INTEGER NOT NULL,
+  captured_at BIGINT NOT NULL,
   signal_type TEXT NOT NULL,
   value_text TEXT,
-  value_num REAL
+  value_num DOUBLE PRECISION
 );
 CREATE INDEX idx_signal_history_domain ON signal_history(domain, captured_at);
 CREATE INDEX idx_signal_history_type ON signal_history(signal_type, captured_at);
@@ -222,12 +222,12 @@ CREATE INDEX idx_signal_history_type ON signal_history(signal_type, captured_at)
 -- Cached external responses
 CREATE TABLE external_cache (
   cache_key TEXT PRIMARY KEY,
-  fetched_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL,
+  fetched_at BIGINT NOT NULL,
+  expires_at BIGINT NOT NULL,
   payload TEXT NOT NULL
 );
 
--- Per-session daily search limit (3/day). Cloudflare-enforced; this table backs it.
+-- Per-session daily search limit (3/day). App/DB-enforced; this table backs it.
 CREATE TABLE search_quota (
   session_key TEXT NOT NULL,               -- hashed session/IP identifier
   day TEXT NOT NULL,                       -- YYYY-MM-DD
@@ -235,13 +235,13 @@ CREATE TABLE search_quota (
   PRIMARY KEY (session_key, day)
 );
 
--- Watchlist (OPEN: not in PRODUCT.md; provision now, ship decision pending §11)
+-- Watchlist (post-MVP retention feature, PRODUCT.md §10; provision now, unused at MVP)
 CREATE TABLE watchlist_subscriptions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   email TEXT NOT NULL,
   domain TEXT NOT NULL REFERENCES domains(domain),
-  created_at INTEGER NOT NULL,
-  confirmed_at INTEGER,
+  created_at BIGINT NOT NULL,
+  confirmed_at BIGINT,
   UNIQUE(email, domain)
 );
 ```
@@ -315,7 +315,7 @@ The owner provides the UI via `design-system.md` and the mockups. These are guar
 
 ### 7a. Rate limit
 
-3 searches per day per session, **Cloudflare-enforced** (backed by `search_quota`). On exhaustion, render the limit-reached state (mascot: `limit-reached`). Richer visual treatment of remaining/used searches is deferred (design-system.md §11).
+3 searches per day per session, **app/DB-enforced** (backed by `search_quota`, keyed on a hashed session/IP from the request). On exhaustion, render the limit-reached state (mascot: `limit-reached`). Richer visual treatment of remaining/used searches is deferred (design-system.md §11).
 
 ### 7b. Recent searches feed
 
