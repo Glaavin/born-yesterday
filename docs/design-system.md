@@ -62,20 +62,21 @@ The mascot layer must support these named states. Each gets a static placeholder
 | `idle` | Landing, pre-search | Ready; all flags up, calm |
 | `hatching` | Report generating (loading) | Working |
 | `result-green` | Report delivered — clean | **Checks out.** Established, clean signals |
+| `result-amber` | Report delivered — moderate | **Some concerns.** Worth a closer look; mixed or moderate flags, not damning |
 | `result-red` | Report delivered — concerns | **Red flags found.** Material concerns |
 | `result-blue` | Report delivered — inconclusive | **Too new to tell.** Insufficient public footprint to assess — literally *born yesterday* |
 | `limit-reached` | 3/3 daily searches used | Out of searches for now |
 | `error` | Invalid URL / fetch failure | Couldn't run the check |
 
-"Some concerns" is **not** a distinct mascot state for MVP; nuance is carried by the pink-flagged / cyan-positive highlights in the report body. (Reversible: a `result-mixed` state can be added later if needed.)
+The four result states form a green → amber → red severity ladder plus blue as the orthogonal "can't assess yet." The amber **"Some concerns"** state carries the overall moderate verdict; this is distinct from the inline pink-flagged / cyan-positive highlights in the report body, which mark *which specific data points* are concerning or reassuring. **Mascot art note:** the placeholder PNG has three flags (blue/green/red); the four-state contract needs a fourth (amber) flag treatment — exact visual is a design pass during the mascot redraw.
 
-The report card's status pill mirrors the active result state in words ("Checks out" / "Red flags found" / "Too new to tell"), which also satisfies the accessibility requirement that the indicator never be carried by color alone.
+The report card's status pill mirrors the active result state in words ("Checks out" / "Some concerns" / "Red flags found" / "Too new to tell"), which also satisfies the accessibility requirement that the indicator never be carried by color alone.
 
 ### 4.2 Technical direction
 
 - **Animation tech:** **Rive** — its built-in state machine matches the "input state → transition" model directly. (Lottie was considered; it is export-from-After-Effects and linear, requiring JS segment orchestration for state logic.)
 - **MVP phasing:** ship a **static SVG placeholder** for each state. Build the layer architecture and state contract now; slot the Rive file in post-MVP with zero layout change. The provided `BY_egg.png` is raster — redraw as SVG for crisp wordmark overlap and future animation.
-- **Layering:** the mascot occupies a **separate, higher z-index layer** than the wordmark, within a shared positioned container, so the egg sits in the "." of the wordmark. In Astro, the mascot is the only hydrated island on the page; everything else stays static (keeps the page fast and cheap, per the cost-reduction principle).
+- **Layering:** the mascot occupies a **separate, higher z-index layer** than the wordmark, within a shared positioned container, so the egg sits in the "." of the wordmark. In Next.js, the mascot is a **client component** (it will host the Rive runtime later); the wordmark and everything else stay server-rendered/static (keeps the page fast and cheap, per the cost-reduction principle).
 
 ---
 
@@ -153,7 +154,7 @@ Approximate values read from the mockups — **sample exact values from the sour
 - Hatch counter
 - Methodology card
 - Report tab nav (My Report Results · Recent Searches · Search Again)
-- Report card: title + worded indicator pill + body with highlight styles + footer actions (Search again · Copy to clipboard · Share) + Request a correction link
+- Report card: title + worded indicator pill (4 states) + body with highlight styles + footer actions (Search again · Copy · Download — the shareable report is a well-formatted rich-text object that copies and downloads cleanly; image/PDF forms can evolve later) + Request a correction link
 - Recent-search list item (anonymized)
 - `<AdSlot>` (placeholder in dev, script in prod)
 - Footer / disclaimer
