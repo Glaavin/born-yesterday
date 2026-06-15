@@ -109,7 +109,7 @@
 **Scope**
 - SVG wordmark "BornYesterday.tech" with the multicolor treatment (§8.2), wrapped so an accessible `<h1>` exposes the text to screen readers/SEO.
 - Mascot container on a **separate, higher z-index layer** within a shared positioned container, egg seated in the ".".
-- Mascot accepts a `state` prop covering the full §4.1 contract (`idle · hatching · result-green · result-red · result-blue · limit-reached · error`); render a static placeholder per state (use `BY_egg.png` interim; note SVG redraw as follow-up).
+- Mascot accepts a `state` prop covering the full §4.1 contract (`idle · hatching · result-green · result-amber · result-red · result-blue · limit-reached · error`); render a static placeholder per state (use `BY_egg.png` interim; note SVG redraw as follow-up, which must add a fourth amber flag treatment).
 
 **Acceptance criteria**
 - Wordmark crisp at all sizes; `<h1>` text present and accessible.
@@ -152,7 +152,7 @@
 
 **Scope**
 - Tab nav: "My Report Results · Recent Searches · Search Again."
-- Report card: title + **worded indicator pill** reflecting the result state ("Checks out" / "Red flags found" / "Too new to tell"); body with defined highlight styles for flagged (`--flag-negative`) and positive (`--flag-positive`) findings; footer actions (Search again · Copy to clipboard · Share); **"Request a correction"** link → corrections@ (§3).
+- Report card: title + **worded indicator pill** reflecting the result state ("Checks out" / "Some concerns" / "Red flags found" / "Too new to tell"); body with defined highlight styles for flagged (`--flag-negative`) and positive (`--flag-positive`) findings; footer actions (Search again · Copy · Download — shareable report is a rich-text object); **"Request a correction"** link → corrections@ (§3).
 - "{n} data sources found in {t}s" caption (mock values).
 - Disclaimer reframed per §2.
 - Mascot in the matching result state.

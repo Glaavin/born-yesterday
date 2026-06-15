@@ -39,7 +39,9 @@ The product *is* credibility, so the voice is split by surface:
 
 This reconciles the original "facts only" legal principle with an editorial publication posture: the *findings* carry no subjective or editorial language; the *framing* does. Corrections, not disputes (see §12).
 
-Brand motifs to preserve: the egg/hatching metaphor; "receipts" as evidence ("Checking the receipts" is a live tagline candidate — tagline not yet locked).
+Brand motifs to preserve: the egg/hatching metaphor; "receipts" as evidence.
+
+**Tagline (locked):** "Checking the receipts before you check out."
 
 ---
 
@@ -47,8 +49,9 @@ Brand motifs to preserve: the egg/hatching metaphor; "receipts" as evidence ("Ch
 
 The core output is the **Skepticism Indicator** — categorical, not a numeric score. Its visual expression is the **mascot** (an egg with flags), conveyed without words, with the report card's worded pill stating the result in text so meaning never rests on color alone.
 
-MVP verdicts (three clean states):
+MVP verdicts (four states — a green→amber→red severity ladder plus blue for "can't assess"):
 - **Checks out** (green) — established, clean signals.
+- **Some concerns** (amber) — worth a closer look; mixed or moderate flags, not damning.
 - **Red flags found** (red) — material concerns.
 - **Too new to tell** (blue) — insufficient public footprint to assess; the target is, literally, born yesterday.
 
@@ -114,7 +117,7 @@ The **inverted unit economics** are the critical risk: an enriched report costs 
 |---|---|---|
 | 1 | API costs outpace ad revenue | Deterministic MVP (no LLM); aggressive caching; batch pre-generation; tiered enrichment gated by traffic |
 | 2 | No proprietary data at launch | Speed + brand as the only launch moat; cache/archive becomes the moat over time; embeddable badge for network effects (later) |
-| 3 | **Ad-network eligibility** | AdSense has historically rejected trust/review tools assessing named companies. Plan for Mediavine/Ezoic/Carbon, direct sales to SaaS security/compliance vendors, or a "Trust Verified" badge program as fallbacks |
+| 3 | **Ad-network eligibility** | AdSense has historically rejected trust/review tools assessing named companies. **Submit to AdSense during the build, not after, to learn eligibility before launch.** Fallbacks: Mediavine/Ezoic/Carbon, direct sales to SaaS security/compliance vendors, or a "Trust Verified" badge program |
 | 4 | LLM hallucination (AI Pivot Timeline) | Feature deferred; when it ships, every claim links to a verifiable Wayback URL, human review for top companies, confidence scoring with suppression of low-confidence claims, fact-based framing + disclaimers |
 | 5 | Domain age insufficient alone | Layer cheap deterministic signals (SSL/DMARC/DNS) at MVP; richer signals by tier |
 
@@ -136,6 +139,7 @@ The **inverted unit economics** are the critical risk: an enriched report costs 
 - **Phase 0 — complete.** Teaser site live; repo, branch protection, CI/deploy, DNS established; stack pivoted to Astro + Cloudflare.
 - **Phase 1 — 8 sprints.** Notable sprints: **1.1** foundational data layer · **1.2** design system (current) · **1.7** Skepticism Indicator weights · **1.8** analytics (deferred). Sprint 1.2 is front-loaded so the branded visual system is settled before data work resumes.
 - **Tiering across the phase:** launch deterministic (Tier 0) → enrich (AI Pivot Timeline, ownership signals) as traction allows → **Year 2: B2B API + premium** (batch access, change monitoring, white-label embed).
+- **Retention (post-MVP, free):** an email-only watchlist (double opt-in, ~3 domains, no accounts) with a weekly "what changed" digest powered by `signal_history` diffs. Drives repeat ad-visits and monetizes the longitudinal moat without paid APIs. Provisioned in the data model now; ships after the MVP report is live.
 
 ---
 
@@ -184,10 +188,9 @@ SLA for content corrections: **72-hour public / 48-hour internal.** The editoria
 
 ---
 
-## 16. Open questions
+## 16. Open questions (deliberately deferred)
 
-- **Tagline** not locked ("Checking the receipts before you check out" is a candidate).
-- **Skepticism Indicator weights** — Sprint 1.7.
-- **Ad-network choice** — pending AdSense eligibility reality check (Risk 3).
+- **Skepticism Indicator weights** — Sprint 1.7 (now mapping to four states).
+- **Ad-network choice** — pending AdSense eligibility reality check (Risk 3); apply early.
 - **Economics validation** — RPM and per-report cost figures are estimates inherited from the original brief; revisit with real traffic.
 - **AI Pivot Timeline mitigation pipeline** — designed before that feature ships.
