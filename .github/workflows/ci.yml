@@ -21,6 +21,10 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
+          # pnpm is provided by corepack in the next step, so it isn't on PATH
+          # yet when setup-node runs. Disable v5's built-in package-manager cache
+          # (default-on in v5) to avoid "Unable to locate executable file: pnpm".
+          package-manager-cache: false
 
       - name: Enable corepack (pnpm from packageManager field)
         run: corepack enable
