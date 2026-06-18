@@ -6,8 +6,8 @@
    Defined via Tailwind v4 @theme, so each token is available BOTH as a utility
    (e.g. text-accent-gold, font-heading, text-2xl) AND as a CSS variable
    (e.g. var(--color-accent-gold)). Never inline raw values — reference a token.
-   Colors are the §8.2 APPROXIMATE values (no mockup source files in the
-   workspace to sample exact values from — exact sampling pending).
+   Colors are SAMPLED from the mockups in docs/mockups/ (local-only, gitignored)
+   and recorded back into §8.2. flag-negative is AA-adjusted (see §8.2).
    ========================================================================== */
 
 /* `static` forces every token to emit as a CSS variable even before any markup
@@ -20,31 +20,31 @@
 
   /* ---- Color tokens (§8.2) — flat colors ----
      Each maps into Tailwind's --color-* namespace. */
-  --color-wordmark-cream: #f3d690; /* "BORN" */
-  --color-wordmark-blue: #5a6fe0;  /* ".TECH" */
-  --color-accent-gold: #e0a93f;    /* counter number, report title, card border */
-  --color-link-coral: #e57346;     /* nav links */
-  --color-label-teal: #3fb0c0;     /* labels, section accents */
-  --color-flag-positive: #4fc3d4;  /* positive findings — AA on surface-body (7.37:1) */
-  --color-flag-negative: #dd6687;  /* flagged data / red-flag pill — adjusted from #d6486f for WCAG AA (see §8.2) */
-  --color-input-surface: #eafaf7;  /* input field */
+  --color-wordmark-cream: #f9db9d; /* "BORN" */
+  --color-wordmark-blue: #5c7ddf;  /* ".TECH" */
+  --color-accent-gold: #f8d181;    /* counter number, report title, card border */
+  --color-link-coral: #c65644;     /* nav links */
+  --color-label-teal: #87d3d8;     /* labels, section accents */
+  --color-flag-positive: #63b0bb;  /* positive findings — AA on surface-body (4.95:1) */
+  --color-flag-negative: #e77da3;  /* flagged data / red-flag pill — adjusted from sampled #e46a95 for WCAG AA (see §8.2) */
+  --color-input-surface: #eaffff;  /* input field */
 
   /* ---- Gradient tokens (§8.2) ----
      Three §8.2 tokens are gradients, not flat colors. Each is kept as paired
      stop tokens (usable as --color-* utilities/vars) PLUS a --gradient-* custom
-     property holding the composed linear-gradient. Gradient ANGLES are not
-     specified in §8.2 — these are conventional defaults, adjustable later. */
-  --color-surface-header-from: #1a1f4d; /* top nav band */
-  --color-surface-header-to: #0a0e2a;
+     property holding the composed linear-gradient. Gradient angles set to
+     vertical (top→bottom) to match the mockups. */
+  --color-surface-header-from: #10153f; /* top nav band */
+  --color-surface-header-to: #111850;
   --gradient-surface-header: linear-gradient(180deg, var(--color-surface-header-from), var(--color-surface-header-to));
 
-  --color-surface-body-from: #0e1b1f;   /* page background */
-  --color-surface-body-to: #14282b;
-  --gradient-surface-body: linear-gradient(160deg, var(--color-surface-body-from), var(--color-surface-body-to));
+  --color-surface-body-from: #111b24;   /* page background */
+  --color-surface-body-to: #1a3942;
+  --gradient-surface-body: linear-gradient(180deg, var(--color-surface-body-from), var(--color-surface-body-to));
 
-  --color-wordmark-cyan-from: #5fd4d6;  /* "YESTERDAY" */
-  --color-wordmark-cyan-to: #2ba8c4;
-  --gradient-wordmark-cyan: linear-gradient(90deg, var(--color-wordmark-cyan-from), var(--color-wordmark-cyan-to));
+  --color-wordmark-cyan-from: #7fdce3;  /* "YESTERDAY" */
+  --color-wordmark-cyan-to: #99f1f7;
+  --gradient-wordmark-cyan: linear-gradient(180deg, var(--color-wordmark-cyan-from), var(--color-wordmark-cyan-to));
 
   /* ---- Type scale (--text-*) ----
      §8.1 fixes the font roles but specifies no numeric scale; this is a
