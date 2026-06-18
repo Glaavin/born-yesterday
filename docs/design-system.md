@@ -128,6 +128,8 @@ A three-role system, all open-licensed (no licensing cost):
 
 Approximate values read from the mockups — **sample exact values from the source files before locking.** Defined as semantic CSS custom properties.
 
+> **Status (Story 2):** Tokens are now implemented in `src/app/globals.css` via Tailwind v4 `@theme static` (each available as a `--color-*` / `--font-*` / `--text-*` utility **and** CSS variable). No mockup source files were present in the workspace, so the values below remain the mockup **approximates — exact sampling is still pending.** Exception: `--flag-negative` was adjusted for WCAG AA (see Accessibility note).
+
 | Token | Approx. | Use |
 |---|---|---|
 | `--surface-header` | navy gradient `#1a1f4d → #0a0e2a` | top nav band |
@@ -138,11 +140,15 @@ Approximate values read from the mockups — **sample exact values from the sour
 | `--accent-gold` | `#e0a93f` | counter number, report title, card border |
 | `--link-coral` | `#e57346` | nav links |
 | `--label-teal` | `#3fb0c0` | labels, section accents |
-| `--flag-negative` | `#d6486f` | flagged data, red-flag pill |
+| `--flag-negative` | `#dd6687` *(adjusted from `#d6486f` for AA)* | flagged data, red-flag pill |
 | `--flag-positive` | `#4fc3d4` | positive findings |
 | `--input-surface` | `#eafaf7` | input field |
 
-> **Accessibility:** verify `--flag-negative` (pink) and `--flag-positive` (cyan) clear WCAG AA on `--surface-body`. Pink text on dark is frequently borderline. Never carry flagged-vs-positive by color alone (the worded pill + the report's inline labels satisfy this).
+> **Accessibility (verified, Story 2):** Contrast measured against `--surface-body`, using its worst-case (lighter) gradient stop `#14282b`.
+> - `--flag-positive` `#4fc3d4` — **7.37:1**, passes WCAG AA. No change.
+> - `--flag-negative` `#d6486f` — **3.67:1**, *failed* AA for normal text. Lightened (same 344° hue) to **`#dd6687` → 4.62:1**, which clears AA.
+>
+> Never carry flagged-vs-positive by color alone (the worded pill + the report's inline labels satisfy this).
 
 ---
 
