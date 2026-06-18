@@ -176,5 +176,5 @@ Approximate values read from the mockups — **sample exact values from the sour
 
 - Mascot: static SVG placeholders now; Rive animations post-MVP.
 - Ads: architecture (`<AdSlot>`, reserved dimensions, config gating) now; ad scripts served later.
-- 3 searches/day limit: enforce mechanism (Cloudflare) now; richer visual treatment of the limit later.
+- 3 searches/day limit: enforce mechanism (app/DB-backed) now; richer visual treatment of the limit later.
 - Skepticism Indicator *weights* finalized in Sprint 1.7 — this document fixes only the *visual expression* and state contract.

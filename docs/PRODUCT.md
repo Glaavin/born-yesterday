@@ -136,7 +136,7 @@ The **inverted unit economics** are the critical risk: an enriched report costs 
 
 ## 10. Roadmap & phasing
 
-- **Phase 0 — complete.** Teaser site live; repo, branch protection, CI/deploy, DNS established; stack pivoted to Astro + Cloudflare.
+- **Phase 0 — complete.** Teaser site live; repo, branch protection, CI/deploy, DNS established; stack settled on Next.js 16 + Vercel.
 - **Phase 1 — 8 sprints.** Notable sprints: **1.1** foundational data layer · **1.2** design system (current) · **1.7** Skepticism Indicator weights · **1.8** analytics (deferred). Sprint 1.2 is front-loaded so the branded visual system is settled before data work resumes.
 - **Tiering across the phase:** launch deterministic (Tier 0) → enrich (AI Pivot Timeline, ownership signals) as traction allows → **Year 2: B2B API + premium** (batch access, change monitoring, white-label embed).
 - **Retention (post-MVP, free):** an email-only watchlist (double opt-in, ~3 domains, no accounts) with a weekly "what changed" digest powered by `signal_history` diffs. Drives repeat ad-visits and monetizes the longitudinal moat without paid APIs. Provisioned in the data model now; ships after the MVP report is live.
