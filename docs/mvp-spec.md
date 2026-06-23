@@ -379,7 +379,7 @@ All prior open questions for this document are settled:
 3. **Consumer paid tier:** dropped.
 4. **Email watchlist:** post-MVP retention feature (PRODUCT.md §10); out of the MVP build.
 5. **Report download:** MVP shareable report is a rich-text object (copy + download); image/PDF forms deferred.
-6. **Analytics:** basic at launch (Cloudflare Web Analytics); advanced in Sprint 1.8.
+6. **Analytics:** basic at launch (Vercel Web Analytics); advanced in Sprint 1.8.
 7. **Indicator visual:** the mascot flag-state (design-system.md §4).
 
 Genuinely deferred items (timing, not indecision) live in **PRODUCT.md §16**: Sprint 1.7 weights, ad-network choice (apply to AdSense early), economics validation, and the AI Pivot Timeline mitigation pipeline.

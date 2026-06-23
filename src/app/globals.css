@@ -1,16 +1,71 @@
 @import "tailwindcss";
 
-@theme inline {
-  --color-background: #020617;
-  --color-foreground: #e2e8f0;
-  --color-muted: #64748b;
-  --color-accent: #10b981;
-  --font-sans: var(--font-inter);
-  --font-serif: var(--font-fraunces);
+/* ============================================================================
+   BORN YESTERDAY — DESIGN TOKENS  (Story 2)
+   Source of truth: docs/design-system.md §8.1 (type) and §8.2 (color).
+   Defined via Tailwind v4 @theme, so each token is available BOTH as a utility
+   (e.g. text-accent-gold, font-heading, text-2xl) AND as a CSS variable
+   (e.g. var(--color-accent-gold)). Never inline raw values — reference a token.
+   Colors are SAMPLED from the mockups in docs/mockups/ (local-only, gitignored)
+   and recorded back into §8.2. flag-negative is AA-adjusted (see §8.2).
+   ========================================================================== */
+
+/* `static` forces every token to emit as a CSS variable even before any markup
+   consumes it — required so this token layer is fully available now. */
+@theme static {
+  /* ---- Fonts (§8.1) — self-hosted via next/font in layout.tsx ----
+     The display/wordmark face is NOT loaded here (outlined in SVG later). */
+  --font-heading: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  /* ---- Color tokens (§8.2) — flat colors ----
+     Each maps into Tailwind's --color-* namespace. */
+  --color-wordmark-cream: #f9db9d; /* "BORN" */
+  --color-wordmark-blue: #5c7ddf;  /* ".TECH" */
+  --color-accent-gold: #f8d181;    /* counter number, report title, card border */
+  --color-link-coral: #c65644;     /* nav links */
+  --color-label-teal: #87d3d8;     /* labels, section accents */
+  --color-flag-positive: #63b0bb;  /* positive findings — AA on surface-body (4.95:1) */
+  --color-flag-negative: #e77da3;  /* flagged data / red-flag pill — adjusted from sampled #e46a95 for WCAG AA (see §8.2) */
+  --color-input-surface: #eaffff;  /* input field */
+
+  /* ---- Gradient tokens (§8.2) ----
+     Three §8.2 tokens are gradients, not flat colors. Each is kept as paired
+     stop tokens (usable as --color-* utilities/vars) PLUS a --gradient-* custom
+     property holding the composed linear-gradient. Gradient angles set to
+     vertical (top→bottom) to match the mockups. */
+  --color-surface-header-from: #10153f; /* top nav band */
+  --color-surface-header-to: #111850;
+  --gradient-surface-header: linear-gradient(180deg, var(--color-surface-header-from), var(--color-surface-header-to));
+
+  --color-surface-body-from: #111b24;   /* page background */
+  --color-surface-body-to: #1a3942;
+  --gradient-surface-body: linear-gradient(180deg, var(--color-surface-body-from), var(--color-surface-body-to));
+
+  --color-wordmark-cyan-from: #7fdce3;  /* "YESTERDAY" */
+  --color-wordmark-cyan-to: #99f1f7;
+  --gradient-wordmark-cyan: linear-gradient(180deg, var(--color-wordmark-cyan-from), var(--color-wordmark-cyan-to));
+
+  /* ---- Type scale (--text-*) ----
+     §8.1 fixes the font roles but specifies no numeric scale; this is a
+     conventional modular scale (~1.2 ratio) for the MVP, adjustable later. */
+  --text-xs: 0.75rem;     --text-xs--line-height: 1.5;
+  --text-sm: 0.875rem;    --text-sm--line-height: 1.5;
+  --text-base: 1rem;      --text-base--line-height: 1.6;
+  --text-lg: 1.125rem;    --text-lg--line-height: 1.55;
+  --text-xl: 1.375rem;    --text-xl--line-height: 1.4;
+  --text-2xl: 1.75rem;    --text-2xl--line-height: 1.3;
+  --text-3xl: 2.25rem;    --text-3xl--line-height: 1.2;
+  --text-4xl: 2.875rem;   --text-4xl--line-height: 1.1;
+  --text-5xl: 3.75rem;    --text-5xl--line-height: 1.04;
+  --text-6xl: 4.75rem;    --text-6xl--line-height: 1.0;
 }
 
+/* Foundational page surface: wire the page background + body font to their
+   tokens. (§8.2 defines no generic body-text/foreground color token — left
+   unset here; flagged for a follow-up. Per-element text color is a later story.) */
 body {
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
+  background: var(--gradient-surface-body);
+  font-family: var(--font-body), system-ui, sans-serif;
+  min-height: 100vh;
 }

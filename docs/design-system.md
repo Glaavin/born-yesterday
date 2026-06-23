@@ -128,21 +128,27 @@ A three-role system, all open-licensed (no licensing cost):
 
 Approximate values read from the mockups — **sample exact values from the source files before locking.** Defined as semantic CSS custom properties.
 
+> **Status (Story 2):** Tokens are implemented in `src/app/globals.css` via Tailwind v4 `@theme static` (each available as a `--color-*` / `--font-*` / `--text-*` utility **and** CSS variable). Values below are now **sampled from the mockups** in `docs/mockups/` (kept local-only / gitignored). Gradients are vertical (top→bottom) to match the mockups. `--flag-negative` is AA-adjusted (see Accessibility note).
+
 | Token | Approx. | Use |
 |---|---|---|
-| `--surface-header` | navy gradient `#1a1f4d → #0a0e2a` | top nav band |
-| `--surface-body` | dark teal gradient `#0e1b1f → #14282b` | page background |
-| `--wordmark-cream` | `#f3d690` | "BORN" |
-| `--wordmark-cyan` | `#5fd4d6 → #2ba8c4` | "YESTERDAY" |
-| `--wordmark-blue` | `#5a6fe0` | ".TECH" |
-| `--accent-gold` | `#e0a93f` | counter number, report title, card border |
-| `--link-coral` | `#e57346` | nav links |
-| `--label-teal` | `#3fb0c0` | labels, section accents |
-| `--flag-negative` | `#d6486f` | flagged data, red-flag pill |
-| `--flag-positive` | `#4fc3d4` | positive findings |
-| `--input-surface` | `#eafaf7` | input field |
+| `--surface-header` | navy gradient `#10153f → #111850` | top nav band |
+| `--surface-body` | dark teal gradient `#111b24 → #1a3942` | page background |
+| `--wordmark-cream` | `#f9db9d` | "BORN" |
+| `--wordmark-cyan` | cyan gradient `#7fdce3 → #99f1f7` | "YESTERDAY" |
+| `--wordmark-blue` | `#5c7ddf` | ".TECH" |
+| `--accent-gold` | `#f8d181` | counter number, report title, card border |
+| `--link-coral` | `#c65644` | nav links |
+| `--label-teal` | `#87d3d8` | labels, section accents |
+| `--flag-negative` | `#e77da3` *(adjusted from sampled `#e46a95` for AA)* | flagged data, red-flag pill |
+| `--flag-positive` | `#63b0bb` | positive findings |
+| `--input-surface` | `#eaffff` | input field |
 
-> **Accessibility:** verify `--flag-negative` (pink) and `--flag-positive` (cyan) clear WCAG AA on `--surface-body`. Pink text on dark is frequently borderline. Never carry flagged-vs-positive by color alone (the worded pill + the report's inline labels satisfy this).
+> **Accessibility (verified, Story 2):** Contrast measured against the sampled `--surface-body`, worst-case (lighter) stop `#1a3942`.
+> - `--flag-positive` `#63b0bb` — **4.95:1**, passes WCAG AA. No change.
+> - `--flag-negative` sampled `#e46a95` — **3.98:1**, *failed* AA for normal text. Lightened (same hue) to **`#e77da3` → 4.60:1**, which clears AA.
+>
+> Never carry flagged-vs-positive by color alone (the worded pill + the report's inline labels satisfy this).
 
 ---
 
