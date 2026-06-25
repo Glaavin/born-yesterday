@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import "./globals.css";
+import Shell from "@/components/Shell";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -43,7 +44,9 @@ export default function RootLayout({
       lang="en"
       className={`${fraunces.variable} ${inter.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <Shell>{children}</Shell>
+      </body>
     </html>
   );
 }
