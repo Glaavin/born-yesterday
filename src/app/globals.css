@@ -69,3 +69,13 @@ body {
   font-family: var(--font-body), system-ui, sans-serif;
   min-height: 100vh;
 }
+
+/* --- Layout shell (Story 1.2.3) — custom utilities sourced from @theme tokens.
+   A gradient fill and an asymmetric 3-column grid template can't be expressed as
+   standard Tailwind utilities without arbitrary values, so they live here. --- */
+@utility surface-header {
+  background: var(--gradient-surface-header);
+}
+@utility shell-cols {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
