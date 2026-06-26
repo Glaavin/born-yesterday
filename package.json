@@ -13,6 +13,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:check": "tsx scripts/db-check.ts",
+    "signal:domain": "tsx scripts/signal-domain.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
