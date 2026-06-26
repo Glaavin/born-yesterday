@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { parseTrustpilot } from "./trustpilot";
-import { parseBbb } from "./bbb";
 import { webReviewSearchUrl, redditSearchUrl } from "./reputation-links";
 import { collectReputation, type ReputationDeps } from "./reputation";
 import type { Fetcher, FetchResult } from "../lib/cached-fetch";
@@ -16,13 +15,6 @@ const TP_HTML = `<html><head>
 
 const TP_NO_RATING = `<html><head><title>Example</title></head><body>No reviews yet</body></html>`;
 
-const BBB_HTML = `<html><body>
-<a href="https://www.bbb.org/us/ca/example/profile/software/example-app-1234-90012345">Example, Inc.</a>
-<span data-x='{"rating":"A+"}'>BBB Rating: A+</span>
-</body></html>`;
-
-const BBB_NONE = `<html><body>No results found for that search.</body></html>`;
-
 describe("parseTrustpilot (pure)", () => {
   it("reads rating + reviewCount from JSON-LD", () => {
     expect(parseTrustpilot(TP_HTML)).toEqual({ rating: 4.2, reviewCount: 1203 });
@@ -30,18 +22,6 @@ describe("parseTrustpilot (pure)", () => {
   it("returns nulls when there's no rating / on a block", () => {
     expect(parseTrustpilot(TP_NO_RATING)).toEqual({ rating: null, reviewCount: null });
     expect(parseTrustpilot("<html>403 Forbidden</html>")).toEqual({ rating: null, reviewCount: null });
-  });
-});
-
-describe("parseBbb (pure)", () => {
-  it("extracts the grade + profile link", () => {
-    expect(parseBbb(BBB_HTML)).toEqual({
-      grade: "A+",
-      profileUrl: "https://www.bbb.org/us/ca/example/profile/software/example-app-1234-90012345",
-    });
-  });
-  it("returns nulls when absent", () => {
-    expect(parseBbb(BBB_NONE)).toEqual({ grade: null, profileUrl: null });
   });
 });
 
@@ -55,16 +35,14 @@ describe("reputation link-outs (pure)", () => {
 });
 
 describe("collectReputation", () => {
-  const routed = (over: Record<string, FetchResult>): Fetcher =>
-    vi.fn<Fetcher>(async (opts): Promise<FetchResult> => {
-      if (opts.url.includes("trustpilot.com")) return over.tp ?? fetchFail();
-      if (opts.url.includes("bbb.org")) return over.bbb ?? fetchFail();
-      return fetchFail();
-    });
+  // BBB is now a link-out (decision A) — only Trustpilot is fetched.
+  const tpFetcher = (tp: FetchResult): Fetcher =>
+    vi.fn<Fetcher>(async (opts): Promise<FetchResult> =>
+      opts.url.includes("trustpilot.com") ? tp : fetchFail(),
+    );
 
-  it("both present → formatted + sourced; link-outs always present; ok:true", async () => {
-    const deps: ReputationDeps = { fetcher: routed({ tp: fetchOk(TP_HTML), bbb: fetchOk(BBB_HTML) }) };
-    const r = await collectReputation("example.com", deps);
+  it("Trustpilot present → formatted + sourced; BBB is a link-out; ok:true", async () => {
+    const r = await collectReputation("example.com", { fetcher: tpFetcher(fetchOk(TP_HTML)) });
 
     expect(r.ok).toBe(true);
     const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
@@ -74,22 +52,21 @@ describe("collectReputation", () => {
       label: "Trustpilot",
       url: "https://www.trustpilot.com/review/example.com",
     });
-    expect(by.bbb.valueText).toBe("A+");
-    expect(by.bbb.source?.url).toContain("/profile/");
+    // BBB: a link-out, never a scraped grade
+    expect(by.bbb.valueText).toBe("Check BBB for this domain");
+    expect(by.bbb.source?.url).toBe("https://www.bbb.org/search?find_text=example.com");
     expect(by.reputation_search.source?.url).toContain("google.com/search");
     expect(by.reddit_search.source?.url).toContain("reddit.com/search");
   });
 
-  it("Trustpilot/BBB absent or blocked → those 'Not found'; link-outs present; ok:true", async () => {
-    const deps: ReputationDeps = { fetcher: routed({ tp: fetchFail(), bbb: fetchFail() }) };
-    const r = await collectReputation("example.com", deps);
+  it("Trustpilot blocked → 'Not found'; BBB + link-outs still present; ok:true", async () => {
+    const r = await collectReputation("example.com", { fetcher: tpFetcher(fetchFail()) });
 
     expect(r.ok).toBe(true);
     const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
     expect(by.trustpilot.valueText).toBeNull();
     expect(by.trustpilot.source).toBeNull();
-    expect(by.bbb.valueText).toBeNull();
-    // link-outs still present + sourced
+    expect(by.bbb.source).not.toBeNull(); // link-out always present
     expect(by.reputation_search.source).not.toBeNull();
     expect(by.reddit_search.source).not.toBeNull();
   });
@@ -105,7 +82,7 @@ describe("collectReputation", () => {
     expect(r.ok).toBe(true);
     const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
     expect(by.trustpilot.valueText).toBeNull();
-    expect(by.bbb.valueText).toBeNull();
+    expect(by.bbb.valueText).toBe("Check BBB for this domain");
     expect(by.reputation_search.valueText).toBe("Search the web for reviews / scam reports");
   });
 });

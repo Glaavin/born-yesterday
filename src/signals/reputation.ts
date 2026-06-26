@@ -1,7 +1,7 @@
 import type { Fetcher } from "../lib/cached-fetch";
 import type { CollectorResult, Signal } from "./types";
 import { fetchTrustpilot, parseTrustpilot, trustpilotUrl } from "./trustpilot";
-import { fetchBbb, parseBbb, bbbSearchUrl } from "./bbb";
+import { bbbSearchUrl } from "./bbb";
 import { webReviewSearchUrl, redditSearchUrl } from "./reputation-links";
 
 /**
@@ -44,20 +44,6 @@ export async function collectReputation(
     // best-effort: a failure is "Not found", not an error
   }
 
-  // BBB (best-effort).
-  let bbbGrade: string | null = null;
-  let bbbProfile: string | null = null;
-  try {
-    const r = await fetchBbb(domain, deps.fetcher);
-    if (r.ok && r.html) {
-      const p = parseBbb(r.html);
-      bbbGrade = p.grade;
-      bbbProfile = p.profileUrl;
-    }
-  } catch {
-    // best-effort
-  }
-
   const signals: Signal[] = [
     {
       key: "trustpilot",
@@ -67,11 +53,12 @@ export async function collectReputation(
       source: trustpilotText ? { label: "Trustpilot", url: trustpilotUrl(domain) } : null,
     },
     {
+      // BBB is now a LINK-OUT only (decision A) — always present, never scraped.
       key: "bbb",
-      label: "BBB rating",
-      valueText: bbbGrade,
+      label: "BBB",
+      valueText: "Check BBB for this domain",
       valueNum: null,
-      source: bbbGrade ? { label: "BBB", url: bbbProfile ?? bbbSearchUrl(domain) } : null,
+      source: { label: "BBB", url: bbbSearchUrl(domain) },
     },
     {
       // Link-outs are ALWAYS present (links, not scrapes).

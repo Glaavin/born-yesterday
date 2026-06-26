@@ -19,6 +19,7 @@
     "signal:threats": "tsx scripts/signal-threats.ts",
     "signal:reputation": "tsx scripts/signal-reputation.ts",
     "signal:ai": "tsx scripts/signal-ai.ts",
+    "signal:report": "tsx scripts/signal-report.ts",
     "threat:ingest": "tsx scripts/threat-ingest.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
