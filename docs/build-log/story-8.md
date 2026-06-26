@@ -47,10 +47,17 @@ module, and domain normalization. No signal collection, no UI.
 - **Approved the esbuild build script** in pnpm-workspace.yaml so vitest/tsx run identically locally and in CI.
 
 ## Follow-ups / tech debt
-- **Part B (apply migration to the dev DB) is PENDING the owner's `.env.local`** — not present in the working copy. Once provided, run `pnpm db:migrate` then `pnpm db:check` and paste the NAMES-ONLY checklist here.
 - `normalizeDomain` is ASCII-only: IDN/unicode hosts and bare IPs return null. Add punycode (toASCII) support if non-ASCII domains become in-scope.
 - DB-function integration tests (`*.integration.test.ts`, excluded from CI) can be added once a throwaway/test DB is available.
 
 ## Gates
 - install | lint | typecheck | test (12 passed) | build (no DB present → passes): **pass**
-- db:migrate | db:check (Part B): **pending owner `.env.local`**
+- **Part B — `pnpm db:migrate` then `pnpm db:check` against the dev DB: pass.** db:check (NAMES ONLY):
+  ```
+  Tables (mvp-spec §5):
+    ✓ domains  ✓ reports  ✓ signal_history
+    ✓ external_cache  ✓ search_quota  ✓ watchlist_subscriptions
+  Indexes:
+    ✓ idx_signal_history_domain  ✓ idx_signal_history_type
+  ✓ All six tables and both indexes present.
+  ```
