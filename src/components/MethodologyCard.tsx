@@ -9,12 +9,12 @@ export default function MethodologyCard() {
       aria-label="How Born Yesterday works"
       className="w-full max-w-2xl rounded-lg border border-accent-gold/40 p-6"
     >
-      <p className="text-label-teal">
+      <p className="text-ink">
         Born Yesterday checks are built entirely from public data and fixed,
         published rubrics &mdash; no black box, no guesswork. Every signal we
         raise links back to the source it came from.
       </p>
-      <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-label-teal sm:columns-2">
+      <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-ink-muted sm:columns-2">
         <li>What a report covers</li>
         <li>Sources of data</li>
         <li>

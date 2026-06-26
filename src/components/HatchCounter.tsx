@@ -4,10 +4,12 @@
  */
 export default function HatchCounter({ count }: { count: number }) {
   return (
-    <p className="text-center text-base text-accent-gold">
+    <p className="text-center text-base text-ink">
       Something&rsquo;s hatching!{" "}
-      <span className="font-semibold">{count.toLocaleString()}</span> reports
-      hatched so far.
+      <span className="font-semibold text-accent-gold">
+        {count.toLocaleString()}
+      </span>{" "}
+      reports hatched so far.
     </p>
   );
 }

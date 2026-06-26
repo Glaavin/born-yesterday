@@ -28,6 +28,8 @@
   --color-flag-positive: #63b0bb;  /* positive findings — AA on surface-body (4.95:1) */
   --color-flag-negative: #e77da3;  /* flagged data / red-flag pill — adjusted from sampled #e46a95 for WCAG AA (see §8.2) */
   --color-input-surface: #eaffff;  /* input field */
+  --color-ink: #e9f1f2;            /* primary body copy — AA on surface-body (10.73:1) */
+  --color-ink-muted: #a7bcc0;      /* secondary copy / captions — AA on surface-body (6.21:1) */
 
   /* ---- Gradient tokens (§8.2) ----
      Three §8.2 tokens are gradients, not flat colors. Each is kept as paired
