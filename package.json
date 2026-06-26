@@ -14,6 +14,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "tsx scripts/db-check.ts",
     "signal:domain": "tsx scripts/signal-domain.ts",
+    "signal:certs": "tsx scripts/signal-certs.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
