@@ -1,8 +1,11 @@
 # Build log
 
-One file per story (`<phase>.<sprint>.<story>.md`), committed in that story's PR, so the PM
-can read each story's outcome directly from the repo. It is CC's self-report; the PM still
-verifies against the actual source on `main`.
+One file per story (`story-<n>.md`; small follow-ups use a decimal, `story-<n>.<m>.md`),
+committed in that story's PR, so the PM can read each story's outcome directly from the repo.
+It is CC's self-report; the PM still verifies against the actual source on `main`.
+
+> Older Hydrogen-era entries used the `<phase>.<sprint>.<story>.md` scheme (e.g. `1.2.7.md`).
+> From the Helium Epic onward the filename follows the continuous story counter (`story-8.md`).
 
 ## Template
 
