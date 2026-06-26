@@ -1,22 +1,17 @@
 import type { ReactNode } from "react";
+import AdSlot from "./AdSlot";
 
 /**
  * Shared page shell (Story 1.2.3): header nav band, three-column grid
  * (ad rail / max-width content / ad rail), and footer. Server Component.
- * No wordmark, mascot, ads, or page content — rails are reserved placeholders
- * (the real <AdSlot> arrives in 1.2.4).
  */
 
-/** Reserved 160×600 IAB skyscraper slot (design-system.md §5). The fixed size
- *  is held with standard Tailwind scale utilities (w-40 = 160px, h-150 = 600px)
- *  so ad load causes no layout shift. Empty/decorative until 1.2.4. */
-function AdRail() {
+/** Desktop-only ad rail holding one reserved 160×600 <AdSlot> (design-system.md
+ *  §5). Each rail passes a distinct slot id. */
+function AdRail({ id }: { id: string }) {
   return (
     <div className="hidden items-start justify-center px-4 py-10 lg:flex">
-      <div
-        aria-hidden="true"
-        className="h-150 w-40 rounded-md border border-dashed border-label-teal/25"
-      />
+      <AdSlot id={id} />
     </div>
   );
 }
@@ -41,9 +36,9 @@ export default function Shell({ children }: { children: ReactNode }) {
       </header>
 
       <div className="grid flex-1 grid-cols-1 lg:shell-cols">
-        <AdRail />
+        <AdRail id="rail-left" />
         <main className="mx-auto w-full max-w-3xl px-6 py-10">{children}</main>
-        <AdRail />
+        <AdRail id="rail-right" />
       </div>
 
       <footer className="surface-header w-full">
