@@ -70,6 +70,30 @@ describe("fetchTls (host-check before connect)", () => {
     expect(tlsConnect).not.toHaveBeenCalled();
   });
 
+  it("FAILS CLOSED when allowed but no validated IP to pin (never connects by hostname)", async () => {
+    const tlsConnect = vi.fn(async () => CERT);
+    // resolver returns no addresses → hostAllowed = { allowed:true, ips:[] }
+    const deps: TlsDeps = { resolveHost: async () => [], tlsConnect };
+
+    const r = await fetchTls("example.com", deps);
+
+    expect(r).toEqual({ ok: false, error: "blocked" });
+    expect(tlsConnect).not.toHaveBeenCalled();
+  });
+
+  it("FAILS CLOSED on a fail-open ENOTFOUND (no IP to pin)", async () => {
+    const tlsConnect = vi.fn(async () => CERT);
+    const deps: TlsDeps = {
+      resolveHost: async () => {
+        throw Object.assign(new Error("nope"), { code: "ENOTFOUND" });
+      },
+      tlsConnect,
+    };
+
+    expect(await fetchTls("ghost.test", deps)).toEqual({ ok: false, error: "blocked" });
+    expect(tlsConnect).not.toHaveBeenCalled();
+  });
+
   it("connects to the VALIDATED resolved IP with servername=domain (IP-pinning)", async () => {
     const tlsConnect = vi.fn(async () => CERT);
     const deps: TlsDeps = { resolveHost: async () => ["93.184.216.34"], tlsConnect };

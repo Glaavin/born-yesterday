@@ -75,9 +75,14 @@ export async function fetchTls(domain: string, deps: TlsDeps): Promise<TlsResult
   const check = await hostAllowed(domain, deps.resolveHost);
   if (!check.allowed) return { ok: false, error: "blocked" }; // never connect
 
-  // Pin to a validated resolved IP (closes the rebinding TOCTOU); fall back to
-  // the hostname only for the IP-literal case (no resolved IPs to pin).
-  const connectHost = check.ips[0] ?? domain;
+  // The ONLY valid connect target is a validated IP from the check. If there's
+  // no IP to pin (a fail-open ENOTFOUND/EAI_AGAIN or an empty resolver result),
+  // FAIL CLOSED — connecting by hostname would let tls.connect re-resolve and
+  // reopen the rebinding TOCTOU this path exists to close. (IP-literal inputs
+  // already yield ips:[literal], so direct-IP targets are unaffected.)
+  const connectHost = check.ips[0];
+  if (!connectHost) return { ok: false, error: "blocked" };
+
   try {
     const cert = await deps.tlsConnect({
       host: connectHost,
