@@ -15,6 +15,7 @@
     "db:check": "tsx scripts/db-check.ts",
     "signal:domain": "tsx scripts/signal-domain.ts",
     "signal:certs": "tsx scripts/signal-certs.ts",
+    "signal:dns": "tsx scripts/signal-dns.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
