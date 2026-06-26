@@ -359,4 +359,63 @@ describe("cached-fetch harness", () => {
 
     expect(r).toEqual({ ok: true, status: 200, body: "PAGE", fromCache: false });
   });
+
+  // ---- Section A: scheme allowlist + response-size cap (Story 15) ----
+
+  it("blocks a non-http(s) initial scheme without fetching", async () => {
+    const fetchImpl = vi.fn<FetchImpl>(async () => resp(200, "X"));
+    const { fetcher } = build({ fetchImpl });
+
+    const r = await fetcher({
+      source: "x",
+      key: "k",
+      url: "gopher://evil.example/secret",
+      ttlSeconds: 0,
+      kind: "third-party",
+    });
+
+    expect(r).toEqual({ ok: false, error: "blocked" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("blocks a redirect to a non-http(s) scheme (re-checked per hop)", async () => {
+    const fetchImpl = vi.fn<FetchImpl>(async (url) =>
+      url === "https://api.example/"
+        ? resp(302, "", { location: "file:///etc/passwd" })
+        : resp(200, "SHOULD-NOT-HAPPEN"),
+    );
+    const { fetcher, cache } = build({ fetchImpl });
+
+    const r = await fetcher({
+      source: "tp",
+      key: "k",
+      url: "https://api.example/",
+      ttlSeconds: 60,
+      kind: "third-party",
+    });
+
+    expect(r).toEqual({ ok: false, error: "blocked" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1); // only hop 0
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it("caps an over-size response body (truncated)", async () => {
+    const fetchImpl = vi.fn<FetchImpl>(async () => resp(200, "x".repeat(100)));
+    const { fetcher } = build({ fetchImpl });
+
+    const r = await fetcher({
+      source: "big",
+      key: "k",
+      url: "https://example.com/huge",
+      ttlSeconds: 0,
+      kind: "third-party",
+      maxBytes: 10,
+    });
+
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.body.length).toBe(10);
+      expect(r.truncated).toBe(true);
+    }
+  });
 });
