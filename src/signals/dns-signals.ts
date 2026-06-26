@@ -16,8 +16,10 @@ export interface DnsDeps {
 }
 
 // Human-viewable record source for a given name/type (dns.google's query UI).
+// Neutral label: we query Cloudflare but link the dns.google record viewer (a
+// human view of the same record), so the label shouldn't name a different operator.
 const dnsSource = (name: string, type: string): SignalSource => ({
-  label: "DNS over HTTPS (Cloudflare)",
+  label: "DNS over HTTPS",
   url: `https://dns.google/query?name=${encodeURIComponent(name)}&type=${type}`,
 });
 

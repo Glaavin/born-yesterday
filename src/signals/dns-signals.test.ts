@@ -95,7 +95,7 @@ describe("collectDns", () => {
     const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
     expect(by.dns_spf.valueText).toBe("v=spf1 include:_spf.google.com ~all");
     expect(by.dns_spf.source).toEqual({
-      label: "DNS over HTTPS (Cloudflare)",
+      label: "DNS over HTTPS",
       url: "https://dns.google/query?name=example.com&type=TXT",
     });
     expect(by.dns_dmarc.valueText).toBe("v=DMARC1; p=reject; rua=mailto:d@x.com");

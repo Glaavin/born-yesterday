@@ -6,11 +6,13 @@ import {
   signalHistory,
   externalCache,
   searchQuota,
+  threatHosts,
   type DomainRow,
   type ReportRow,
   type NewReportRow,
   type NewSignalHistoryRow,
   type ExternalCacheRow,
+  type NewThreatHostRow,
 } from "./schema";
 
 /**
@@ -134,6 +136,40 @@ export async function getSessionQuota(
     .from(searchQuota)
     .where(and(eq(searchQuota.sessionKey, sessionKey), eq(searchQuota.day, day)));
   return row?.count ?? 0;
+}
+
+/** Number of locally-stored threat hosts for a source (0 ⇒ never ingested). */
+export async function countThreatHosts(source: string): Promise<number> {
+  const db = getDb();
+  const [row] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(threatHosts)
+    .where(eq(threatHosts.source, source));
+  return row?.c ?? 0;
+}
+
+/** Is `host` listed under `source` in the local threat table? */
+export async function isThreatHostListed(source: string, host: string): Promise<boolean> {
+  const db = getDb();
+  const rows = await db
+    .select({ h: threatHosts.host })
+    .from(threatHosts)
+    .where(and(eq(threatHosts.source, source), eq(threatHosts.host, host)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** Bulk upsert threat hosts (append-only; keeps the earliest first_seen). */
+export async function upsertThreatHosts(rows: NewThreatHostRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  const db = getDb();
+  const CHUNK = 1000;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await db
+      .insert(threatHosts)
+      .values(rows.slice(i, i + CHUNK))
+      .onConflictDoNothing();
+  }
 }
 
 /** Atomically bump and return the session's count for the given day. */

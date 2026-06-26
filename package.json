@@ -16,6 +16,8 @@
     "signal:domain": "tsx scripts/signal-domain.ts",
     "signal:certs": "tsx scripts/signal-certs.ts",
     "signal:dns": "tsx scripts/signal-dns.ts",
+    "signal:threats": "tsx scripts/signal-threats.ts",
+    "threat:ingest": "tsx scripts/threat-ingest.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

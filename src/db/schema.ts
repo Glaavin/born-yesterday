@@ -116,6 +116,20 @@ export const watchlistSubscriptions = pgTable(
   (t) => [unique("watchlist_email_domain_unique").on(t.email, t.domain)],
 );
 
+// Locally-stored threat entries (e.g. the PhishTank dump). Looked up per-host.
+export const threatHosts = pgTable(
+  "threat_hosts",
+  {
+    source: text("source").notNull(), // e.g. "phishtank"
+    host: text("host").notNull(), // normalized host extracted from a listed URL
+    firstSeen: bigint("first_seen", { mode: "number" }).notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.source, t.host] }),
+    index("idx_threat_hosts_host").on(t.host),
+  ],
+);
+
 // Inferred row types for the typed DB module (queries.ts).
 export type DomainRow = typeof domains.$inferSelect;
 export type ReportRow = typeof reports.$inferSelect;
@@ -123,3 +137,4 @@ export type NewReportRow = typeof reports.$inferInsert;
 export type SignalHistoryRow = typeof signalHistory.$inferSelect;
 export type NewSignalHistoryRow = typeof signalHistory.$inferInsert;
 export type ExternalCacheRow = typeof externalCache.$inferSelect;
+export type NewThreatHostRow = typeof threatHosts.$inferInsert;
