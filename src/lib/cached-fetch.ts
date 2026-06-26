@@ -65,23 +65,22 @@ async function readBodyCapped(
     const parts: Uint8Array[] = [];
     let total = 0;
     let truncated = false;
-    try {
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!value) continue;
-        const remaining = maxBytes - total;
-        if (value.byteLength >= remaining) {
-          parts.push(value.subarray(0, Math.max(0, remaining)));
-          truncated = true;
-          await reader.cancel().catch(() => {});
-          break;
-        }
-        parts.push(value);
-        total += value.byteLength;
+    // A mid-stream read error is NOT swallowed: it propagates so the caller can
+    // surface a network failure rather than mis-scanning a partial body as
+    // complete (Story 15.1).
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      const remaining = maxBytes - total;
+      if (value.byteLength >= remaining) {
+        parts.push(value.subarray(0, Math.max(0, remaining)));
+        truncated = true;
+        await reader.cancel().catch(() => {});
+        break;
       }
-    } catch {
-      // stream error → return whatever we collected
+      parts.push(value);
+      total += value.byteLength;
     }
     return { text: new TextDecoder().decode(concatChunks(parts)), truncated };
   }
@@ -441,7 +440,13 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
         continue;
       }
       if (status >= 200 && status < 300) {
-        const { text: body, truncated } = await readBodyCapped(out.res, maxBytes);
+        let read: { text: string; truncated: boolean };
+        try {
+          read = await readBodyCapped(out.res, maxBytes);
+        } catch {
+          return { ok: false, error: "network" }; // partial/dropped read — don't cache or mis-scan
+        }
+        const { text: body, truncated } = read;
         if (opts.ttlSeconds > 0) await cache.set(cacheKey, body, opts.ttlSeconds);
         return { ok: true, status, body, fromCache: false, ...(truncated ? { truncated: true } : {}) };
       }

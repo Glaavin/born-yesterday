@@ -36,6 +36,12 @@ describe("matchAiTerms / stripToText (pure, §2B)", () => {
     expect(matchAiTerms(stripToText(html))).toEqual([]); // the script's 'ai' is gone
     expect(matchAiTerms(stripToText("<h1>We use AI-powered tools</h1>"))).toContain("AI-powered");
   });
+
+  it("stripToText drops an UNCLOSED script/style body (no keyword leak)", () => {
+    expect(stripToText("<p>hello</p><script>const llm = useGPT();")).toBe("hello");
+    expect(matchAiTerms(stripToText("<style>.x{}</style><script>var gpt = 1"))).toEqual([]);
+    expect(stripToText("<script>var gpt=1</script>real text")).toBe("real text"); // closed still works
+  });
 });
 
 describe("parseCdx (pure)", () => {
