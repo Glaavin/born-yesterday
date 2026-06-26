@@ -13,6 +13,9 @@ import { extractHost } from "./host";
  */
 
 const DUMP_TIMEOUT_MS = 60_000;
+// The dump is intentionally large (tens of MB) — opt out of the harness's 5 MB
+// default cap so it isn't silently truncated into invalid JSON (Story 15.1).
+const DUMP_MAX_BYTES = 64 * 1024 * 1024;
 
 export interface IngestDeps {
   fetcher: Fetcher;
@@ -40,6 +43,7 @@ export async function ingestPhishtank(deps: IngestDeps): Promise<IngestResult> {
     ttlSeconds: 0, // never cache the dump
     kind: "third-party",
     timeoutMs: DUMP_TIMEOUT_MS,
+    maxBytes: DUMP_MAX_BYTES, // the dump is large by design — don't truncate it
     maxRetries: 1,
   });
   if (!res.ok) {

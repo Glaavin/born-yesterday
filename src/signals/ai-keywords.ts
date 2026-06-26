@@ -52,8 +52,10 @@ const PATTERNS: ReadonlyArray<{ term: string; re: RegExp }> = AI_TERMS.map((term
 /** Reduce HTML to lowercased visible text: drop script/style, strip tags, collapse space. */
 export function stripToText(html: string): string {
   return html
-    .replace(/<script[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    // Drop script/style bodies — incl. an UNCLOSED one (to end-of-input), so JS
+    // like a `gpt` variable can't leak into the visible text (Story 15.1).
+    .replace(/<script\b[\s\S]*?(?:<\/script>|$)/gi, " ")
+    .replace(/<style\b[\s\S]*?(?:<\/style>|$)/gi, " ")
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")

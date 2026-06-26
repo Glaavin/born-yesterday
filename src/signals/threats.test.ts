@@ -3,7 +3,7 @@ import { parseUrlhaus } from "./urlhaus";
 import { extractHost } from "./host";
 import { ingestPhishtank } from "./phishtank-ingest";
 import { collectThreats, type ThreatsDeps } from "./threats";
-import type { Fetcher, FetchResult } from "../lib/cached-fetch";
+import { createFetcher, type Fetcher, type FetchResult, type FetchImpl } from "../lib/cached-fetch";
 
 const fetchOk = (body: string): FetchResult => ({ ok: true, status: 200, body, fromCache: false });
 const fetchFail = (): FetchResult => ({ ok: false, error: "network" });
@@ -77,6 +77,32 @@ describe("ingestPhishtank (best-effort)", () => {
     });
     expect(r.skipped).toBe(true);
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("parses a >5MB dump in FULL through the harness (the maxBytes override is honored)", async () => {
+    // ~6 MB JSON array — under the harness's 5 MB DEFAULT this would truncate to
+    // invalid JSON and skip; the ingest's 64 MB override must let it parse whole.
+    const big = "[" + Array(200_000).fill('{"url":"http://h.example/login"}').join(",") + "]";
+    expect(big.length).toBeGreaterThan(5 * 1024 * 1024);
+
+    const fetchImpl = vi.fn<FetchImpl>(async () => ({
+      status: 200,
+      text: async () => big,
+      headers: { get: () => null },
+    }));
+    const harness = createFetcher({
+      fetchImpl,
+      cache: { get: async () => null, set: async () => {} },
+      sleep: async () => {},
+      now: () => 0,
+      resolveHost: async () => ["93.184.216.34"],
+    });
+    const upsert = vi.fn(async () => {});
+
+    const r = await ingestPhishtank({ fetcher: harness, upsert, now: () => 1 });
+
+    expect(r.skipped).toBe(false); // full parse (truncation → JSON.parse throws → skipped)
+    expect(r.ingested).toBe(1); // all entries share one host → deduped to 1
   });
 });
 

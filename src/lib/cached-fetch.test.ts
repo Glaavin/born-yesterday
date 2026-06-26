@@ -399,6 +399,40 @@ describe("cached-fetch harness", () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
+  it("surfaces a mid-stream read error as a network failure (not a short body)", async () => {
+    const erroringStream = {
+      getReader() {
+        let n = 0;
+        return {
+          async read() {
+            n += 1;
+            if (n === 1) return { done: false, value: new TextEncoder().encode("partial-") };
+            throw new Error("stream broke mid-read");
+          },
+          async cancel() {},
+        };
+      },
+    };
+    const fetchImpl = vi.fn<FetchImpl>(async () => ({
+      status: 200,
+      text: async () => "partial-",
+      headers: { get: () => null },
+      body: erroringStream as unknown as ReadableStream<Uint8Array>,
+    }));
+    const { fetcher, cache } = build({ fetchImpl });
+
+    const r = await fetcher({
+      source: "s",
+      key: "k",
+      url: "https://example.com/stream",
+      ttlSeconds: 60,
+      kind: "third-party",
+    });
+
+    expect(r).toEqual({ ok: false, error: "network" });
+    expect(cache.set).not.toHaveBeenCalled(); // partial body never cached
+  });
+
   it("caps an over-size response body (truncated)", async () => {
     const fetchImpl = vi.fn<FetchImpl>(async () => resp(200, "x".repeat(100)));
     const { fetcher } = build({ fetchImpl });
