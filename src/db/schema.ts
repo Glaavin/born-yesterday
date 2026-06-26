@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -7,6 +8,7 @@ import {
   index,
   primaryKey,
   unique,
+  check,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -35,16 +37,27 @@ export const domains = pgTable("domains", {
 });
 
 // Current cached report per domain. Overwritten on refresh.
-export const reports = pgTable("reports", {
-  domain: text("domain")
-    .primaryKey()
-    .references(() => domains.domain),
-  generatedAt: bigint("generated_at", { mode: "number" }).notNull(),
-  expiresAt: bigint("expires_at", { mode: "number" }).notNull(), // generated_at + 7 days
-  reportJson: text("report_json").notNull(), // JSONB is fine too; TEXT per §5
-  skepticismState: text("skepticism_state").$type<SkepticismState>().notNull(),
-  schemaVersion: integer("schema_version").notNull(),
-});
+export const reports = pgTable(
+  "reports",
+  {
+    domain: text("domain")
+      .primaryKey()
+      .references(() => domains.domain),
+    generatedAt: bigint("generated_at", { mode: "number" }).notNull(),
+    expiresAt: bigint("expires_at", { mode: "number" }).notNull(), // generated_at + 7 days
+    reportJson: text("report_json").notNull(), // JSONB is fine too; TEXT per §5
+    skepticismState: text("skepticism_state").$type<SkepticismState>().notNull(),
+    schemaVersion: integer("schema_version").notNull(),
+  },
+  // Defense-in-depth: the column stays TEXT (§5), but the DB itself rejects any
+  // value outside the four states. The $type<> guard above is compile-time only.
+  (t) => [
+    check(
+      "skepticism_state_check",
+      sql`${t.skepticismState} in ('green', 'amber', 'red', 'blue')`,
+    ),
+  ],
+);
 
 // Longitudinal record. Append-only. The proprietary moat.
 export const signalHistory = pgTable(

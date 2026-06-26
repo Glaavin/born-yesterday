@@ -1,0 +1,1 @@
+ALTER TABLE "reports" ADD CONSTRAINT "skepticism_state_check" CHECK ("reports"."skepticism_state" in ('green', 'amber', 'red', 'blue'));

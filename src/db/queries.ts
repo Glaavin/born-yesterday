@@ -34,6 +34,9 @@ export async function getOrCreateDomain(domain: string): Promise<DomainRow> {
     .select()
     .from(domains)
     .where(eq(domains.domain, domain));
+  if (!row) {
+    throw new Error(`getOrCreateDomain: row missing after upsert for ${domain}`);
+  }
   return row;
 }
 
