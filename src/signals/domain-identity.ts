@@ -2,6 +2,7 @@ import type { Fetcher } from "../lib/cached-fetch";
 import type { CollectorResult, Signal, SignalSource } from "./types";
 import { fetchRdap, parseRdap, rdapUrl } from "./rdap";
 import { queryWhois, parseWhois, type WhoisDeps } from "./whois";
+import { isoToEpochSec } from "./dates";
 
 /**
  * Domain identity & age (mvp-spec §2A) — the FIRST signal collector and the
@@ -74,11 +75,14 @@ export async function collectDomainIdentity(
   }
 
   const nowSec = Math.floor((deps.now?.() ?? Date.now()) / 1000);
-  const regSec = regIso != null ? Math.floor(Date.parse(regIso) / 1000) : null;
-  const ageDays =
-    regSec != null && !Number.isNaN(regSec)
-      ? Math.floor((nowSec - regSec) / SECONDS_PER_DAY)
-      : null;
+  // ok-contract: gate on a cleanly-PARSED date, not mere field presence. An
+  // unparseable eventDate is dropped (we never assert what we can't parse).
+  const regSec = isoToEpochSec(regIso);
+  if (regIso != null && regSec == null) {
+    regIso = null;
+    regFrom = null;
+  }
+  const ageDays = regSec != null ? Math.floor((nowSec - regSec) / SECONDS_PER_DAY) : null;
 
   const srcFor = (from: Source): SignalSource | null =>
     from ? sources[from] : null;
@@ -90,7 +94,7 @@ export async function collectDomainIdentity(
       key: "domain_registration_date",
       label: "Registration date",
       valueText: regIso,
-      valueNum: regSec != null && !Number.isNaN(regSec) ? regSec : null,
+      valueNum: regSec,
       source: srcFor(regFrom),
       note: noteFor(regFrom),
     },

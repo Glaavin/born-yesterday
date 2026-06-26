@@ -10,9 +10,23 @@
  * pre-parsed objects, whereas we want raw text in and a pure parser.
  */
 
+import { toISO } from "./dates";
+
 /** 7 days — registration data is effectively static. */
 const WHOIS_TTL_SECONDS = 60 * 60 * 24 * 7;
 const DEFAULT_TIMEOUT_MS = 5000;
+/** Cap accumulated bytes so a hostile/huge WHOIS response can't exhaust memory. */
+const WHOIS_MAX_BYTES = 1 << 20; // 1 MiB
+
+/** A minimal socket shape (what node:net's createConnection returns, and what
+ *  tests fake). */
+export interface WhoisSocket {
+  setEncoding(enc: string): void;
+  write(data: string): void;
+  destroy(): void;
+  on(event: string, cb: (arg?: unknown) => void): void;
+}
+export type WhoisConnect = (port: number, host: string) => WhoisSocket;
 
 /** Common TLD → registry WHOIS server (avoids an IANA round-trip for these). */
 const TLD_WHOIS: Record<string, string> = {
@@ -36,31 +50,45 @@ export interface WhoisDeps {
   timeoutMs?: number;
 }
 
-/** Default real socket implementation (node:net, lazy-imported). */
+/**
+ * Default real socket implementation (node:net, lazy-imported). The connection
+ * factory is injectable so the byte-cap behavior is unit-testable without a real
+ * socket. Accumulation is capped at WHOIS_MAX_BYTES (destroy + return truncated).
+ */
 export async function socketWhois(
   host: string,
   query: string,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  connect?: WhoisConnect,
 ): Promise<string> {
-  const net = await import("node:net");
+  const createConnection =
+    connect ?? ((await import("node:net")).createConnection as unknown as WhoisConnect);
   return new Promise<string>((resolve, reject) => {
     let data = "";
-    const socket = net.createConnection(43, host);
+    let done = false;
+    const socket = createConnection(43, host);
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      fn();
+    };
     const timer = setTimeout(() => {
       socket.destroy();
-      reject(new Error("whois: timeout"));
+      finish(() => reject(new Error("whois: timeout")));
     }, timeoutMs);
     socket.setEncoding("utf8");
     socket.on("connect", () => socket.write(query + "\r\n"));
-    socket.on("data", (d) => (data += d));
-    socket.on("error", (e) => {
-      clearTimeout(timer);
-      reject(e);
+    socket.on("data", (d) => {
+      data += String(d);
+      if (data.length >= WHOIS_MAX_BYTES) {
+        data = data.slice(0, WHOIS_MAX_BYTES);
+        socket.destroy();
+        finish(() => resolve(data)); // truncated but usable
+      }
     });
-    socket.on("close", () => {
-      clearTimeout(timer);
-      resolve(data);
-    });
+    socket.on("error", (e) => finish(() => reject(e)));
+    socket.on("close", () => finish(() => resolve(data)));
   });
 }
 
@@ -109,12 +137,6 @@ export async function queryWhois(
   }
   if (text && text.trim()) await deps.cache.set(cacheKey, text, WHOIS_TTL_SECONDS);
   return text || null;
-}
-
-/** Normalize a WHOIS date string to ISO, or null if it doesn't parse cleanly. */
-function toISO(s: string): string | null {
-  const d = new Date(s.trim());
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 /**

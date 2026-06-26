@@ -1,4 +1,5 @@
 import { cacheGet, cacheSet } from "../db/queries";
+import { hostAllowed } from "./ssrf";
 
 /**
  * cached-fetch — the SINGLE outbound HTTP path every Helium signal collector
@@ -135,90 +136,6 @@ function onAbort(signal: AbortSignal): Promise<void> {
   });
 }
 
-// ---- SSRF egress filtering (mvp-spec §10) ----------------------------------
-// A user-submitted domain must NEVER cause a fetch to a private/internal/
-// link-local/loopback/cloud-metadata address. We validate the host (IP literal,
-// or hostname resolved via the injected resolver) against the blocked ranges,
-// for every kind and every redirect hop.
-
-function parseIPv4(s: string): number[] | null {
-  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s);
-  if (!m) return null;
-  const o = m.slice(1, 5).map(Number);
-  return o.some((n) => n > 255) ? null : o;
-}
-
-/** Expand any IPv6 textual form (incl. embedded IPv4) to 16 bytes, or null. */
-function ipv6ToBytes(input: string): number[] | null {
-  let addr = input.split("%")[0]; // drop zone id
-  const dot = addr.lastIndexOf(".");
-  if (dot !== -1) {
-    // embedded IPv4 tail, e.g. ::ffff:127.0.0.1
-    const colon = addr.lastIndexOf(":");
-    if (colon === -1) return null;
-    const v4 = parseIPv4(addr.slice(colon + 1));
-    if (!v4) return null;
-    const hex =
-      ((v4[0] << 8) | v4[1]).toString(16) + ":" + ((v4[2] << 8) | v4[3]).toString(16);
-    addr = addr.slice(0, colon + 1) + hex;
-  }
-  const halves = addr.split("::");
-  if (halves.length > 2) return null;
-  const toGroups = (s: string) => (s === "" ? [] : s.split(":"));
-  let groups: string[];
-  if (halves.length === 2) {
-    const head = toGroups(halves[0]);
-    const tail = toGroups(halves[1]);
-    const missing = 8 - head.length - tail.length;
-    if (missing < 1) return null;
-    groups = [...head, ...Array(missing).fill("0"), ...tail];
-  } else {
-    groups = toGroups(addr);
-  }
-  if (groups.length !== 8) return null;
-  const bytes: number[] = [];
-  for (const g of groups) {
-    if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
-    const v = parseInt(g, 16);
-    bytes.push((v >> 8) & 0xff, v & 0xff);
-  }
-  return bytes;
-}
-
-function isBlockedIPv4(o: number[]): boolean {
-  const [a, b] = o;
-  return (
-    a === 127 || // loopback
-    a === 10 || // private
-    (a === 172 && b >= 16 && b <= 31) || // private
-    (a === 192 && b === 168) || // private
-    (a === 169 && b === 254) || // link-local (incl. 169.254.169.254 metadata)
-    (a === 100 && b >= 64 && b <= 127) || // CGNAT
-    a === 0 // "this" network / unspecified
-  );
-}
-
-function isBlockedIPv6(b: number[]): boolean {
-  if (b.every((x) => x === 0)) return true; // :: unspecified
-  if (b.slice(0, 15).every((x) => x === 0) && b[15] === 1) return true; // ::1 loopback
-  if ((b[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
-  if (b[0] === 0xfe && (b[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
-  if (b.slice(0, 10).every((x) => x === 0) && b[10] === 0xff && b[11] === 0xff) {
-    return isBlockedIPv4([b[12], b[13], b[14], b[15]]); // ::ffff:a.b.c.d
-  }
-  return false;
-}
-
-function ipIsBlocked(ip: string): boolean | null {
-  const v4 = parseIPv4(ip);
-  if (v4) return isBlockedIPv4(v4);
-  if (ip.includes(":")) {
-    const b = ipv6ToBytes(ip);
-    return b ? isBlockedIPv6(b) : true; // unparseable literal → treat as blocked
-  }
-  return null; // not an IP literal
-}
-
 // ---- robots.txt (minimal, live-site only) ----------------------------------
 
 function selectRules(
@@ -300,29 +217,6 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
 
   // Best-effort, per-instance (serverless memory is ephemeral — fine alongside backoff).
   const lastHit = new Map<string, number>();
-
-  /** True if it's safe to fetch this host (not an internal/private/metadata address). */
-  async function hostAllowed(hostname: string): Promise<boolean> {
-    let h = hostname;
-    if (h.startsWith("[") && h.endsWith("]")) h = h.slice(1, -1); // URL.hostname brackets IPv6
-
-    const literal = ipIsBlocked(h);
-    if (literal !== null) return !literal; // it's an IP literal — decided
-
-    // Hostname: resolve and reject if ANY resolved address is in a blocked range.
-    let ips: string[];
-    try {
-      ips = await resolveHost(h);
-    } catch {
-      return true; // can't resolve → not our SSRF concern; the fetch will fail as network
-    }
-    for (const ip of ips) {
-      const blocked = ipIsBlocked(ip);
-      if (blocked === null) return false; // resolved to a non-IP? reject to be safe
-      if (blocked) return false;
-    }
-    return true;
-  }
 
   async function attempt(
     url: string,
@@ -426,7 +320,7 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
         } catch {
           return { kind: "network" };
         }
-        if (!(await hostAllowed(u.hostname))) return { kind: "blocked" };
+        if (!(await hostAllowed(u.hostname, resolveHost)).allowed) return { kind: "blocked" };
         if (opts.kind === "live-site" && !(await robotsAllows(u))) return { kind: "robots" };
 
         const outcome = await attempt(url, init, timeoutMs, opts.signal);

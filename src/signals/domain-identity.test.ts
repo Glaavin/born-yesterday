@@ -184,6 +184,31 @@ describe("collectDomainIdentity", () => {
     expect(date.note).toBe("via WHOIS fallback");
   });
 
+  it("treats an unparseable RDAP eventDate as no date (ok:false, age null)", async () => {
+    const whoisQuery = vi.fn(async () => {
+      throw new Error("no fallback");
+    });
+    const deps = baseDeps({
+      fetcher: vi.fn(async () =>
+        fetchOk(
+          JSON.stringify({
+            events: [{ eventAction: "registration", eventDate: "not-a-date" }],
+            entities: [{ roles: ["registrar"], vcardArray: ["vcard", [["fn", {}, "text", "X"]]] }],
+          }),
+        ),
+      ) as unknown as Fetcher,
+      whoisQuery,
+    });
+
+    const r = await collectDomainIdentity("example.com", deps);
+
+    expect(r.ok).toBe(false); // gate is a cleanly PARSED date, not field presence
+    const date = r.signals.find((s) => s.key === "domain_registration_date")!;
+    expect(date.valueText).toBeNull();
+    expect(date.valueNum).toBeNull();
+    expect(r.signals.find((s) => s.key === "domain_age_days")!.valueNum).toBeNull();
+  });
+
   it("both sources fail: ok:false with null values, and does NOT throw", async () => {
     const deps = baseDeps({
       fetcher: vi.fn(async () => fetchFail()) as unknown as Fetcher,
