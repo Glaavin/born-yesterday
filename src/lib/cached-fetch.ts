@@ -32,9 +32,67 @@ const BACKOFF_BASE_MS = 250;
 const ROBOTS_TTL_SECONDS = 60 * 60 * 24;
 /** Maximum redirect hops we'll follow (each re-validated). */
 const MAX_REDIRECTS = 3;
+/** Default response-size cap — untrusted HTML is not buffered beyond this. */
+const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+/** Only these URL schemes are ever fetched (defense-in-depth vs file:/gopher:/data:). */
+const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
+
+function concatChunks(parts: Uint8Array[]): Uint8Array {
+  let len = 0;
+  for (const p of parts) len += p.byteLength;
+  const out = new Uint8Array(len);
+  let off = 0;
+  for (const p of parts) {
+    out.set(p, off);
+    off += p.byteLength;
+  }
+  return out;
+}
+
+/**
+ * Read a response body, stopping at maxBytes. Uses the byte stream when present
+ * (real fetch) so we never buffer unbounded untrusted HTML — cancelling the
+ * reader on overflow closes the connection. Stubs without a stream fall back to
+ * text() and truncate (char-approximate).
+ */
+async function readBodyCapped(
+  res: FetchLikeResponse,
+  maxBytes: number,
+): Promise<{ text: string; truncated: boolean }> {
+  const stream = res.body;
+  if (stream && typeof stream.getReader === "function") {
+    const reader = stream.getReader();
+    const parts: Uint8Array[] = [];
+    let total = 0;
+    let truncated = false;
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+        const remaining = maxBytes - total;
+        if (value.byteLength >= remaining) {
+          parts.push(value.subarray(0, Math.max(0, remaining)));
+          truncated = true;
+          await reader.cancel().catch(() => {});
+          break;
+        }
+        parts.push(value);
+        total += value.byteLength;
+      }
+    } catch {
+      // stream error → return whatever we collected
+    }
+    return { text: new TextDecoder().decode(concatChunks(parts)), truncated };
+  }
+  const full = await res.text();
+  return full.length > maxBytes
+    ? { text: full.slice(0, maxBytes), truncated: true }
+    : { text: full, truncated: false };
+}
 
 export type FetchResult =
-  | { ok: true; status: number; body: string; fromCache: boolean }
+  | { ok: true; status: number; body: string; fromCache: boolean; truncated?: boolean }
   | {
       ok: false;
       error: "timeout" | "http" | "network" | "robots-disallowed" | "blocked";
@@ -64,12 +122,17 @@ export interface FetchOptions {
   maxRetries?: number;
   /** Best-effort per-host minimum spacing (politeness). */
   minHostIntervalMs?: number;
+  /** Max response bytes to read before stopping (default 5 MB). Untrusted HTML. */
+  maxBytes?: number;
 }
 
 /** A minimal Response shape — real `fetch` Response satisfies it structurally. */
 interface FetchLikeResponse {
   status: number;
   text(): Promise<string>;
+  /** Optional byte stream (real fetch has it); enables the size cap without
+   *  buffering. Stubs without it fall back to text() + truncate. */
+  body?: ReadableStream<Uint8Array> | null;
   headers?: { get(name: string): string | null };
 }
 
@@ -273,6 +336,7 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
 
     const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
+    const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
     const cacheKey = normalizeKey(opts.source, opts.key);
 
     // 1) Cache hit (only when caching is on). We only ever cache 2xx bodies, so
@@ -324,6 +388,8 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
         } catch {
           return { kind: "network" };
         }
+        // Scheme allowlist — http/https only (initial URL AND every redirect hop).
+        if (!ALLOWED_SCHEMES.has(u.protocol)) return { kind: "blocked" };
         if (!(await hostAllowed(u.hostname, resolveHost)).allowed) return { kind: "blocked" };
         if (opts.kind === "live-site" && !(await robotsAllows(u))) return { kind: "robots" };
 
@@ -375,9 +441,9 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
         continue;
       }
       if (status >= 200 && status < 300) {
-        const body = await out.res.text();
+        const { text: body, truncated } = await readBodyCapped(out.res, maxBytes);
         if (opts.ttlSeconds > 0) await cache.set(cacheKey, body, opts.ttlSeconds);
-        return { ok: true, status, body, fromCache: false };
+        return { ok: true, status, body, fromCache: false, ...(truncated ? { truncated: true } : {}) };
       }
       return { ok: false, error: "http", status }; // never cached
     }
