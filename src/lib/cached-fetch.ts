@@ -5,15 +5,16 @@ import { cacheGet, cacheSet } from "../db/queries";
  * rides (mvp-spec §3 caching, §4 services, §6 timeouts, §10 politeness/robots).
  *
  * Content-agnostic: returns the response body as text + status; callers parse
- * JSON/HTML themselves. Bakes in the polite UA, exponential backoff, and
- * robots.txt respect (live-site only) so no collector can forget them.
+ * JSON/HTML themselves. Bakes in the polite UA, exponential backoff, robots.txt
+ * respect (live-site only), and SSRF egress protection so no collector can
+ * forget them.
  *
  * Failures RETURN an error result (never throw) so one bad source can't kill a
  * report (partial-reports-OK), and failures are NEVER cached. Throwing is
  * reserved for programmer misuse (missing required option).
  *
  * Dependency-injected for testing: `createFetcher(deps)` with stubbed
- * fetchImpl/cache/sleep/now → unit tests run with no network and no DB.
+ * fetchImpl/cache/sleep/now/resolveHost → unit tests run with no network/no DB.
  */
 
 /** Polite identification for every outbound request (mvp-spec §10). */
@@ -28,12 +29,14 @@ const DEFAULT_MAX_RETRIES = 2;
 const BACKOFF_BASE_MS = 250;
 /** robots.txt is cached (so it isn't re-fetched per call). */
 const ROBOTS_TTL_SECONDS = 60 * 60 * 24;
+/** Maximum redirect hops we'll follow (each re-validated). */
+const MAX_REDIRECTS = 3;
 
 export type FetchResult =
   | { ok: true; status: number; body: string; fromCache: boolean }
   | {
       ok: false;
-      error: "timeout" | "http" | "network" | "robots-disallowed";
+      error: "timeout" | "http" | "network" | "robots-disallowed" | "blocked";
       status?: number;
     };
 
@@ -64,11 +67,17 @@ export interface FetchOptions {
 interface FetchLikeResponse {
   status: number;
   text(): Promise<string>;
+  headers?: { get(name: string): string | null };
 }
 
 export type FetchImpl = (
   url: string,
-  init?: { method?: string; headers?: Record<string, string>; signal?: AbortSignal },
+  init?: {
+    method?: string;
+    headers?: Record<string, string>;
+    signal?: AbortSignal;
+    redirect?: "manual" | "follow" | "error";
+  },
 ) => Promise<FetchLikeResponse>;
 
 export interface FetcherDeps {
@@ -81,11 +90,13 @@ export interface FetcherDeps {
   sleep: (ms: number) => Promise<void>;
   /** Monotonic-ish clock in MILLISECONDS, for the per-host interval map. */
   now: () => number;
+  /** Resolve a hostname to its IP strings (injected so SSRF checks need no network). */
+  resolveHost: (host: string) => Promise<string[]>;
 }
 
 export type Fetcher = (opts: FetchOptions) => Promise<FetchResult>;
 
-// ---- helpers ---------------------------------------------------------------
+// ---- small helpers ---------------------------------------------------------
 
 const normalizeKey = (source: string, key: string): string =>
   `${source}:${key}`.trim().toLowerCase();
@@ -103,7 +114,6 @@ function isAbortError(e: unknown): boolean {
   );
 }
 
-/** Combine abort signals — native AbortSignal.any when available, else manual. */
 function anySignal(signals: AbortSignal[]): AbortSignal {
   const native = (AbortSignal as { any?: (s: AbortSignal[]) => AbortSignal }).any;
   if (typeof native === "function") return native(signals);
@@ -118,7 +128,6 @@ function anySignal(signals: AbortSignal[]): AbortSignal {
   return ctrl.signal;
 }
 
-/** Resolves when the signal aborts (or is already aborted). */
 function onAbort(signal: AbortSignal): Promise<void> {
   return new Promise<void>((resolve) => {
     if (signal.aborted) return resolve();
@@ -126,9 +135,92 @@ function onAbort(signal: AbortSignal): Promise<void> {
   });
 }
 
+// ---- SSRF egress filtering (mvp-spec §10) ----------------------------------
+// A user-submitted domain must NEVER cause a fetch to a private/internal/
+// link-local/loopback/cloud-metadata address. We validate the host (IP literal,
+// or hostname resolved via the injected resolver) against the blocked ranges,
+// for every kind and every redirect hop.
+
+function parseIPv4(s: string): number[] | null {
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(s);
+  if (!m) return null;
+  const o = m.slice(1, 5).map(Number);
+  return o.some((n) => n > 255) ? null : o;
+}
+
+/** Expand any IPv6 textual form (incl. embedded IPv4) to 16 bytes, or null. */
+function ipv6ToBytes(input: string): number[] | null {
+  let addr = input.split("%")[0]; // drop zone id
+  const dot = addr.lastIndexOf(".");
+  if (dot !== -1) {
+    // embedded IPv4 tail, e.g. ::ffff:127.0.0.1
+    const colon = addr.lastIndexOf(":");
+    if (colon === -1) return null;
+    const v4 = parseIPv4(addr.slice(colon + 1));
+    if (!v4) return null;
+    const hex =
+      ((v4[0] << 8) | v4[1]).toString(16) + ":" + ((v4[2] << 8) | v4[3]).toString(16);
+    addr = addr.slice(0, colon + 1) + hex;
+  }
+  const halves = addr.split("::");
+  if (halves.length > 2) return null;
+  const toGroups = (s: string) => (s === "" ? [] : s.split(":"));
+  let groups: string[];
+  if (halves.length === 2) {
+    const head = toGroups(halves[0]);
+    const tail = toGroups(halves[1]);
+    const missing = 8 - head.length - tail.length;
+    if (missing < 1) return null;
+    groups = [...head, ...Array(missing).fill("0"), ...tail];
+  } else {
+    groups = toGroups(addr);
+  }
+  if (groups.length !== 8) return null;
+  const bytes: number[] = [];
+  for (const g of groups) {
+    if (!/^[0-9a-fA-F]{1,4}$/.test(g)) return null;
+    const v = parseInt(g, 16);
+    bytes.push((v >> 8) & 0xff, v & 0xff);
+  }
+  return bytes;
+}
+
+function isBlockedIPv4(o: number[]): boolean {
+  const [a, b] = o;
+  return (
+    a === 127 || // loopback
+    a === 10 || // private
+    (a === 172 && b >= 16 && b <= 31) || // private
+    (a === 192 && b === 168) || // private
+    (a === 169 && b === 254) || // link-local (incl. 169.254.169.254 metadata)
+    (a === 100 && b >= 64 && b <= 127) || // CGNAT
+    a === 0 // "this" network / unspecified
+  );
+}
+
+function isBlockedIPv6(b: number[]): boolean {
+  if (b.every((x) => x === 0)) return true; // :: unspecified
+  if (b.slice(0, 15).every((x) => x === 0) && b[15] === 1) return true; // ::1 loopback
+  if ((b[0] & 0xfe) === 0xfc) return true; // fc00::/7 unique-local
+  if (b[0] === 0xfe && (b[1] & 0xc0) === 0x80) return true; // fe80::/10 link-local
+  if (b.slice(0, 10).every((x) => x === 0) && b[10] === 0xff && b[11] === 0xff) {
+    return isBlockedIPv4([b[12], b[13], b[14], b[15]]); // ::ffff:a.b.c.d
+  }
+  return false;
+}
+
+function ipIsBlocked(ip: string): boolean | null {
+  const v4 = parseIPv4(ip);
+  if (v4) return isBlockedIPv4(v4);
+  if (ip.includes(":")) {
+    const b = ipv6ToBytes(ip);
+    return b ? isBlockedIPv6(b) : true; // unparseable literal → treat as blocked
+  }
+  return null; // not an IP literal
+}
+
 // ---- robots.txt (minimal, live-site only) ----------------------------------
 
-/** Pick the Allow/Disallow rules for our UA (specific group beats `*`). */
 function selectRules(
   txt: string,
   uaToken: string,
@@ -168,16 +260,15 @@ function selectRules(
   for (const g of groups) {
     for (const a of g.agents) {
       if (a === "*") star ??= g;
-      else if (uaToken.includes(a)) specific ??= g;
+      // `a &&` so an EMPTY User-agent token can't match our bot as a specific
+      // group (uaToken.includes("") is always true) and shadow the "*" group.
+      else if (a && uaToken.includes(a)) specific ??= g;
     }
   }
   return (specific ?? star)?.rules ?? [];
 }
 
-/**
- * Longest-match Allow/Disallow (RFC-ish). NOTE: simple prefix match — no `*` /
- * `$` wildcard expansion (acceptable for our handful of live-site hosts).
- */
+/** Longest-match Allow/Disallow. NOTE: simple prefix match — no `*`/`$` wildcards. */
 function isPathAllowed(robotsTxt: string, path: string, uaToken: string): boolean {
   const rules = selectRules(robotsTxt, uaToken);
   let best: { len: number; type: "allow" | "disallow" } | null = null;
@@ -199,13 +290,43 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
   const cache = deps.cache ?? { get: cacheGet, set: cacheSet };
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const now = deps.now ?? (() => Date.now());
+  const resolveHost =
+    deps.resolveHost ??
+    (async (host: string) => {
+      const { lookup } = await import("node:dns/promises");
+      const addrs = await lookup(host, { all: true });
+      return addrs.map((a) => a.address);
+    });
 
   // Best-effort, per-instance (serverless memory is ephemeral — fine alongside backoff).
   const lastHit = new Map<string, number>();
 
+  /** True if it's safe to fetch this host (not an internal/private/metadata address). */
+  async function hostAllowed(hostname: string): Promise<boolean> {
+    let h = hostname;
+    if (h.startsWith("[") && h.endsWith("]")) h = h.slice(1, -1); // URL.hostname brackets IPv6
+
+    const literal = ipIsBlocked(h);
+    if (literal !== null) return !literal; // it's an IP literal — decided
+
+    // Hostname: resolve and reject if ANY resolved address is in a blocked range.
+    let ips: string[];
+    try {
+      ips = await resolveHost(h);
+    } catch {
+      return true; // can't resolve → not our SSRF concern; the fetch will fail as network
+    }
+    for (const ip of ips) {
+      const blocked = ipIsBlocked(ip);
+      if (blocked === null) return false; // resolved to a non-IP? reject to be safe
+      if (blocked) return false;
+    }
+    return true;
+  }
+
   async function attempt(
     url: string,
-    init: { method: string; headers: Record<string, string> },
+    init: { method: string; headers: Record<string, string>; redirect: "manual" },
     timeoutMs: number,
     external?: AbortSignal,
   ): Promise<
@@ -245,6 +366,14 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
       throw new Error("cachedFetch: ttlSeconds must be >= 0.");
     }
 
+    // Malformed/relative URL → network error (uphold the non-throwing contract).
+    let parsed: URL;
+    try {
+      parsed = new URL(opts.url);
+    } catch {
+      return { ok: false, error: "network" };
+    }
+
     const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     const maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
     const cacheKey = normalizeKey(opts.source, opts.key);
@@ -256,56 +385,99 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
       if (hit) return { ok: true, status: 200, body: hit.payload, fromCache: true };
     }
 
-    // 2) robots.txt — live-site fetches only; third-party is always fair game.
-    if (opts.kind === "live-site") {
-      const u = new URL(opts.url);
+    const init = {
+      method: opts.method ?? "GET",
+      headers: { ...opts.headers, "user-agent": USER_AGENT },
+      redirect: "manual" as const, // we follow manually so each hop is re-validated
+    };
+
+    // robots.txt for one URL (live-site only); fetched through the harness (cached).
+    async function robotsAllows(u: URL): Promise<boolean> {
       const robots = await doFetch({
         source: "robots",
         key: u.host,
         url: `${u.origin}/robots.txt`,
         ttlSeconds: ROBOTS_TTL_SECONDS,
-        kind: "third-party", // avoids infinite recursion
+        kind: "third-party", // avoids recursion + robots-on-robots
         timeoutMs,
         signal: opts.signal,
       });
-      // Missing/unfetchable robots → treat as allowed (standard).
-      if (robots.ok && !isPathAllowed(robots.body, u.pathname || "/", UA_TOKEN)) {
-        return { ok: false, error: "robots-disallowed" };
-      }
+      if (!robots.ok) return true; // missing/unfetchable robots → allowed (standard)
+      return isPathAllowed(robots.body, u.pathname || "/", UA_TOKEN);
     }
 
-    const init = {
-      method: opts.method ?? "GET",
-      headers: { ...opts.headers, "user-agent": USER_AGENT },
-    };
-    const host = new URL(opts.url).host;
+    type Follow =
+      | { kind: "response"; res: FetchLikeResponse }
+      | { kind: "timeout" }
+      | { kind: "network" }
+      | { kind: "blocked" }
+      | { kind: "robots" }
+      | { kind: "too-many"; status: number };
+
+    // Follow redirects manually, re-validating SSRF (every hop) and robots
+    // (live-site, every hop) before each request. Never follow to an
+    // unvalidated host.
+    async function follow(startUrl: string): Promise<Follow> {
+      let url = startUrl;
+      for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+        let u: URL;
+        try {
+          u = new URL(url);
+        } catch {
+          return { kind: "network" };
+        }
+        if (!(await hostAllowed(u.hostname))) return { kind: "blocked" };
+        if (opts.kind === "live-site" && !(await robotsAllows(u))) return { kind: "robots" };
+
+        const outcome = await attempt(url, init, timeoutMs, opts.signal);
+        if (outcome.kind !== "response") return outcome;
+
+        const status = outcome.res.status;
+        if (status >= 300 && status < 400) {
+          const loc = outcome.res.headers?.get("location") ?? null;
+          if (!loc) return { kind: "response", res: outcome.res };
+          if (hop === MAX_REDIRECTS) return { kind: "too-many", status };
+          try {
+            url = new URL(loc, url).toString();
+          } catch {
+            return { kind: "network" };
+          }
+          continue;
+        }
+        return { kind: "response", res: outcome.res };
+      }
+      return { kind: "too-many", status: 0 }; // loop always returns earlier
+    }
 
     let lastStatus: number | undefined;
     for (let n = 0; n <= maxRetries; n++) {
       if (n > 0) await sleep(backoffMs(n - 1)); // exponential backoff before a retry
 
-      // Best-effort per-host spacing.
+      // Best-effort per-host spacing (on the original host).
       if (opts.minHostIntervalMs && opts.minHostIntervalMs > 0) {
-        const last = lastHit.get(host);
+        const last = lastHit.get(parsed.host);
         if (last != null) {
           const elapsed = now() - last;
           if (elapsed < opts.minHostIntervalMs) await sleep(opts.minHostIntervalMs - elapsed);
         }
-        lastHit.set(host, now());
+        lastHit.set(parsed.host, now());
       }
 
-      const outcome = await attempt(opts.url, init, timeoutMs, opts.signal);
-      if (outcome.kind === "timeout") return { ok: false, error: "timeout" }; // not cached
-      if (outcome.kind === "network") return { ok: false, error: "network" }; // not cached
+      const out = await follow(opts.url);
+      if (out.kind === "blocked") return { ok: false, error: "blocked" }; // not cached
+      if (out.kind === "robots") return { ok: false, error: "robots-disallowed" };
+      if (out.kind === "timeout") return { ok: false, error: "timeout" }; // not cached
+      if (out.kind === "network") return { ok: false, error: "network" }; // not cached
+      if (out.kind === "too-many") return { ok: false, error: "http", status: out.status };
 
-      const status = outcome.res.status;
+      const status = out.res.status;
       const retryable = status === 429 || status >= 500;
       if (retryable && n < maxRetries) {
         lastStatus = status;
         continue;
       }
       if (status >= 200 && status < 300) {
-        const body = await outcome.res.text();
+        const body = await out.res.text();
         if (opts.ttlSeconds > 0) await cache.set(cacheKey, body, opts.ttlSeconds);
         return { ok: true, status, body, fromCache: false };
       }
@@ -318,5 +490,5 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
   return doFetch;
 }
 
-/** Default instance wired to real deps (global fetch, the DB cache, real sleep/clock). */
+/** Default instance wired to real deps (global fetch, the DB cache, real sleep/clock/DNS). */
 export const cachedFetch: Fetcher = createFetcher();

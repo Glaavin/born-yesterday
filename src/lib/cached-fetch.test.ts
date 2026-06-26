@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createFetcher, USER_AGENT, type FetcherDeps, type FetchImpl } from "./cached-fetch";
 
-// A minimal Response-like stub (status + text()).
-const resp = (status: number, body = "") => ({ status, text: async () => body });
+// A minimal Response-like stub (status + text() + optional headers, for redirects).
+const resp = (status: number, body = "", headers: Record<string, string> = {}) => ({
+  status,
+  text: async () => body,
+  headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
+});
 
 // In-memory cache stub matching the FetcherDeps.cache shape.
 function makeCache() {
@@ -14,13 +18,22 @@ function makeCache() {
   };
 }
 
-// Build a fetcher with sane defaults; override per test.
+// Build a fetcher with sane defaults; override per test. The default resolver
+// returns a PUBLIC IP so tests never touch real DNS and aren't SSRF-blocked.
 function build(over: Partial<FetcherDeps> = {}) {
   const cache = over.cache ?? makeCache();
   const sleep = over.sleep ?? vi.fn(async () => {});
   const now = over.now ?? (() => 1000);
   const fetchImpl = over.fetchImpl ?? vi.fn(async () => resp(200, "BODY"));
-  return { fetcher: createFetcher({ fetchImpl, cache, sleep, now }), fetchImpl, cache, sleep, now };
+  const resolveHost = over.resolveHost ?? vi.fn(async () => ["93.184.216.34"]);
+  return {
+    fetcher: createFetcher({ fetchImpl, cache, sleep, now, resolveHost }),
+    fetchImpl,
+    cache,
+    sleep,
+    now,
+    resolveHost,
+  };
 }
 
 const base = {
@@ -212,5 +225,138 @@ describe("cached-fetch harness", () => {
     await expect(fetcher({ source: "s", key: "k", ttlSeconds: 0, kind: "third-party" })).rejects.toThrow(
       /required/,
     );
+  });
+
+  // ---- SSRF egress hardening (Story 9.1) ----
+
+  it.each([
+    ["loopback", "127.0.0.1"],
+    ["cloud metadata", "169.254.169.254"],
+    ["private 10.x", "10.1.2.3"],
+    ["private 192.168.x", "192.168.1.1"],
+  ])("blocks a live-site host that resolves to %s (target never fetched)", async (_label, ip) => {
+    const fetchImpl = vi.fn<FetchImpl>(async () => resp(200, "SECRET"));
+    const resolveHost = vi.fn(async () => [ip]);
+    const { fetcher, cache } = build({ fetchImpl, resolveHost });
+
+    const r = await fetcher({
+      source: "live",
+      key: "evil.example",
+      url: "https://evil.example/",
+      ttlSeconds: 0,
+      kind: "live-site",
+    });
+
+    expect(r).toEqual({ ok: false, error: "blocked" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it("blocks an IP-literal target without any DNS resolution", async () => {
+    const fetchImpl = vi.fn<FetchImpl>(async () => resp(200, "X"));
+    const resolveHost = vi.fn(async () => ["93.184.216.34"]);
+    const { fetcher } = build({ fetchImpl, resolveHost });
+
+    const r = await fetcher({
+      source: "tp",
+      key: "k",
+      url: "http://169.254.169.254/latest/meta-data/",
+      ttlSeconds: 0,
+      kind: "third-party",
+    });
+
+    expect(r).toEqual({ ok: false, error: "blocked" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(resolveHost).not.toHaveBeenCalled(); // it's a literal — no resolve needed
+  });
+
+  it("blocks a redirect to an internal host; the post-redirect host is re-validated", async () => {
+    // hop 0 (public) → 302 to the metadata IP; hop 1 must be blocked before fetching.
+    const fetchImpl = vi.fn<FetchImpl>(async (url) => {
+      if (url === "https://api.example/")
+        return resp(302, "", { location: "http://169.254.169.254/" });
+      return resp(200, "SHOULD-NOT-HAPPEN");
+    });
+    const resolveHost = vi.fn(async () => ["93.184.216.34"]); // api.example is public
+    const { fetcher, cache } = build({ fetchImpl, resolveHost });
+
+    const r = await fetcher({
+      source: "tp",
+      key: "api.example",
+      url: "https://api.example/",
+      ttlSeconds: 60,
+      kind: "third-party",
+    });
+
+    expect(r).toEqual({ ok: false, error: "blocked" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1); // only hop 0; the internal hop was never fetched
+    expect(cache.set).not.toHaveBeenCalled();
+  });
+
+  it("follows a redirect to a public host and re-checks robots (live-site)", async () => {
+    const fetchImpl = vi.fn<FetchImpl>(async (url) => {
+      switch (url) {
+        case "https://a.example/robots.txt":
+          return resp(200, "User-agent: *\nAllow: /");
+        case "https://a.example/":
+          return resp(301, "", { location: "https://b.example/" });
+        case "https://b.example/robots.txt":
+          return resp(200, "User-agent: *\nAllow: /");
+        case "https://b.example/":
+          return resp(200, "FINAL");
+        default:
+          return resp(500, "unexpected " + url);
+      }
+    });
+    const resolveHost = vi.fn(async () => ["93.184.216.34"]); // both public
+    const { fetcher } = build({ fetchImpl, resolveHost });
+
+    const r = await fetcher({
+      source: "live",
+      key: "a.example",
+      url: "https://a.example/",
+      ttlSeconds: 0,
+      kind: "live-site",
+    });
+
+    expect(r).toEqual({ ok: true, status: 200, body: "FINAL", fromCache: false });
+    // robots re-checked at the redirect target:
+    expect(fetchImpl).toHaveBeenCalledWith("https://b.example/robots.txt", expect.anything());
+  });
+
+  it("returns a network error (does not throw) for a malformed/relative URL", async () => {
+    const fetchImpl = vi.fn<FetchImpl>(async () => resp(200, "X"));
+    const { fetcher } = build({ fetchImpl });
+
+    const r = await fetcher({
+      source: "s",
+      key: "k",
+      url: "/not-absolute",
+      ttlSeconds: 0,
+      kind: "third-party",
+    });
+
+    expect(r).toEqual({ ok: false, error: "network" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("does not let an empty User-agent robots group override '*'", async () => {
+    const fetchImpl = vi.fn<FetchImpl>(async (url) => {
+      if (url.endsWith("/robots.txt"))
+        // empty-UA group disallows all; '*' group allows the path
+        return resp(200, "User-agent:\nDisallow: /\n\nUser-agent: *\nDisallow: /private");
+      return resp(200, "PAGE");
+    });
+    const { fetcher } = build({ fetchImpl });
+
+    const r = await fetcher({
+      source: "live",
+      key: "example.com",
+      url: "https://example.com/",
+      ttlSeconds: 0,
+      kind: "live-site",
+    });
+
+    expect(r).toEqual({ ok: true, status: 200, body: "PAGE", fromCache: false });
   });
 });
