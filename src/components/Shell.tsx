@@ -42,7 +42,7 @@ export default function Shell({ children }: { children: ReactNode }) {
       </div>
 
       <footer className="surface-header w-full">
-        <div className="mx-auto max-w-6xl px-6 py-6 text-center text-sm text-label-teal">
+        <div className="mx-auto max-w-6xl px-6 py-6 text-center text-sm text-ink-muted">
           © Born Yesterday
         </div>
       </footer>

@@ -139,16 +139,20 @@ Approximate values read from the mockups — **sample exact values from the sour
 | `--wordmark-blue` | `#5c7ddf` | ".TECH" |
 | `--accent-gold` | `#f8d181` | counter number, report title, card border |
 | `--link-coral` | `#c65644` | nav links |
-| `--label-teal` | `#87d3d8` | labels, section accents |
+| `--label-teal` | `#87d3d8` | true labels & section accents (plain body copy uses `--ink`) |
 | `--flag-negative` | `#e77da3` *(adjusted from sampled `#e46a95` for AA)* | flagged data, red-flag pill |
 | `--flag-positive` | `#63b0bb` | positive findings |
 | `--input-surface` | `#eaffff` | input field |
+| `--ink` | `#e9f1f2` | primary body copy |
+| `--ink-muted` | `#a7bcc0` | secondary copy / captions |
 
 > **Accessibility (verified, Story 2):** Contrast measured against the sampled `--surface-body`, worst-case (lighter) stop `#1a3942`.
 > - `--flag-positive` `#63b0bb` — **4.95:1**, passes WCAG AA. No change.
 > - `--flag-negative` sampled `#e46a95` — **3.98:1**, *failed* AA for normal text. Lightened (same hue) to **`#e77da3` → 4.60:1**, which clears AA.
 >
 > Never carry flagged-vs-positive by color alone (the worded pill + the report's inline labels satisfy this).
+
+> **Body-text tokens (added in the text-tokens follow-up):** `--ink` `#e9f1f2` (primary copy) and `--ink-muted` `#a7bcc0` (secondary / captions) are the neutral body-copy colors — replacing the earlier `--label-teal` stand-in, which is now reserved for true labels and section accents. On `--surface-body` (worst-case stop `#1a3942`): `--ink` = **10.73:1**, `--ink-muted` = **6.21:1** — both pass WCAG AA.
 
 ---
 
