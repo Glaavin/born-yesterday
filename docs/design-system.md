@@ -145,6 +145,10 @@ Approximate values read from the mockups — **sample exact values from the sour
 | `--input-surface` | `#eaffff` | input field |
 | `--ink` | `#e9f1f2` | primary body copy |
 | `--ink-muted` | `#a7bcc0` | secondary copy / captions |
+| `--indicator-green` | `#6fbf8e` | report pill — "Checks out" |
+| `--indicator-amber` | `#f0b347` *(deepened vs accent-gold)* | report pill — "Some concerns" |
+| `--indicator-red` | `#e8827a` *(lightened from `#e0584e` for AA)* | report pill — "Red flags found" |
+| `--indicator-blue` | `#829ce7` *(lightened from wordmark-blue for AA)* | report pill — "Too new to tell" |
 
 > **Accessibility (verified, Story 2):** Contrast measured against the sampled `--surface-body`, worst-case (lighter) stop `#1a3942`.
 > - `--flag-positive` `#63b0bb` — **4.95:1**, passes WCAG AA. No change.
@@ -153,6 +157,14 @@ Approximate values read from the mockups — **sample exact values from the sour
 > Never carry flagged-vs-positive by color alone (the worded pill + the report's inline labels satisfy this).
 
 > **Body-text tokens (added in the text-tokens follow-up):** `--ink` `#e9f1f2` (primary copy) and `--ink-muted` `#a7bcc0` (secondary / captions) are the neutral body-copy colors — replacing the earlier `--label-teal` stand-in, which is now reserved for true labels and section accents. On `--surface-body` (worst-case stop `#1a3942`): `--ink` = **10.73:1**, `--ink-muted` = **6.21:1** — both pass WCAG AA.
+
+> **Indicator tokens (Skepticism Indicator pill):** dedicated signal colors, decoupled from accent/wordmark usage even where similar. The pill is worded text + a border/tint in the state colour, so each is verified as **text** on `--surface-body` (worst-case stop `#1a3942`):
+> - `--indicator-green` `#6fbf8e` — **5.57:1** ✅ (new hue)
+> - `--indicator-amber` `#f0b347` — **6.58:1** ✅ (deepened from `--accent-gold` `#f8d181` so the pill reads distinct from the gold report title)
+> - `--indicator-red` `#e8827a` — **4.63:1** ✅ (lightened from `#e0584e`, which was 3.32:1)
+> - `--indicator-blue` `#829ce7` — **4.60:1** ✅ (lightened from `--wordmark-blue` `#5c7ddf`, which is 3.19:1 as normal text)
+>
+> Color is never the sole signal — the four-state verdict is always carried in words by the pill (§4.1).
 
 ---
 

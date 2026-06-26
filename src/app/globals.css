@@ -31,6 +31,14 @@
   --color-ink: #e9f1f2;            /* primary body copy — AA on surface-body (10.73:1) */
   --color-ink-muted: #a7bcc0;      /* secondary copy / captions — AA on surface-body (6.21:1) */
 
+  /* ---- Indicator (Skepticism Indicator pill) tokens (§4.1 / §8.2) ----
+     Dedicated signal colors, decoupled from accent/wordmark usage. Each is AA
+     (≥4.5:1) as pill TEXT on --surface-body. */
+  --color-indicator-green: #6fbf8e; /* "Checks out" — 5.57:1 */
+  --color-indicator-amber: #f0b347; /* "Some concerns" — deepened vs accent-gold so the pill reads distinct; 6.58:1 */
+  --color-indicator-red: #e8827a;   /* "Red flags found" — lightened from #e0584e for AA; 4.63:1 */
+  --color-indicator-blue: #829ce7;  /* "Too new to tell" — lightened from wordmark-blue #5c7ddf for AA; 4.60:1 */
+
   /* ---- Gradient tokens (§8.2) ----
      Three §8.2 tokens are gradients, not flat colors. Each is kept as paired
      stop tokens (usable as --color-* utilities/vars) PLUS a --gradient-* custom
