@@ -54,6 +54,8 @@ export interface FetchOptions {
   kind: "third-party" | "live-site";
   method?: string;
   headers?: Record<string, string>;
+  /** Request body (e.g. a form-encoded POST). */
+  body?: string;
   /** Report-level deadline (Story 16's 8s budget). Aborts the call if it fires. */
   signal?: AbortSignal;
   /** Per-call abort, default 3000ms. */
@@ -76,6 +78,7 @@ export type FetchImpl = (
   init?: {
     method?: string;
     headers?: Record<string, string>;
+    body?: string;
     signal?: AbortSignal;
     redirect?: "manual" | "follow" | "error";
   },
@@ -220,7 +223,7 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
 
   async function attempt(
     url: string,
-    init: { method: string; headers: Record<string, string>; redirect: "manual" },
+    init: { method: string; headers: Record<string, string>; redirect: "manual"; body?: string },
     timeoutMs: number,
     external?: AbortSignal,
   ): Promise<
@@ -283,6 +286,7 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
       method: opts.method ?? "GET",
       headers: { ...opts.headers, "user-agent": USER_AGENT },
       redirect: "manual" as const, // we follow manually so each hop is re-validated
+      ...(opts.body != null ? { body: opts.body } : {}),
     };
 
     // robots.txt for one URL (live-site only); fetched through the harness (cached).
