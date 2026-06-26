@@ -8,6 +8,13 @@
       "when": 1782476085176,
       "tag": "0000_military_karnak",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782477960637,
+      "tag": "0001_damp_starjammers",
+      "breakpoints": true
     }
   ]
 }

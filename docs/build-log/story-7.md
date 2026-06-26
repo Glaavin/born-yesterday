@@ -1,4 +1,7 @@
-# Build log — Story 1.2.7: Report view
+# Build log — Story 7 — Hydrogen Epic (7 of 7): Report view
+
+> Renamed from `1.2.7.md` (legacy `<phase>.<sprint>.<story>` scheme) to the continuous
+> `story-<n>.md` convention; content below is the original Story 7 self-report, unchanged.
 
 - PR: #15   - Branch: feature/report-view   - Status: opened (CI green)   - Date (UTC): 2026-06-26
 
