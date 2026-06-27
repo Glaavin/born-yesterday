@@ -102,13 +102,14 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     expect(ind.reasons.some((x) => /not reachable/i.test(x.text))).toBe(false);
   });
 
-  it("GREEN with a threat feed NOT checked → still green, reasons DISCLOSE the gap", () => {
+  it("GREEN with a threat feed NOT checked → still green, reasons DISCLOSE the gap as a caveat", () => {
     // No threat signals at all (feeds unreachable / no key).
     const ind = computeIndicator("x.com", established(), noPivot, NOW);
     expect(ind.state).toBe("green");
     const disclosure = ind.reasons.find((x) => /not reachable/i.test(x.text));
     expect(disclosure).toBeDefined();
-    expect(disclosure!.source).not.toBeNull();
+    expect(disclosure!.kind).toBe("caveat");
+    expect(disclosure!.text).toMatch(/PhishTank and URLhaus/); // names the actual feeds
   });
 
   it("a clean threat check does NOT force GREEN (not established → amber)", () => {

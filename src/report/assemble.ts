@@ -82,19 +82,24 @@ export function assembleReport(
 ): Report {
   const byKey = signalsByKey(results);
 
+  // Caveat reasons (e.g. an unreachable feed) are transparency notes — they go to
+  // the SUMMARY, never into flagged[]/positive[]. The rest are contributing reasons.
+  const caveats = indicator.reasons.filter((r) => r.kind === "caveat");
+  const mainReasons = indicator.reasons.filter((r) => r.kind !== "caveat");
+
   // Concern reasons become flagged findings (sourced); none for Green.
   const flagged: Finding[] =
     indicator.state === "green"
       ? []
-      : indicator.reasons
+      : mainReasons
           .filter((r): r is { text: string; source: SignalSource } => r.source != null)
           .map((r) => ({ text: r.text, source: r.source }));
 
   // Reassuring facts; for Green, the establishing reasons lead.
   const positive: Finding[] = gatherPositives(byKey, nowSec);
   if (indicator.state === "green") {
-    for (let i = indicator.reasons.length - 1; i >= 0; i--) {
-      const r = indicator.reasons[i];
+    for (let i = mainReasons.length - 1; i >= 0; i--) {
+      const r = mainReasons[i];
       if (r.source) positive.unshift({ text: r.text, source: r.source });
     }
   }
@@ -111,9 +116,10 @@ export function assembleReport(
     (n, c) => n + c.signals.filter((s) => s.valueText != null || s.valueNum != null).length,
     0,
   );
-  const summary = `Surfaces ${signalCount} public signal${signalCount !== 1 ? "s" : ""} for ${domain}; ${
-    flagged.length === 0 ? "none" : flagged.length
-  } worth a closer look.`;
+  const note = caveats.length ? ` Note: ${caveats.map((c) => c.text).join(" ")}` : "";
+  const summary =
+    `Surfaces ${signalCount} public signal${signalCount !== 1 ? "s" : ""} for ${domain}; ` +
+    `${flagged.length === 0 ? "none" : flagged.length} worth a closer look.${note}`;
 
   return {
     domain,

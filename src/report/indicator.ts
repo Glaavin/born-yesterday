@@ -17,6 +17,10 @@ export type IndicatorState = "green" | "amber" | "red" | "blue";
 export interface Reason {
   text: string;
   source: SignalSource | null;
+  /** "caveat" reasons are transparency notes (e.g. a feed we couldn't reach) —
+   *  they route to the report SUMMARY, never to positive[]/flagged[]. Default =
+   *  positive/contributing. */
+  kind?: "positive" | "caveat";
 }
 export interface Indicator {
   state: IndicatorState;
@@ -122,12 +126,14 @@ export function computeIndicator(
     // disclose the gap rather than implying we cleared it. (1.7 trade-off: a
     // stricter "require ≥1 successful threat check for GREEN" once working feed
     // keys exist; default now = state-the-gap so GREEN stays reachable.)
-    const ptChecked = pt?.valueText != null; // "Not listed" (a "Listed" would have returned Red)
-    const uhChecked = uh?.valueText != null;
-    if (!ptChecked || !uhChecked) {
+    const unreachable: string[] = [];
+    if (pt?.valueText == null) unreachable.push("PhishTank"); // "Listed" would have returned Red
+    if (uh?.valueText == null) unreachable.push("URLhaus");
+    if (unreachable.length) {
       reasons.push({
-        text: "One or more threat feeds were not reachable at check time; not independently cleared against them.",
-        source: { label: "URLhaus (abuse.ch)", url: `https://urlhaus.abuse.ch/browse.php?search=${domain}` },
+        text: `${unreachable.join(" and ")} ${unreachable.length > 1 ? "were" : "was"} not reachable at check time; not independently cleared.`,
+        source: null,
+        kind: "caveat", // a transparency note → the report summary, not positive[]
       });
     }
     return { state: "green", reasons };

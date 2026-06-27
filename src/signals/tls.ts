@@ -71,9 +71,11 @@ export async function socketTlsConnect(
     connect ?? ((await import("node:tls")).connect as unknown as TlsConnectFactory);
   return new Promise<PeerCertLike>((resolve, reject) => {
     let done = false;
+    let cleanup = () => {};
     const finish = (fn: () => void) => {
       if (done) return;
       done = true;
+      cleanup(); // drop the abort listener on completion, not just on GC
       fn();
     };
     const socket = doConnect(
@@ -95,14 +97,15 @@ export async function socketTlsConnect(
     );
     // Shared deadline tears the handshake down — treat as a timeout (floor: the
     // per-call timer; whichever fires first wins).
-    opts.signal?.addEventListener(
-      "abort",
-      () => {
+    if (opts.signal) {
+      const signal = opts.signal;
+      const onAbort = () => {
         socket.destroy();
         finish(() => reject(Object.assign(new Error("tls: deadline"), { code: "ETIMEDOUT" })));
-      },
-      { once: true },
-    );
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      cleanup = () => signal.removeEventListener("abort", onAbort);
+    }
     socket.setTimeout(opts.timeoutMs, () => {
       socket.destroy();
       finish(() => reject(Object.assign(new Error("tls: timeout"), { code: "ETIMEDOUT" })));

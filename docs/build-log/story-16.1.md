@@ -23,9 +23,13 @@ Before this, the orchestrator threaded one 8s-budget `AbortSignal` to collectors
 
 ## Section 2 — GREEN acknowledges the threat-check (no silent over-trust)
 The indicator treated a "not checked" threat feed (unreachable / no key → value null) the same as "not listed" (checked, clean), so a domain could go GREEN while we never reached PhishTank/URLhaus.
-- A feed counts as **checked** only if it returned a definitive value (`"Not listed"`; a `"Listed"` already returned RED). When GREEN is awarded and PhishTank OR URLhaus was **not** checked, the rubric now ADDS a sourced disclosure reason: *"One or more threat feeds were not reachable at check time; not independently cleared against them."* (sourced to the URLhaus search for the domain). **Transparency over false comfort.**
+- A feed counts as **checked** only if it returned a definitive value (`"Not listed"`; a `"Listed"` already returned RED). When GREEN is awarded and PhishTank/URLhaus wasn't checked, the rubric adds a **caveat** reason that names the ACTUAL unreachable feed(s) (e.g. *"PhishTank and URLhaus were not reachable at check time; not independently cleared."*). **Transparency over false comfort.**
+- **A caveat is NOT reassurance** (PR-#29 amendment). `Reason` gained an optional `kind?: "positive" | "caveat"`. In `assemble.ts`, caveat reasons route into the **report SUMMARY** as a factual note (`"… Note: PhishTank … not reachable …"`) — **never into `positive[]` or `flagged[]`** — and the rendered `Report` shape (`report-state.ts`) is unchanged (the summary is the caveat's home). A summary note needs no source link, which also resolves the always-URLhaus-source NIT.
 - **GREEN stays reachable** (requiring a successful check would make GREEN impossible while feeds are key-gated). **1.7 trade-off (deferred):** a stricter "require ≥1 successful threat check for GREEN" once working feed keys exist; default now = state-the-gap.
-- **Tests:** established+clean with feeds NOT checked → still green, reasons INCLUDE the (sourced) disclosure; with both feeds checked-and-clear → green WITHOUT it. The Red-on-listing path is unchanged.
+- **Tests:** the GREEN caveat is **absent from `positive[]` and `flagged[]`** and **present in the summary** (the placement gap that let it slip); established+clean with both feeds checked-and-clear → green WITHOUT a note. Red-on-listing unchanged.
+
+## NIT — abort-listener cleanup
+`socketWhois`/`socketTlsConnect` now `removeEventListener` the abort handler on normal completion (via a `cleanup` set when the listener is registered), so a finished call doesn't keep a listener on the shared deadline signal until it aborts/GCs.
 
 ## VERIFY
 - install | lint | typecheck | test (146 passed; +6) | build (no DB present → exit 0): **pass**

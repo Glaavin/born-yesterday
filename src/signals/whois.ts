@@ -77,11 +77,13 @@ export async function socketWhois(
   return new Promise<string>((resolve, reject) => {
     let data = "";
     let done = false;
+    let cleanup = () => {};
     const socket = createConnection(43, host);
     const finish = (fn: () => void) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
+      cleanup(); // drop the abort listener on completion, not just on GC
       fn();
     };
     const timer = setTimeout(() => {
@@ -90,14 +92,14 @@ export async function socketWhois(
     }, timeoutMs);
     // Shared deadline tears the socket down — treat it as a timeout (floor: the
     // per-call timer; whichever fires first wins).
-    signal?.addEventListener(
-      "abort",
-      () => {
+    if (signal) {
+      const onAbort = () => {
         socket.destroy();
         finish(() => reject(Object.assign(new Error("whois: deadline"), { code: "ETIMEDOUT" })));
-      },
-      { once: true },
-    );
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      cleanup = () => signal.removeEventListener("abort", onAbort);
+    }
     socket.setEncoding("utf8");
     socket.on("connect", () => socket.write(query + "\r\n"));
     socket.on("data", (d) => {
