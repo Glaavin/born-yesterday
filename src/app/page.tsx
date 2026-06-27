@@ -2,11 +2,20 @@ import WordmarkMascot from "@/components/WordmarkMascot";
 import HeroSearch from "@/components/HeroSearch";
 import HatchCounter from "@/components/HatchCounter";
 import MethodologyCard from "@/components/MethodologyCard";
+import RecentSearches from "@/components/RecentSearches";
+import { countReports, getRecentReports } from "@/db/queries";
+import { recentReports } from "@/serve/recent";
 
-// Mock count until the data layer (Sprint 1.1) provides the real number.
-const REPORTS_HATCHED = 1247;
+// Reads real counts/feed at request time — rendered dynamically (no build-time DB).
+export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home() {
+  // Resilient: if the DB is briefly unreachable the landing still renders.
+  const [count, recent] = await Promise.all([
+    countReports().catch(() => 0),
+    recentReports(8, { getRecentReports }).catch(() => []),
+  ]);
+
   return (
     <div className="flex flex-col items-center gap-8 py-4">
       <WordmarkMascot state="idle" />
@@ -16,8 +25,9 @@ export default function Home() {
       </p>
 
       <HeroSearch />
-      <HatchCounter count={REPORTS_HATCHED} />
+      <HatchCounter count={count} />
       <MethodologyCard />
+      <RecentSearches items={recent} />
     </div>
   );
 }
