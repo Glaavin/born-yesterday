@@ -25,6 +25,8 @@ export interface TlsConnectOpts {
   servername: string; // SNI / cert match — the real domain
   port: number;
   timeoutMs: number;
+  /** Shared report-deadline signal — aborting it tears the handshake down. */
+  signal?: AbortSignal;
 }
 
 export interface TlsDeps {
@@ -32,7 +34,22 @@ export interface TlsDeps {
   /** Open a TLS connection and resolve the peer certificate. Injectable. */
   tlsConnect: (opts: TlsConnectOpts) => Promise<PeerCertLike>;
   timeoutMs?: number;
+  /** Shared report-deadline signal threaded into the handshake. */
+  signal?: AbortSignal;
 }
+
+/** Minimal TLS socket surface (real tls.TLSSocket satisfies it; tests fake it). */
+export interface TlsSocketLike {
+  getPeerCertificate(): PeerCertLike;
+  setTimeout(ms: number, cb: () => void): void;
+  on(event: string, cb: (arg?: unknown) => void): void;
+  end(): void;
+  destroy(): void;
+}
+export type TlsConnectFactory = (
+  opts: { host: string; port: number; servername: string; rejectUnauthorized: boolean },
+  onSecure: () => void,
+) => TlsSocketLike;
 
 export type TlsResult =
   | { ok: true; cert: PeerCertLike }
@@ -43,11 +60,25 @@ function isTimeout(e: unknown): boolean {
   return code === "ETIMEDOUT" || code === "ETIME";
 }
 
-/** Default real TLS connect (node:tls, lazy-imported). */
-export async function socketTlsConnect(opts: TlsConnectOpts): Promise<PeerCertLike> {
-  const tls = await import("node:tls");
+/** Default real TLS connect (node:tls, lazy-imported). `connect` is injectable
+ *  so the abort/timeout teardown is unit-testable with a fake socket. */
+export async function socketTlsConnect(
+  opts: TlsConnectOpts,
+  connect?: TlsConnectFactory,
+): Promise<PeerCertLike> {
+  if (opts.signal?.aborted) throw Object.assign(new Error("tls: aborted"), { code: "ETIMEDOUT" });
+  const doConnect: TlsConnectFactory =
+    connect ?? ((await import("node:tls")).connect as unknown as TlsConnectFactory);
   return new Promise<PeerCertLike>((resolve, reject) => {
-    const socket = tls.connect(
+    let done = false;
+    let cleanup = () => {};
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      cleanup(); // drop the abort listener on completion, not just on GC
+      fn();
+    };
+    const socket = doConnect(
       {
         host: opts.host,
         servername: opts.servername,
@@ -57,21 +88,35 @@ export async function socketTlsConnect(opts: TlsConnectOpts): Promise<PeerCertLi
         rejectUnauthorized: false,
       },
       () => {
-        const cert = socket.getPeerCertificate() as PeerCertLike;
-        socket.end();
-        resolve(cert);
+        const cert = socket.getPeerCertificate();
+        finish(() => {
+          socket.end();
+          resolve(cert);
+        });
       },
     );
+    // Shared deadline tears the handshake down — treat as a timeout (floor: the
+    // per-call timer; whichever fires first wins).
+    if (opts.signal) {
+      const signal = opts.signal;
+      const onAbort = () => {
+        socket.destroy();
+        finish(() => reject(Object.assign(new Error("tls: deadline"), { code: "ETIMEDOUT" })));
+      };
+      signal.addEventListener("abort", onAbort, { once: true });
+      cleanup = () => signal.removeEventListener("abort", onAbort);
+    }
     socket.setTimeout(opts.timeoutMs, () => {
       socket.destroy();
-      reject(Object.assign(new Error("tls: timeout"), { code: "ETIMEDOUT" }));
+      finish(() => reject(Object.assign(new Error("tls: timeout"), { code: "ETIMEDOUT" })));
     });
-    socket.on("error", reject);
+    socket.on("error", (e) => finish(() => reject(e)));
   });
 }
 
 /** Handshake to <domain>:443 after the SSRF check. Never throws. */
 export async function fetchTls(domain: string, deps: TlsDeps): Promise<TlsResult> {
+  if (deps.signal?.aborted) return { ok: false, error: "timeout" }; // deadline already blown
   const check = await hostAllowed(domain, deps.resolveHost);
   if (!check.allowed) return { ok: false, error: "blocked" }; // never connect
 
@@ -89,6 +134,7 @@ export async function fetchTls(domain: string, deps: TlsDeps): Promise<TlsResult
       servername: domain,
       port: 443,
       timeoutMs: deps.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      signal: deps.signal,
     });
     return { ok: true, cert };
   } catch (e) {

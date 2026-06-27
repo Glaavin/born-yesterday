@@ -17,6 +17,10 @@ export type IndicatorState = "green" | "amber" | "red" | "blue";
 export interface Reason {
   text: string;
   source: SignalSource | null;
+  /** "caveat" reasons are transparency notes (e.g. a feed we couldn't reach) —
+   *  they route to the report SUMMARY, never to positive[]/flagged[]. Default =
+   *  positive/contributing. */
+  kind?: "positive" | "caveat";
 }
 export interface Indicator {
   state: IndicatorState;
@@ -117,6 +121,21 @@ export function computeIndicator(
       text: "Email authentication configured (SPF and DMARC present).",
       source: byKey.get("dns_dmarc")?.source ?? byKey.get("dns_spf")?.source ?? null,
     });
+    // Transparency over false comfort: if a threat feed was NOT checked
+    // (unreachable / no key — value null, not a definitive "Listed"/"Not listed"),
+    // disclose the gap rather than implying we cleared it. (1.7 trade-off: a
+    // stricter "require ≥1 successful threat check for GREEN" once working feed
+    // keys exist; default now = state-the-gap so GREEN stays reachable.)
+    const unreachable: string[] = [];
+    if (pt?.valueText == null) unreachable.push("PhishTank"); // "Listed" would have returned Red
+    if (uh?.valueText == null) unreachable.push("URLhaus");
+    if (unreachable.length) {
+      reasons.push({
+        text: `${unreachable.join(" and ")} ${unreachable.length > 1 ? "were" : "was"} not reachable at check time; not independently cleared.`,
+        source: null,
+        kind: "caveat", // a transparency note → the report summary, not positive[]
+      });
+    }
     return { state: "green", reasons };
   }
 

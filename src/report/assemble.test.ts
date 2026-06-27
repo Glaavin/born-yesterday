@@ -75,4 +75,22 @@ describe("assembleReport", () => {
     expect(report.flagged).toEqual([]);
     expect(report.positive[0]).toEqual({ text: "Established domain — registered ~11 years ago.", source: S("RDAP", "u-rdap") });
   });
+
+  it("a GREEN caveat lands in the SUMMARY — never in positive[] or flagged[]", () => {
+    const indicator: Indicator = {
+      state: "green",
+      reasons: [
+        { text: "Established domain — registered ~11 years ago.", source: S("RDAP", "u-rdap") },
+        { text: "PhishTank was not reachable at check time; not independently cleared.", source: null, kind: "caveat" },
+      ],
+    };
+    const report = assembleReport("example.com", results, { pivot: null }, indicator, NOW);
+
+    const inFindings = [...report.positive, ...report.flagged].some((f) => /not reachable/i.test(f.text));
+    expect(inFindings).toBe(false); // caveat is NOT a finding
+    expect(report.flagged).toEqual([]);
+    expect(report.positive[0]).toEqual({ text: "Established domain — registered ~11 years ago.", source: S("RDAP", "u-rdap") });
+    expect(report.summary).toMatch(/Note:.*PhishTank.*not reachable/i); // it's a summary note
+    expect(report.summary).not.toMatch(EDITORIAL);
+  });
 });
