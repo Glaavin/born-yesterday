@@ -1,4 +1,4 @@
-import { and, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, sql } from "drizzle-orm";
 import { getDb } from "./client";
 import {
   domains,
@@ -136,6 +136,39 @@ export async function getSessionQuota(
     .from(searchQuota)
     .where(and(eq(searchQuota.sessionKey, sessionKey), eq(searchQuota.day, day)));
   return row?.count ?? 0;
+}
+
+/** Most-recently-generated reports — ANONYMIZED columns only (§7b feed). */
+export async function getRecentReports(
+  limit: number,
+): Promise<Array<{ domain: string; skepticismState: string; generatedAt: number }>> {
+  const db = getDb();
+  return db
+    .select({
+      domain: reports.domain,
+      skepticismState: reports.skepticismState,
+      generatedAt: reports.generatedAt,
+    })
+    .from(reports)
+    .orderBy(desc(reports.generatedAt))
+    .limit(limit);
+}
+
+/** Total number of reports generated (the hatch counter, §7b). */
+export async function countReports(): Promise<number> {
+  const db = getDb();
+  const [row] = await db.select({ c: sql<number>`count(*)::int` }).from(reports);
+  return row?.c ?? 0;
+}
+
+/** Number of signal_history rows for a domain (append-only proof, dev). */
+export async function countSignalHistory(domain: string): Promise<number> {
+  const db = getDb();
+  const [row] = await db
+    .select({ c: sql<number>`count(*)::int` })
+    .from(signalHistory)
+    .where(eq(signalHistory.domain, domain));
+  return row?.c ?? 0;
 }
 
 /** Number of locally-stored threat hosts for a source (0 ⇒ never ingested). */

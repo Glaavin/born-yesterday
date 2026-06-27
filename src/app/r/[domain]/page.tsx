@@ -1,55 +1,19 @@
+import { headers } from "next/headers";
+import { after } from "next/server";
+import Link from "next/link";
 import SkepticismPill from "@/components/SkepticismPill";
 import ReportTabs from "@/components/ReportTabs";
 import ReportActions from "@/components/ReportActions";
+import Mascot from "@/components/Mascot";
 import {
   reportToText,
   type Finding,
   type Report,
   type Source,
 } from "@/components/report-state";
-
-// mock — Sprint 1.1 supplies the real report (no data layer / signal logic here).
-// Default state is "some-concerns" so the view exercises BOTH flagged and
-// positive highlights. Swap the `state` literal to preview the other states:
-// "checks-out" | "some-concerns" | "red-flags" | "too-new".
-function mockReport(domain: string): Report {
-  return {
-    domain,
-    state: "some-concerns",
-    summary:
-      "Public signals are mixed: the domain is established and its certificate is clean, but its registrant was freshly masked and its marketing footprint is thin for the age it claims.",
-    lastChecked: "2026-06-26", // mock
-    flagged: [
-      {
-        text: "Registrant details were hidden behind a privacy proxy three weeks ago.",
-        source: { label: "WHOIS history", url: "https://example.com/whois" },
-      },
-      {
-        text: "No archived homepage before this year, despite an “since 2019” claim.",
-        source: { label: "Wayback Machine", url: "https://web.archive.org/" },
-      },
-    ],
-    positive: [
-      {
-        text: "Valid TLS certificate from a reputable authority, issued 14 months ago.",
-        source: {
-          label: "Certificate Transparency log",
-          url: "https://crt.sh/",
-        },
-      },
-      {
-        text: "SPF and DMARC records are present and correctly configured.",
-        source: { label: "DNS records", url: "https://example.com/dns" },
-      },
-    ],
-    sources: [
-      { label: "WHOIS history", url: "https://example.com/whois" },
-      { label: "Wayback Machine", url: "https://web.archive.org/" },
-      { label: "Certificate Transparency log", url: "https://crt.sh/" },
-      { label: "DNS records (SPF / DMARC)", url: "https://example.com/dns" },
-    ],
-  };
-}
+import { serveReport } from "@/serve/serve";
+import { buildServeDeps } from "@/serve/runtime";
+import { sessionKey } from "@/serve/quota";
 
 const DISCLAIMER =
   "Born Yesterday reports are assembled from public data and fixed, published rubrics. They’re informational, not legal, financial, or professional advice — and every signal links to its source. Think we got something wrong? Request a correction.";
@@ -67,15 +31,8 @@ function SourceLink({ source }: { source: Source }) {
   );
 }
 
-/** A single finding. The data point is shown in its flag colour (§4) AND carries
- *  a worded "Flagged"/"Positive" cue, so meaning is never colour-alone. */
-function FindingItem({
-  kind,
-  finding,
-}: {
-  kind: "flagged" | "positive";
-  finding: Finding;
-}) {
+/** A single finding — data point in its flag colour AND a worded cue (§4). */
+function FindingItem({ kind, finding }: { kind: "flagged" | "positive"; finding: Finding }) {
   const flagged = kind === "flagged";
   return (
     <li className="flex flex-col gap-1 py-2">
@@ -89,9 +46,7 @@ function FindingItem({
         >
           {flagged ? "Flagged" : "Positive"}
         </span>
-        <span className={flagged ? "text-flag-negative" : "text-flag-positive"}>
-          {finding.text}
-        </span>
+        <span className={flagged ? "text-flag-negative" : "text-flag-positive"}>{finding.text}</span>
       </div>
       <p className="text-sm text-ink-muted">
         Source: <SourceLink source={finding.source} />
@@ -100,16 +55,69 @@ function FindingItem({
   );
 }
 
+/** Centered status screen for the error / limit-reached states. */
+function StatusScreen({
+  mascot,
+  title,
+  children,
+}: {
+  mascot: "error" | "limit-reached";
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-5 py-12 text-center">
+      <div className="w-24">
+        <Mascot state={mascot} />
+      </div>
+      <h1 className="font-heading text-2xl font-bold text-accent-gold">{title}</h1>
+      <p className="max-w-md text-ink-muted">{children}</p>
+      <Link href="/" className="text-sm text-accent-gold underline hover:no-underline">
+        Check another site
+      </Link>
+    </div>
+  );
+}
+
+const clientIpFrom = (forwarded: string | null): string =>
+  forwarded?.split(",")[0]?.trim() || "unknown";
+
 export default async function ReportPage({
   params,
 }: {
   params: Promise<{ domain: string }>;
 }) {
   const { domain: raw } = await params;
-  const domain = decodeURIComponent(raw);
-  const report = mockReport(domain);
+  const input = decodeURIComponent(raw);
+
+  const h = await headers();
+  const ip = clientIpFrom(h.get("x-forwarded-for"));
+  const deps = buildServeDeps((fn) => after(fn)); // background refresh runs after the response
+
+  const result = await serveReport(input, { sessionKey: sessionKey(ip) }, deps);
+
+  if (result.state === "error") {
+    return (
+      <StatusScreen mascot="error" title="That doesn’t look like a site we can check">
+        Enter a domain like <span className="text-ink">stripe.com</span> — no “http://”, no path
+        needed.
+      </StatusScreen>
+    );
+  }
+
+  if (result.state === "limit-reached" || !result.report) {
+    return (
+      <StatusScreen mascot="limit-reached" title="You’ve used today’s free checks">
+        Born Yesterday allows a few new reports per day. Already-generated reports stay viewable — try
+        again tomorrow, or open a report someone else has already hatched.
+      </StatusScreen>
+    );
+  }
+
+  const report: Report = result.report;
+  const refreshing = result.state !== "served";
   const correctionHref = `mailto:corrections@bornyesterday.tech?subject=${encodeURIComponent(
-    `Correction request: ${domain}`,
+    `Correction request: ${report.domain}`,
   )}`;
 
   const overview = (
@@ -118,12 +126,8 @@ export default async function ReportPage({
       <p className="text-ink">{report.summary}</p>
       <p className="text-sm text-ink-muted">Last checked: {report.lastChecked}</p>
       <ul className="mt-1">
-        {report.flagged[0] && (
-          <FindingItem kind="flagged" finding={report.flagged[0]} />
-        )}
-        {report.positive[0] && (
-          <FindingItem kind="positive" finding={report.positive[0]} />
-        )}
+        {report.flagged[0] && <FindingItem kind="flagged" finding={report.flagged[0]} />}
+        {report.positive[0] && <FindingItem kind="positive" finding={report.positive[0]} />}
       </ul>
     </div>
   );
@@ -135,6 +139,7 @@ export default async function ReportPage({
           Flagged findings
         </h2>
         <ul>
+          {report.flagged.length === 0 && <li className="py-2 text-ink-muted">None flagged.</li>}
           {report.flagged.map((f, i) => (
             <FindingItem key={i} kind="flagged" finding={f} />
           ))}
@@ -145,6 +150,7 @@ export default async function ReportPage({
           Positive findings
         </h2>
         <ul>
+          {report.positive.length === 0 && <li className="py-2 text-ink-muted">None recorded.</li>}
           {report.positive.map((f, i) => (
             <FindingItem key={i} kind="positive" finding={f} />
           ))}
@@ -166,8 +172,14 @@ export default async function ReportPage({
   return (
     <article className="flex flex-col gap-6 py-4">
       <h1 className="font-heading text-3xl font-bold text-accent-gold">
-        Trust Report: {domain}
+        Trust Report: {report.domain}
       </h1>
+
+      {refreshing && (
+        <p className="rounded-md border border-indicator-amber/40 bg-indicator-amber/10 px-3 py-2 text-sm text-indicator-amber">
+          Showing the last cached report — a fresh check is running in the background.
+        </p>
+      )}
 
       <ReportTabs
         tabs={[
