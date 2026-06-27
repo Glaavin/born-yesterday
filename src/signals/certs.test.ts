@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { parseCrtsh } from "./crtsh";
-import { parseTlsCert, fetchTls, type PeerCertLike, type TlsDeps } from "./tls";
+import {
+  parseTlsCert,
+  fetchTls,
+  socketTlsConnect,
+  type PeerCertLike,
+  type TlsDeps,
+  type TlsConnectFactory,
+} from "./tls";
 import { collectCerts, type CertsDeps } from "./certs";
 import type { Fetcher, FetchResult } from "../lib/cached-fetch";
 
@@ -165,5 +172,72 @@ describe("collectCerts", () => {
       expect(s.valueNum).toBeNull();
       expect(s.source).toBeNull();
     }
+  });
+});
+
+describe("socketTlsConnect shared-deadline abort (Story 16.1)", () => {
+  function makeFakeTlsSocket() {
+    const handlers: Record<string, Array<(arg?: unknown) => void>> = {};
+    return {
+      destroyed: false,
+      ended: false,
+      getPeerCertificate(): PeerCertLike {
+        return { subject: { O: "X" } };
+      },
+      setTimeout() {
+        /* store nothing — the per-call timeout must NOT fire in these tests */
+      },
+      on(ev: string, cb: (arg?: unknown) => void) {
+        (handlers[ev] ||= []).push(cb);
+      },
+      end() {
+        this.ended = true;
+      },
+      destroy() {
+        this.destroyed = true;
+      },
+    };
+  }
+
+  it("aborts PROMPTLY on the signal — destroys the socket, never waits the timeout", async () => {
+    const fake = makeFakeTlsSocket();
+    const connect: TlsConnectFactory = () => fake;
+    const ac = new AbortController();
+
+    const p = socketTlsConnect(
+      { host: "1.2.3.4", servername: "x.com", port: 443, timeoutMs: 60_000, signal: ac.signal },
+      connect,
+    );
+    ac.abort();
+
+    await expect(p).rejects.toMatchObject({ code: "ETIMEDOUT" });
+    expect(fake.destroyed).toBe(true);
+  });
+
+  it("a normal handshake still resolves the cert", async () => {
+    const fake = makeFakeTlsSocket();
+    let onSecure: () => void = () => {};
+    const connect: TlsConnectFactory = (_opts, cb) => {
+      onSecure = cb;
+      return fake;
+    };
+
+    const p = socketTlsConnect({ host: "1.2.3.4", servername: "x.com", port: 443, timeoutMs: 3000 }, connect);
+    onSecure(); // simulate secureConnect
+
+    expect(await p).toEqual({ subject: { O: "X" } });
+    expect(fake.ended).toBe(true);
+  });
+
+  it("fetchTls short-circuits on an already-aborted deadline (no connect)", async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const tlsConnect = vi.fn(async () => CERT);
+    const deps: TlsDeps = { resolveHost: async () => ["93.184.216.34"], tlsConnect, signal: ac.signal };
+
+    const r = await fetchTls("example.com", deps);
+
+    expect(r).toEqual({ ok: false, error: "timeout" });
+    expect(tlsConnect).not.toHaveBeenCalled();
   });
 });

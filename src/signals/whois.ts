@@ -45,9 +45,18 @@ export interface WhoisDeps {
     get(key: string): Promise<{ payload: string } | null>;
     set(key: string, payload: string, ttlSeconds: number): Promise<void>;
   };
-  /** Raw port-43 query (host, query) → text. Injectable so tests need no socket. */
-  whoisQuery: (host: string, query: string, timeoutMs: number) => Promise<string>;
+  /** Raw port-43 query → text. Injectable so tests need no socket. The optional
+   *  signal is the shared report deadline (Story 16.1) — aborting it tears the
+   *  socket down. */
+  whoisQuery: (
+    host: string,
+    query: string,
+    timeoutMs: number,
+    signal?: AbortSignal,
+  ) => Promise<string>;
   timeoutMs?: number;
+  /** Shared report-deadline signal threaded into the socket calls. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -59,8 +68,10 @@ export async function socketWhois(
   host: string,
   query: string,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  signal?: AbortSignal,
   connect?: WhoisConnect,
 ): Promise<string> {
+  if (signal?.aborted) throw Object.assign(new Error("whois: aborted"), { code: "ETIMEDOUT" });
   const createConnection =
     connect ?? ((await import("node:net")).createConnection as unknown as WhoisConnect);
   return new Promise<string>((resolve, reject) => {
@@ -77,6 +88,16 @@ export async function socketWhois(
       socket.destroy();
       finish(() => reject(new Error("whois: timeout")));
     }, timeoutMs);
+    // Shared deadline tears the socket down — treat it as a timeout (floor: the
+    // per-call timer; whichever fires first wins).
+    signal?.addEventListener(
+      "abort",
+      () => {
+        socket.destroy();
+        finish(() => reject(Object.assign(new Error("whois: deadline"), { code: "ETIMEDOUT" })));
+      },
+      { once: true },
+    );
     socket.setEncoding("utf8");
     socket.on("connect", () => socket.write(query + "\r\n"));
     socket.on("data", (d) => {
@@ -105,6 +126,7 @@ async function resolveWhoisServer(
       "whois.iana.org",
       tld,
       deps.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      deps.signal,
     );
     const m = iana.match(/^(?:refer|whois):\s*(\S+)\s*$/im);
     return m ? m[1] : null;
@@ -131,6 +153,7 @@ export async function queryWhois(
       server,
       domain,
       deps.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+      deps.signal,
     );
   } catch {
     return null;

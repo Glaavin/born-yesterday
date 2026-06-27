@@ -81,18 +81,34 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     expect(ind.reasons[0].source).not.toBeNull();
   });
 
-  it("4) established AND clean → GREEN (positive evidence)", () => {
-    const r = results([
+  const established = (extra: Signal[] = []) =>
+    results([
       sig("domain_age_days", { valueNum: 4015 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(4015), source: S("RDAP", "u-rdap") }),
       sig("dns_spf", { valueText: "v=spf1 ~all", source: S("DNS over HTTPS", "u-spf") }),
       sig("dns_dmarc", { valueText: "v=DMARC1; p=reject", source: S("DNS over HTTPS", "u-dmarc") }),
+      ...extra,
+    ]);
+
+  it("4) established AND clean (both feeds checked-clear) → GREEN, no disclosure", () => {
+    const r = established([
       sig("phishtank_listed", { valueText: "Not listed", source: S("PhishTank", "u-pt") }),
+      sig("urlhaus_listed", { valueText: "Not listed", source: S("URLhaus (abuse.ch)", "u-uh") }),
     ]);
     const ind = computeIndicator("x.com", r, noPivot, NOW);
     expect(ind.state).toBe("green");
     expect(ind.reasons.length).toBeGreaterThanOrEqual(2);
     expect(ind.reasons.every((x) => x.source != null)).toBe(true);
+    expect(ind.reasons.some((x) => /not reachable/i.test(x.text))).toBe(false);
+  });
+
+  it("GREEN with a threat feed NOT checked → still green, reasons DISCLOSE the gap", () => {
+    // No threat signals at all (feeds unreachable / no key).
+    const ind = computeIndicator("x.com", established(), noPivot, NOW);
+    expect(ind.state).toBe("green");
+    const disclosure = ind.reasons.find((x) => /not reachable/i.test(x.text));
+    expect(disclosure).toBeDefined();
+    expect(disclosure!.source).not.toBeNull();
   });
 
   it("a clean threat check does NOT force GREEN (not established → amber)", () => {

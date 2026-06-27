@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { socketWhois, type WhoisConnect } from "./whois";
 
 const MAX = 1 << 20; // must match WHOIS_MAX_BYTES
@@ -28,7 +28,7 @@ describe("socketWhois byte cap", () => {
     const fake = makeFakeSocket();
     const connect: WhoisConnect = () => fake;
 
-    const p = socketWhois("whois.example", "domain", 5000, connect);
+    const p = socketWhois("whois.example", "domain", 5000, undefined, connect);
     fake.emit("connect");
     fake.emit("data", "x".repeat(MAX + 1000)); // overflow
 
@@ -41,12 +41,37 @@ describe("socketWhois byte cap", () => {
     const fake = makeFakeSocket();
     const connect: WhoisConnect = () => fake;
 
-    const p = socketWhois("whois.example", "domain", 5000, connect);
+    const p = socketWhois("whois.example", "domain", 5000, undefined, connect);
     fake.emit("connect");
     fake.emit("data", "Creation Date: 1997-09-15\n");
     fake.emit("close");
 
     expect(await p).toBe("Creation Date: 1997-09-15\n");
     expect(fake.destroyed).toBe(false);
+  });
+});
+
+describe("socketWhois shared-deadline abort (Story 16.1)", () => {
+  it("aborts PROMPTLY on the signal — destroys the socket, never waits the timeout", async () => {
+    const fake = makeFakeSocket();
+    const connect: WhoisConnect = () => fake;
+    const ac = new AbortController();
+
+    // Huge per-call timeout — the abort must win without waiting for it.
+    const p = socketWhois("whois.example", "domain", 60_000, ac.signal, connect);
+    fake.emit("connect");
+    ac.abort();
+
+    await expect(p).rejects.toThrow(/deadline/);
+    expect(fake.destroyed).toBe(true);
+  });
+
+  it("an already-aborted signal throws immediately without connecting", async () => {
+    const ac = new AbortController();
+    ac.abort();
+    const connect = vi.fn<WhoisConnect>();
+
+    await expect(socketWhois("h", "q", 60_000, ac.signal, connect)).rejects.toThrow();
+    expect(connect).not.toHaveBeenCalled();
   });
 });

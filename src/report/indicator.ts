@@ -117,6 +117,19 @@ export function computeIndicator(
       text: "Email authentication configured (SPF and DMARC present).",
       source: byKey.get("dns_dmarc")?.source ?? byKey.get("dns_spf")?.source ?? null,
     });
+    // Transparency over false comfort: if a threat feed was NOT checked
+    // (unreachable / no key — value null, not a definitive "Listed"/"Not listed"),
+    // disclose the gap rather than implying we cleared it. (1.7 trade-off: a
+    // stricter "require ≥1 successful threat check for GREEN" once working feed
+    // keys exist; default now = state-the-gap so GREEN stays reachable.)
+    const ptChecked = pt?.valueText != null; // "Not listed" (a "Listed" would have returned Red)
+    const uhChecked = uh?.valueText != null;
+    if (!ptChecked || !uhChecked) {
+      reasons.push({
+        text: "One or more threat feeds were not reachable at check time; not independently cleared against them.",
+        source: { label: "URLhaus (abuse.ch)", url: `https://urlhaus.abuse.ch/browse.php?search=${domain}` },
+      });
+    }
     return { state: "green", reasons };
   }
 

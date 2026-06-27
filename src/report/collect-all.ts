@@ -52,12 +52,18 @@ export function buildCollectorSpecs(domain: string, deps: CollectAllDeps): Colle
           cache: deps.cache,
           whoisQuery: deps.whoisQuery,
           now: deps.now,
+          signal: s, // the WHOIS socket honors the shared deadline (Story 16.1)
         }),
     },
     {
       name: "certs",
       run: (s) =>
-        collectCerts(domain, { fetcher: f(s), resolveHost: deps.resolveHost, tlsConnect: deps.tlsConnect }),
+        collectCerts(domain, {
+          fetcher: f(s),
+          resolveHost: deps.resolveHost,
+          tlsConnect: deps.tlsConnect,
+          signal: s, // the TLS handshake honors the shared deadline (Story 16.1)
+        }),
     },
     { name: "dns", run: (s) => collectDns(domain, { fetcher: f(s) }) },
     {
