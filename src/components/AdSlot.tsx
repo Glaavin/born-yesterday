@@ -35,13 +35,15 @@ export default function AdSlot({
     <div
       data-ad-slot={id}
       data-ad-size={size}
-      className={`relative flex ${SIZES[size]} items-center justify-center overflow-hidden rounded-md border border-dashed border-label-teal/25`}
+      className={`relative flex ${SIZES[size]} items-center justify-center overflow-hidden rounded-md bg-black/30`}
     >
       {/* Always-present label (§5). Lives inside the fixed box, so it never
-          changes the reserved dimensions. */}
-      <span className="text-xs uppercase tracking-widest text-label-teal/70">
-        Advertisement
-      </span>
+          changes the reserved dimensions. "FUTURE" sits above "Advertisement"
+          to read as reserved-but-empty inventory. */}
+      <div className="flex flex-col items-center gap-0.5 text-center text-xs uppercase tracking-widest text-label-teal/70">
+        <span>Future</span>
+        <span>Advertisement</span>
+      </div>
 
       {/* Default OFF → placeholder only, no client JS, no network. When the flag
           is explicitly enabled, the gated (still inert) script stub mounts. */}
