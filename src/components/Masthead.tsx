@@ -18,7 +18,7 @@ export default function Masthead() {
   if (pathname !== "/") return null;
 
   return (
-    <div className="mx-auto w-full max-w-xl px-6 pb-14 pt-4 sm:pb-20">
+    <div className="mx-auto w-full max-w-xl px-6 pt-20 pb-10 sm:pt-32 sm:pb-14">
       <WordmarkMascot state="idle" />
     </div>
   );
