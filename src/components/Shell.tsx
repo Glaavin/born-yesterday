@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import AdSlot from "./AdSlot";
+import Masthead from "./Masthead";
 
 /**
  * Shared page shell (Story 1.2.3): header nav band, three-column grid
@@ -19,6 +20,8 @@ function AdRail({ id }: { id: string }) {
 export default function Shell({ children }: { children: ReactNode }) {
   return (
     <>
+      {/* One continuous gradient band: nav at top, then the landing masthead
+          (wordmark) below it — the page's "title" upper section. */}
       <header className="surface-header w-full">
         <div className="mx-auto flex max-w-6xl justify-end px-4 py-4 sm:px-6">
           <nav
@@ -33,6 +36,7 @@ export default function Shell({ children }: { children: ReactNode }) {
             </a>
           </nav>
         </div>
+        <Masthead />
       </header>
 
       <div className="grid flex-1 grid-cols-1 lg:shell-cols">
