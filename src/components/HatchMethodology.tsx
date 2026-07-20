@@ -31,7 +31,10 @@ export default function HatchMethodology({ count }: { count: number }) {
           View Our Report Methodology
         </button>
       </p>
-      {open && <MethodologyCard id="methodology-panel" />}
+      {/* Rendered always (toggled via `hidden`) so the button's aria-controls
+          target exists even while collapsed; `hidden` keeps it out of layout,
+          tab order, and the a11y tree until expanded. */}
+      <MethodologyCard id="methodology-panel" hidden={!open} />
     </div>
   );
 }
