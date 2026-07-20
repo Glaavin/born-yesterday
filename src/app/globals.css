@@ -36,8 +36,8 @@
   /* Back-compat alias for the old emerald accent, now the positive cyan. */
   --color-accent: var(--color-positive-1);
 
-  --font-sans: var(--font-inter);
-  --font-serif: var(--font-fraunces);
+  --font-sans: var(--font-barlow);
+  --font-serif: var(--font-bitter);
 }
 
 body {
