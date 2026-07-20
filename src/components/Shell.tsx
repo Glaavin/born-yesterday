@@ -42,7 +42,8 @@ export default function Shell({ children }: { children: ReactNode }) {
       </div>
 
       <footer className="surface-header w-full">
-        <div className="mx-auto max-w-6xl px-6 py-6 text-center text-sm text-ink-muted">
+        {/* text-ink (not ink-muted): AA on the retoned brighter header band — 5.67:1 vs 3.28:1 */}
+        <div className="mx-auto max-w-6xl px-6 py-6 text-center text-sm text-ink">
           © Born Yesterday
         </div>
       </footer>

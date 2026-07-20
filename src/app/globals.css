@@ -20,14 +20,16 @@
 
   /* ---- Color tokens (§8.2) — flat colors ----
      Each maps into Tailwind's --color-* namespace. */
-  --color-wordmark-cream: #f9db9d; /* "BORN" */
-  --color-wordmark-blue: #5c7ddf;  /* ".TECH" */
-  --color-accent-gold: #f8d181;    /* counter number, report title, card border */
-  --color-link-coral: #c65644;     /* nav links */
-  --color-label-teal: #87d3d8;     /* labels, section accents */
-  --color-flag-positive: #63b0bb;  /* positive findings — AA on surface-body (4.95:1) */
-  --color-flag-negative: #e77da3;  /* flagged data / red-flag pill — adjusted from sampled #e46a95 for WCAG AA (see §8.2) */
-  --color-input-surface: #eaffff;  /* input field */
+  /* RETONE (2026-07-20): values swapped to the owner's 5-pair palette. AA
+     re-verified as TEXT on surface-body (#1a3942). See §8.2 sync follow-up. */
+  --color-wordmark-cream: #f8ce7b; /* "BORN" (retone; egg fill) — 8.26:1 */
+  --color-wordmark-blue: #7099e6;  /* ".TECH" / mascot poles (retone, decorative) */
+  --color-accent-gold: #f8ce7b;    /* counter, report title, card border, Check btn — 8.26:1 */
+  --color-link-coral: #fae2af;     /* nav links — now GOLD (retone; name is stale, see would-refactor). Lighter stop to clear AA on the brighter header — 5.12:1 */
+  --color-label-teal: #9ff6fb;     /* labels, section accents (retone) — 9.98:1 */
+  --color-flag-positive: #6cced5;  /* positive findings (retone) — 6.69:1 */
+  --color-flag-negative: #ff71a0;  /* flagged data (retone) — 4.76:1 */
+  --color-input-surface: #eaffff;  /* input field (held — no near-white in palette) */
   --color-ink: #e9f1f2;            /* primary body copy — AA on surface-body (10.73:1) */
   --color-ink-muted: #a7bcc0;      /* secondary copy / captions — AA on surface-body (6.21:1) */
 
@@ -36,24 +38,24 @@
      (≥4.5:1) as pill TEXT on --surface-body. */
   --color-indicator-green: #6fbf8e; /* "Checks out" — 5.57:1 */
   --color-indicator-amber: #f0b347; /* "Some concerns" — deepened vs accent-gold so the pill reads distinct; 6.58:1 */
-  --color-indicator-red: #e8827a;   /* "Red flags found" — lightened from #e0584e for AA; 4.63:1 */
-  --color-indicator-blue: #829ce7;  /* "Too new to tell" — lightened from wordmark-blue #5c7ddf for AA; 4.60:1 */
+  --color-indicator-red: #ff71a0;   /* "Red flags found" (retone → palette pink) — 4.76:1 */
+  --color-indicator-blue: #829ce7;  /* "Too new to tell" — HELD: palette blue (#7099e6) is only 4.33:1 as pill text (AA fail); kept AA-passing value — 4.60:1 */
 
   /* ---- Gradient tokens (§8.2) ----
      Three §8.2 tokens are gradients, not flat colors. Each is kept as paired
      stop tokens (usable as --color-* utilities/vars) PLUS a --gradient-* custom
      property holding the composed linear-gradient. Gradient angles set to
      vertical (top→bottom) to match the mockups. */
-  --color-surface-header-from: #10153f; /* top nav band */
-  --color-surface-header-to: #111850;
+  --color-surface-header-from: #374aa5; /* top nav / footer band (retone → palette indigo) */
+  --color-surface-header-to: #3d53c4;
   --gradient-surface-header: linear-gradient(180deg, var(--color-surface-header-from), var(--color-surface-header-to));
 
   --color-surface-body-from: #111b24;   /* page background */
   --color-surface-body-to: #1a3942;
   --gradient-surface-body: linear-gradient(180deg, var(--color-surface-body-from), var(--color-surface-body-to));
 
-  --color-wordmark-cyan-from: #7fdce3;  /* "YESTERDAY" */
-  --color-wordmark-cyan-to: #99f1f7;
+  --color-wordmark-cyan-from: #6cced5;  /* "YESTERDAY" (retone; art is now baked SVG) */
+  --color-wordmark-cyan-to: #9ff6fb;
   --gradient-wordmark-cyan: linear-gradient(180deg, var(--color-wordmark-cyan-from), var(--color-wordmark-cyan-to));
 
   /* ---- Type scale (--text-*) ----
