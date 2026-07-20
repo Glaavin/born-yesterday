@@ -5,7 +5,7 @@
       <stop offset="1" stop-color="#fae2af"/>
     </linearGradient>
     <filter id="Path_28" x="0" y="0" width="156.45" height="130.8" filterUnits="userSpaceOnUse">
-      <feOffset dy="-2" input="SourceAlpha"/>
+      <feOffset dy="-3" input="SourceAlpha"/>
       <feGaussianBlur result="blur"/>
       <feFlood flood-color="#fff8e3"/>
       <feComposite operator="in" in2="blur"/>
