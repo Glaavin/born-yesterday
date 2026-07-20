@@ -82,6 +82,11 @@
   --text-4xl: 2.875rem;   --text-4xl--line-height: 1.1;
   --text-5xl: 3.75rem;    --text-5xl--line-height: 1.04;
   --text-6xl: 4.75rem;    --text-6xl--line-height: 1.0;
+
+  /* ---- Sizing ----
+     Wordmark lockup width tuned so the SVG (1000×210 viewBox, ~4.76:1) renders
+     ~130px tall on desktop: 130 × 1000/210 ≈ 619px. Exposed as max-w-wordmark. */
+  --container-wordmark: 619px;
 }
 
 /* Foundational page surface: wire the page background + body font to their

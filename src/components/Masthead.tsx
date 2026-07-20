@@ -17,8 +17,10 @@ export default function Masthead() {
   const pathname = usePathname();
   if (pathname !== "/") return null;
 
+  // Desktop: fixed 240px-tall band (lg:h-60) with the wordmark centered.
+  // Mobile: height follows content with vertical padding.
   return (
-    <div className="mx-auto w-full max-w-xl px-6 pt-20 pb-10 sm:pt-32 sm:pb-14">
+    <div className="mx-auto flex w-full max-w-2xl items-center justify-center px-6 py-12 lg:h-60 lg:py-0">
       <WordmarkMascot state="idle" />
     </div>
   );
