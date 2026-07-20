@@ -36,13 +36,20 @@ export default function HeroSearch() {
   const valid = looksLikeUrl(value);
 
   return (
-    <form role="search" action="/search" method="get" className="w-full max-w-2xl">
+    <form
+      role="search"
+      action="/search"
+      method="get"
+      className="group search-hover-halo w-full max-w-2xl"
+    >
       <label htmlFor="site-url" className="sr-only">
         Website to check for red flags
       </label>
       <div
         className={`flex items-stretch overflow-hidden rounded-md border transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-label-teal ${
-          valid ? "border-accent-gold" : "border-label-teal/60"
+          valid
+            ? "border-accent-gold"
+            : "border-surface-header-to/60 group-hover:border-label-teal"
         }`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2.5 px-4">
@@ -99,8 +106,10 @@ export default function HeroSearch() {
         </div>
         <button
           type="submit"
-          className={`flex w-40 shrink-0 items-center justify-center py-3 font-semibold text-surface-body-from transition-colors hover:opacity-90 ${
-            valid ? "bg-accent-gold" : "bg-label-teal"
+          className={`flex w-40 shrink-0 items-center justify-center py-3 font-semibold transition-colors ${
+            valid
+              ? "bg-accent-gold text-surface-body-from group-hover:opacity-90"
+              : "bg-surface-header-to text-ink group-hover:bg-label-teal group-hover:text-surface-body-from"
           }`}
         >
           Check for flags

@@ -107,3 +107,18 @@ body {
 @utility shell-cols {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
+
+/* Extends the search control's hover-detection area by 60px on every side (a
+   transparent, non-layout-affecting halo) so `group-hover` fires within a
+   generous radius. z-index lifts the halo over neighbouring (non-interactive)
+   copy. Lives here because the -60px inset can't be a standard Tailwind
+   utility without an arbitrary value. */
+.search-hover-halo {
+  position: relative;
+  z-index: 10;
+}
+.search-hover-halo::before {
+  content: "";
+  position: absolute;
+  inset: -60px;
+}
