@@ -1,10 +1,41 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-background: #020617;
+  /* Base surfaces & text */
+  --color-background: #060d14;
   --color-foreground: #e2e8f0;
   --color-muted: #64748b;
-  --color-accent: #10b981;
+
+  /* ---------------------------------------------------------------------
+   * Gradient palette — five two-stop pairs.
+   * Named by semantic role, not hue, so a color can be re-themed later
+   * without renaming tokens. Each pair is `-1` (from) → `-2` (to) and is
+   * used as a gradient in most places (see docs/design-system.md §8.2).
+   * ------------------------------------------------------------------- */
+
+  /* Primary brand — "BORN" wordmark, card frame, nav & action links */
+  --color-brand-1: #f8ce7b;
+  --color-brand-2: #fae2af;
+
+  /* Positive — "YESTERDAY" wordmark, positive report findings */
+  --color-positive-1: #6cced5;
+  --color-positive-2: #9ff6fb;
+
+  /* Info / tech accent — "TECH" wordmark */
+  --color-tech-1: #425ad7;
+  --color-tech-2: #7099e6;
+
+  /* Surface accent — hero background gradient */
+  --color-surface-1: #374aa5;
+  --color-surface-2: #3d53c4;
+
+  /* Flag / negative — "Red Flag" pill, flagged report data */
+  --color-flag-1: #bf4c72;
+  --color-flag-2: #ff71a0;
+
+  /* Back-compat alias for the old emerald accent, now the positive cyan. */
+  --color-accent: var(--color-positive-1);
+
   --font-sans: var(--font-inter);
   --font-serif: var(--font-fraunces);
 }
