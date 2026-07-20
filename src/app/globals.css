@@ -121,4 +121,7 @@ body {
   content: "";
   position: absolute;
   inset: -60px;
+  /* Sit BEHIND the control's own in-flow input/button so it only captures hover
+     in the surrounding halo — never intercepts clicks/paste on the field. */
+  z-index: -1;
 }
