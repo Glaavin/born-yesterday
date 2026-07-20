@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="156.45" height="130.8" viewBox="0 0 156.45 130.8">
   <defs>
     <linearGradient id="linear-gradient" x1="0.5" x2="0.5" y2="1" gradientUnits="objectBoundingBox">
-      <stop offset="0" stop-color="#f8ce7b"/>
-      <stop offset="1" stop-color="#fae2af"/>
+      <stop offset="0" stop-color="#ff4f93"/>
+      <stop offset="1" stop-color="#ffa6cc"/>
     </linearGradient>
     <filter id="Path_28" x="0" y="0" width="156.45" height="130.8" filterUnits="userSpaceOnUse">
       <feOffset dy="-3" input="SourceAlpha"/>
       <feGaussianBlur result="blur"/>
-      <feFlood flood-color="#fff8e3"/>
+      <feFlood flood-color="#ffe1ee"/>
       <feComposite operator="in" in2="blur"/>
       <feComposite in="SourceGraphic"/>
     </filter>

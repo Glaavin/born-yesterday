@@ -11,9 +11,9 @@
  * one unit that fills its container width. The lockup is centered in the
  * 0 0 1000 210 space.
  *
- *   BORN       → /born-text.svg       (gold, baked gradient)
- *   YESTERDAY  → /yesterday-text.svg  (cyan, baked gradient)
- *   TECH       → /tech-text.svg       (blue, baked gradient)
+ *   BORN       → /born-text.svg       (pink, baked gradient)
+ *   YESTERDAY  → /yesterday-text.svg  (green, baked gradient)
+ *   TECH       → /tech-text.svg       (azure, baked gradient)
  *
  * The egg mascot (previously seated in the YESTERDAY→TECH gap) is removed for
  * now; the gap is closed to a normal word space. The accessible name
