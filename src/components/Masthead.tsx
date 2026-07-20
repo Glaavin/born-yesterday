@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Wordmark from "./Wordmark";
 
-/** Primary nav links. Shared by both masthead variants. */
+/** Primary nav links. */
 function Nav() {
   return (
     <nav
@@ -21,33 +22,31 @@ function Nav() {
 }
 
 /**
- * Masthead — the top-section gradient band (nav strip + wordmark).
+ * Masthead — the persistent top-section gradient band (nav strip + wordmark).
+ * Rendered consistently on every route (before and after report delivery) as a
+ * compound branding element, not the document's semantic header/heading.
  *
- * Landing ("/"): a fixed 240px band (desktop AND mobile) with the nav at top
- * and the wordmark pinned so its baseline sits 40px (pb-10) above the band's
- * bottom edge. Other routes (e.g. /r/[domain], which has its own <h1>): the band
- * collapses to just the nav strip, so there's no duplicate wordmark <h1>.
- *
- * The egg mascot is temporarily removed from the lockup (owner request); the
- * Mascot component + 8-state contract stay intact and still drive the report
- * page's verdict pill.
+ * The wordmark's wrapper is the only per-route difference: on the landing it's
+ * the page <h1>; on inner pages (e.g. /r/[domain], which has its own <h1>) it's
+ * a home link, so branding stays visible without duplicating the <h1>.
  */
 export default function Masthead() {
-  const pathname = usePathname();
-
-  if (pathname !== "/") {
-    return (
-      <header className="surface-header w-full py-4">
-        <Nav />
-      </header>
-    );
-  }
+  const isHome = usePathname() === "/";
+  const lockup = "mx-auto block w-full max-w-xl lg:max-w-wordmark";
 
   return (
-    <header className="surface-header flex h-60 w-full flex-col pt-4">
+    <header className="surface-header flex h-60 w-full flex-col pt-2">
       <Nav />
       <div className="mt-auto w-full px-6 pb-4">
-        <Wordmark className="mx-auto w-full max-w-xl lg:max-w-wordmark" />
+        {isHome ? (
+          <h1 className={lockup}>
+            <Wordmark />
+          </h1>
+        ) : (
+          <Link href="/" aria-label="Born Yesterday — home" className={lockup}>
+            <Wordmark />
+          </Link>
+        )}
       </div>
     </header>
   );
