@@ -3,9 +3,10 @@
  * Deterministic + sourced; NO reference to AI, no "vibe check". Server Component.
  * The card border uses --accent-gold (§8.2 "card border").
  */
-export default function MethodologyCard() {
+export default function MethodologyCard({ id }: { id?: string }) {
   return (
     <section
+      id={id}
       aria-label="How Born Yesterday works"
       className="w-full max-w-2xl rounded-lg border border-accent-gold/40 p-6"
     >

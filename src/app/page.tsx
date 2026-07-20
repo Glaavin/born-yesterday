@@ -1,6 +1,5 @@
 import HeroSearch from "@/components/HeroSearch";
-import HatchCounter from "@/components/HatchCounter";
-import MethodologyCard from "@/components/MethodologyCard";
+import HatchMethodology from "@/components/HatchMethodology";
 import RecentSearches from "@/components/RecentSearches";
 import { countReports, getRecentReports } from "@/db/queries";
 import { recentReports } from "@/serve/recent";
@@ -22,8 +21,7 @@ export default async function Home() {
       </p>
 
       <HeroSearch />
-      <HatchCounter count={count} />
-      <MethodologyCard />
+      <HatchMethodology count={count} />
       <RecentSearches items={recent} />
     </div>
   );
