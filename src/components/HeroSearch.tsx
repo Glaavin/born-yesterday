@@ -10,7 +10,7 @@
  */
 export default function HeroSearch() {
   return (
-    <form role="search" action="/search" method="get" className="w-full max-w-lg">
+    <form role="search" action="/search" method="get" className="w-full max-w-2xl">
       <label htmlFor="site-url" className="sr-only">
         Website to check for red flags
       </label>
