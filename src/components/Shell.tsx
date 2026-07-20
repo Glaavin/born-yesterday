@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import AdSlot from "./AdSlot";
+import Masthead from "./Masthead";
 
 /**
  * Shared page shell (Story 1.2.3): header nav band, three-column grid
@@ -19,21 +20,9 @@ function AdRail({ id }: { id: string }) {
 export default function Shell({ children }: { children: ReactNode }) {
   return (
     <>
-      <header className="surface-header w-full">
-        <div className="mx-auto flex max-w-6xl justify-end px-4 py-4 sm:px-6">
-          <nav
-            aria-label="Primary"
-            className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-sm"
-          >
-            <a href="#" className="text-link-coral hover:underline">
-              Support Born Yesterday
-            </a>
-            <a href="#" className="text-link-coral hover:underline">
-              Report an issue
-            </a>
-          </nav>
-        </div>
-      </header>
+      {/* Top-section gradient band (nav + wordmark on the landing; nav-only
+          elsewhere). Owns its own <header>. */}
+      <Masthead />
 
       <div className="grid flex-1 grid-cols-1 lg:shell-cols">
         <AdRail id="rail-left" />
@@ -42,7 +31,8 @@ export default function Shell({ children }: { children: ReactNode }) {
       </div>
 
       <footer className="surface-header w-full">
-        <div className="mx-auto max-w-6xl px-6 py-6 text-center text-sm text-ink-muted">
+        {/* text-ink (not ink-muted): AA on the retoned brighter header band — 5.67:1 vs 3.28:1 */}
+        <div className="mx-auto max-w-6xl px-6 py-6 text-center text-sm text-ink">
           © Born Yesterday
         </div>
       </footer>

@@ -17,7 +17,7 @@ export default function WordmarkMascot({
   state?: MascotState;
 }) {
   return (
-    <div className="relative mx-auto w-full max-w-xl">
+    <div className="relative mx-auto w-full max-w-xl lg:max-w-wordmark">
       <Wordmark />
       <div
         className="pointer-events-none absolute z-10"
