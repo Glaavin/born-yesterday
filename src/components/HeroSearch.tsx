@@ -99,24 +99,11 @@ export default function HeroSearch() {
         </div>
         <button
           type="submit"
-          aria-label="Check for flags"
-          className={`flex w-40 shrink-0 items-center justify-center gap-1.5 py-3 font-semibold text-surface-body-from transition-colors hover:opacity-90 ${
+          className={`flex w-40 shrink-0 items-center justify-center py-3 font-semibold text-surface-body-from transition-colors hover:opacity-90 ${
             valid ? "bg-accent-gold" : "bg-label-teal"
           }`}
         >
-          {valid ? (
-            "Check for flags"
-          ) : (
-            <span className="flex items-center gap-1.5 opacity-40" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="currentColor" className="size-6">
-                <path d="M12 2.5c-3.6 0-6.2 5.5-6.2 10.4C5.8 17.4 8.6 21 12 21s6.2-3.6 6.2-8.1C18.2 8 15.6 2.5 12 2.5z" />
-              </svg>
-              <svg viewBox="0 0 24 24" fill="currentColor" className="size-6">
-                <rect x="5" y="3" width="2" height="18" rx="1" />
-                <path d="M8 4h10l-2.5 3.5L18 11H8z" />
-              </svg>
-            </span>
-          )}
+          Check for flags
         </button>
       </div>
     </form>
