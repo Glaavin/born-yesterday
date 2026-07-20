@@ -28,19 +28,34 @@ export default function Wordmark({ className }: { className?: string }) {
         className="block h-auto w-full"
       >
         <title>BornYesterday.tech</title>
-        {/* BORN + YESTERDAY share a cap-height; set tight so they read joined.
-            Whole lockup (135→866) is centered in the 1000-wide viewBox. */}
-        <image href="/born-text.svg" x="135" y="30" width="179" height="150" />
+        {/* Each segment is stretched +10% horizontally (preserveAspectRatio=none;
+            width = natural × 1.1). Extra space between BORN and YESTERDAY. Whole
+            lockup (84→917) is centered in the 1000-wide viewBox. */}
+        <image
+          href="/born-text.svg"
+          x="84"
+          y="30"
+          width="197"
+          height="150"
+          preserveAspectRatio="none"
+        />
         <image
           href="/yesterday-text.svg"
-          x="310"
+          x="309"
           y="30"
-          width="402"
+          width="442"
           height="150"
+          preserveAspectRatio="none"
         />
-        {/* Egg mascot removed for now → gap closed to a normal word space.
-            (To re-seat the egg, push TECH right and reopen the gap.) */}
-        <image href="/tech-text.svg" x="745" y="75" width="121" height="105" />
+        {/* Egg mascot removed for now → normal word space before TECH. */}
+        <image
+          href="/tech-text.svg"
+          x="784"
+          y="75"
+          width="133"
+          height="105"
+          preserveAspectRatio="none"
+        />
       </svg>
     </h1>
   );

@@ -46,7 +46,7 @@ export default function Masthead() {
   return (
     <header className="surface-header flex h-60 w-full flex-col pt-4">
       <Nav />
-      <div className="mt-auto w-full px-6 pb-10">
+      <div className="mt-auto w-full px-6 pb-6">
         <Wordmark className="mx-auto w-full max-w-xl lg:max-w-wordmark" />
       </div>
     </header>

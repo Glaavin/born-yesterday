@@ -85,8 +85,8 @@
 
   /* ---- Sizing ----
      Wordmark lockup width tuned so the SVG (1000×210 viewBox, ~4.76:1) renders
-     ~130px tall on desktop: 130 × 1000/210 ≈ 619px. Exposed as max-w-wordmark. */
-  --container-wordmark: 619px;
+     ~154px tall on desktop: 154 × 1000/210 ≈ 733px. Exposed as max-w-wordmark. */
+  --container-wordmark: 733px;
 }
 
 /* Foundational page surface: wire the page background + body font to their
