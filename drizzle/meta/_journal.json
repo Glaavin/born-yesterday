@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1782476085176,
+      "tag": "0000_military_karnak",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782477960637,
+      "tag": "0001_damp_starjammers",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782509039152,
+      "tag": "0002_mysterious_night_nurse",
+      "breakpoints": true
+    }
+  ]
+}
