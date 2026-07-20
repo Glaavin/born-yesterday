@@ -15,8 +15,8 @@
 @theme static {
   /* ---- Fonts (§8.1) — self-hosted via next/font in layout.tsx ----
      The display/wordmark face is NOT loaded here (outlined in SVG later). */
-  --font-heading: var(--font-fraunces), Georgia, "Times New Roman", serif;
-  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-bitter), Georgia, "Times New Roman", serif;
+  --font-body: var(--font-barlow), ui-sans-serif, system-ui, sans-serif;
 
   /* ---- Color tokens (§8.2) — flat colors ----
      Each maps into Tailwind's --color-* namespace. */
