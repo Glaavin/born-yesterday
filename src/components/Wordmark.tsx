@@ -6,12 +6,14 @@
  * in /public and are composed here as isolated <image> elements inside a single
  * viewBox — so their baked gradients/filters stay self-contained (no shared-ID
  * collisions) while the whole lockup still scales as one unit that fills its
- * container width. That fixed 0 0 1000 210 coordinate space is what keeps the
- * WordmarkMascot egg seated in the "." gap between YESTERDAY and TECH.
+ * container width. The lockup is centered in the fixed 0 0 1000 210 space.
  *
  *   BORN       → /born-text.svg       (gold, baked gradient)
  *   YESTERDAY  → /yesterday-text.svg  (cyan, baked gradient)
- *   .TECH      → /tech-text.svg       (blue, baked gradient; "." is the egg)
+ *   TECH       → /tech-text.svg       (blue, baked gradient)
+ *
+ * The egg mascot (previously seated in the YESTERDAY→TECH gap) is removed for
+ * now; the gap is closed to a normal word space.
  *
  * The accessible name "BornYesterday.tech" is exposed via role="img" + <title>
  * + aria-label. This is the ONLY <h1> on the page.
@@ -26,17 +28,19 @@ export default function Wordmark({ className }: { className?: string }) {
         className="block h-auto w-full"
       >
         <title>BornYesterday.tech</title>
-        {/* BORN + YESTERDAY share a cap-height; set tight so they read joined. */}
-        <image href="/born-text.svg" x="15" y="30" width="179" height="150" />
+        {/* BORN + YESTERDAY share a cap-height; set tight so they read joined.
+            Whole lockup (135→866) is centered in the 1000-wide viewBox. */}
+        <image href="/born-text.svg" x="135" y="30" width="179" height="150" />
         <image
           href="/yesterday-text.svg"
-          x="190"
+          x="310"
           y="30"
           width="402"
           height="150"
         />
-        {/* Gap 592→720 is left for the egg (the "."). TECH ~0.7x, baseline-aligned. */}
-        <image href="/tech-text.svg" x="720" y="75" width="121" height="105" />
+        {/* Egg mascot removed for now → gap closed to a normal word space.
+            (To re-seat the egg, push TECH right and reopen the gap.) */}
+        <image href="/tech-text.svg" x="745" y="75" width="121" height="105" />
       </svg>
     </h1>
   );

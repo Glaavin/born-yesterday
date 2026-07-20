@@ -1,27 +1,54 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import WordmarkMascot from "./WordmarkMascot";
+import Wordmark from "./Wordmark";
+
+/** Primary nav links. Shared by both masthead variants. */
+function Nav() {
+  return (
+    <nav
+      aria-label="Primary"
+      className="mx-auto flex max-w-6xl flex-wrap items-center justify-end gap-x-5 gap-y-1 px-4 text-sm font-semibold sm:px-6"
+    >
+      <a href="#" className="text-link-coral hover:underline">
+        Support Born Yesterday
+      </a>
+      <a href="#" className="text-link-coral hover:underline">
+        Report an issue
+      </a>
+    </nav>
+  );
+}
 
 /**
- * Masthead — the wordmark lockup that lives inside the header's gradient band,
- * turning the top of the page into a tall "title" section above the dark body
- * (design-system.md §4.2 mockup: the title sits in the blue gradient space).
+ * Masthead — the top-section gradient band (nav strip + wordmark).
  *
- * Landing-only: rendered inside <Shell>'s shared header, but the wordmark <h1>
- * belongs to the home page. On other routes (e.g. /r/[domain], which has its
- * own <h1>) this renders nothing, leaving just the nav band — so no duplicate
- * <h1> and no second mascot.
+ * Landing ("/"): a fixed 240px band (desktop AND mobile) with the nav at top
+ * and the wordmark pinned so its baseline sits 40px (pb-10) above the band's
+ * bottom edge. Other routes (e.g. /r/[domain], which has its own <h1>): the band
+ * collapses to just the nav strip, so there's no duplicate wordmark <h1>.
+ *
+ * The egg mascot is temporarily removed from the lockup (owner request); the
+ * Mascot component + 8-state contract stay intact and still drive the report
+ * page's verdict pill.
  */
 export default function Masthead() {
   const pathname = usePathname();
-  if (pathname !== "/") return null;
 
-  // Desktop: fixed 240px-tall band (lg:h-60) with the wordmark centered.
-  // Mobile: height follows content with vertical padding.
+  if (pathname !== "/") {
+    return (
+      <header className="surface-header w-full py-4">
+        <Nav />
+      </header>
+    );
+  }
+
   return (
-    <div className="mx-auto flex w-full max-w-2xl items-center justify-center px-6 py-12 lg:h-60 lg:py-0">
-      <WordmarkMascot state="idle" />
-    </div>
+    <header className="surface-header flex h-60 w-full flex-col pt-4">
+      <Nav />
+      <div className="mt-auto w-full px-6 pb-10">
+        <Wordmark className="mx-auto w-full max-w-xl lg:max-w-wordmark" />
+      </div>
+    </header>
   );
 }

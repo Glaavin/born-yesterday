@@ -20,24 +20,9 @@ function AdRail({ id }: { id: string }) {
 export default function Shell({ children }: { children: ReactNode }) {
   return (
     <>
-      {/* One continuous gradient band: nav at top, then the landing masthead
-          (wordmark) below it — the page's "title" upper section. */}
-      <header className="surface-header w-full">
-        <div className="mx-auto flex max-w-6xl justify-end px-4 py-4 sm:px-6">
-          <nav
-            aria-label="Primary"
-            className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 text-sm"
-          >
-            <a href="#" className="text-link-coral hover:underline">
-              Support Born Yesterday
-            </a>
-            <a href="#" className="text-link-coral hover:underline">
-              Report an issue
-            </a>
-          </nav>
-        </div>
-        <Masthead />
-      </header>
+      {/* Top-section gradient band (nav + wordmark on the landing; nav-only
+          elsewhere). Owns its own <header>. */}
+      <Masthead />
 
       <div className="grid flex-1 grid-cols-1 lg:shell-cols">
         <AdRail id="rail-left" />
