@@ -59,7 +59,7 @@ export default function HeroSearch() {
             stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
-            className="size-5 shrink-0 text-label-teal"
+            className="size-5 shrink-0 text-surface-header-to transition-colors group-hover:text-label-teal"
             aria-hidden="true"
           >
             <circle cx="11" cy="11" r="7" />
@@ -77,7 +77,7 @@ export default function HeroSearch() {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="What website are you curious about?"
-            className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink outline-none placeholder:text-label-teal"
+            className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink outline-none transition-colors placeholder:text-surface-header-to group-hover:placeholder:text-label-teal"
           />
           {value && (
             <button
