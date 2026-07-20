@@ -20,26 +20,31 @@
 
   /* ---- Color tokens (§8.2) — flat colors ----
      Each maps into Tailwind's --color-* namespace. */
-  /* RETONE (2026-07-20): values swapped to the owner's 5-pair palette. AA
-     re-verified as TEXT on surface-body (#1a3942). See §8.2 sync follow-up. */
-  --color-wordmark-cream: #f8ce7b; /* "BORN" (retone; egg fill) — 8.26:1 */
-  --color-wordmark-blue: #7099e6;  /* ".TECH" / mascot poles (retone, decorative) */
-  --color-accent-gold: #f8ce7b;    /* counter, report title, card border, Check btn — 8.26:1 */
-  --color-link-coral: #fae2af;     /* nav links — now GOLD (retone; name is stale, see would-refactor). Lighter stop to clear AA on the brighter header — 5.12:1 */
-  --color-label-teal: #9ff6fb;     /* labels, section accents (retone) — 9.98:1 */
-  --color-flag-positive: #6cced5;  /* positive findings (retone) — 6.69:1 */
-  --color-flag-negative: #ff71a0;  /* flagged data (retone) — 4.76:1 */
+  /* RETONE 2026-07-20b: values swapped to the owner's new palette (pink accent /
+     green positive / mint labels / azure header over dark teal). Token NAMES are
+     now stale in several places (accent-"gold" is pink, wordmark-"cyan" is green,
+     "coral" is pink) — kept for stability; see would-refactor. AA ratios below
+     were computed against the OLD navy surface-body and are marked pending: the
+     new dark-teal body (#0c4744/#062c2d) is comparably dark, so light accents
+     still clear AA, but a formal re-verify pass is owed to §8.2. */
+  --color-wordmark-cream: #ff5c9a; /* "BORN" + tagline + egg fill — now PINK (was gold) */
+  --color-wordmark-blue: #45c8ff;  /* ".TECH" / mascot poles — now AZURE (decorative) */
+  --color-accent-gold: #ff4f93;    /* counter, report title, card border, methodology link — now PINK */
+  --color-link-coral: #ff6fa8;     /* nav links — now PINK (name stale) */
+  --color-label-teal: #83f0c4;     /* labels, section accents, search hover — now MINT/aqua-green */
+  --color-flag-positive: #56dd86;  /* positive findings — GREEN */
+  --color-flag-negative: #ff5f88;  /* flagged data — pink-red */
   --color-input-surface: #eaffff;  /* input field (held — no near-white in palette) */
-  --color-ink: #e9f1f2;            /* primary body copy — AA on surface-body (10.73:1) */
-  --color-ink-muted: #a7bcc0;      /* secondary copy / captions — AA on surface-body (6.21:1) */
+  --color-ink: #e9f1f2;            /* primary body copy — light, AA on dark-teal body */
+  --color-ink-muted: #99b7b3;      /* secondary copy / captions / faint row borders — muted teal */
 
   /* ---- Indicator (Skepticism Indicator pill) tokens (§4.1 / §8.2) ----
      Dedicated signal colors, decoupled from accent/wordmark usage. Each is AA
      (≥4.5:1) as pill TEXT on --surface-body. */
-  --color-indicator-green: #6fbf8e; /* "Checks out" — 5.57:1 */
-  --color-indicator-amber: #f0b347; /* "Some concerns" — deepened vs accent-gold so the pill reads distinct; 6.58:1 */
-  --color-indicator-red: #ff71a0;   /* "Red flags found" (retone → palette pink) — 4.76:1 */
-  --color-indicator-blue: #829ce7;  /* "Too new to tell" — HELD: palette blue (#7099e6) is only 4.33:1 as pill text (AA fail); kept AA-passing value — 4.60:1 */
+  --color-indicator-green: #56dd86; /* "Checks out" — GREEN (matches mockup pill) */
+  --color-indicator-amber: #ff5f88; /* "Some concerns" — now PINK per mockup (name stale) */
+  --color-indicator-red: #ff2f5c;   /* "Red flags found" — deeper crimson, kept distinct from the pink some-concerns pill (labels also carry meaning in words, §4) */
+  --color-indicator-blue: #3fb0f2;  /* "Too new to tell" — AZURE (matches masthead) */
 
   /* ---- Gradient tokens (§8.2) ----
      Three §8.2 tokens are gradients, not flat colors. Each is kept as paired
@@ -49,10 +54,10 @@
   /* Deep navy — masthead/header gradient top. ADDED beyond the owner's 10-color
      palette (palette is integrated but not the whole system). Lets the band read
      dark-navy at top → royal indigo lower down, matching the masthead reference. */
-  --color-navy-deep: #0b1030;
-  --color-surface-header-from: #374aa5; /* mid indigo (palette) */
-  --color-surface-header-to: #3d53c4;   /* royal indigo (palette) — brightest, at the bottom */
-  /* Hold navy through the top third, then brighten to indigo toward the wordmark. */
+  --color-navy-deep: #071233;
+  --color-surface-header-from: #1670cc; /* mid azure */
+  --color-surface-header-to: #2ba6f5;   /* bright azure — brightest, at the bottom */
+  /* Hold navy through the top third, then brighten to azure toward the wordmark. */
   --gradient-surface-header: linear-gradient(
     180deg,
     var(--color-navy-deep) 0%,
@@ -61,12 +66,12 @@
     var(--color-surface-header-to) 100%
   );
 
-  --color-surface-body-from: #111b24;   /* page background */
-  --color-surface-body-to: #1a3942;
+  --color-surface-body-from: #0c4744;   /* page background — teal (top) */
+  --color-surface-body-to: #062c2d;     /* darker teal (bottom) */
   --gradient-surface-body: linear-gradient(180deg, var(--color-surface-body-from), var(--color-surface-body-to));
 
-  --color-wordmark-cyan-from: #6cced5;  /* "YESTERDAY" (retone; art is now baked SVG) */
-  --color-wordmark-cyan-to: #9ff6fb;
+  --color-wordmark-cyan-from: #45de79;  /* "YESTERDAY" — now GREEN (name stale; art is baked SVG) */
+  --color-wordmark-cyan-to: #8ff0a6;
   --gradient-wordmark-cyan: linear-gradient(180deg, var(--color-wordmark-cyan-from), var(--color-wordmark-cyan-to));
 
   /* ---- Type scale (--text-*) ----
@@ -89,9 +94,24 @@
   --container-wordmark: 733px;
 }
 
+/* The page (html) sits BEHIND the body gradient — it's what shows in the
+   overscroll/rubber-band gutter at the very top and bottom. Flat indigo (the
+   masthead's royal-indigo stop) instead of the browser-default white. */
+html {
+  background: var(--color-surface-header-to);
+  /* Clip horizontal overflow at the scroll-container level so nothing can
+     produce a side-to-side wiggle on mobile — the search-hover halo
+     (inset:-60px) otherwise pokes ~36px past the viewport edge. `clip` (not
+     `hidden`) avoids creating a scroll container, so 100vh/sticky stay intact. */
+  overflow-x: clip;
+}
+
 /* Foundational page surface: wire the page background + body font to their
    tokens. (§8.2 defines no generic body-text/foreground color token — left
-   unset here; flagged for a follow-up. Per-element text color is a later story.) */
+   unset here; flagged for a follow-up. Per-element text color is a later story.)
+   The body gradient runs the full document height (footer is transparent), so
+   it stays continuous all the way to the bottom. (Horizontal overflow is
+   clipped on <html> above.) */
 body {
   background: var(--gradient-surface-body);
   font-family: var(--font-body), system-ui, sans-serif;
@@ -108,11 +128,19 @@ body {
   grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
-/* Extends the search control's hover-detection area by 60px on every side (a
-   transparent, non-layout-affecting halo) so `group-hover` fires within a
-   generous radius. z-index lifts the halo over neighbouring (non-interactive)
-   copy. Lives here because the -60px inset can't be a standard Tailwind
-   utility without an arbitrary value. */
+/* Extends the search control's hover-detection area (a transparent,
+   non-layout-affecting halo) so `group-hover` fires within a generous radius.
+   Lives here because negative insets can't be standard Tailwind utilities.
+
+   The halo IS elevated (z-index:10) so it sits on top and can catch hover in
+   the surrounding empty space. The catch: an elevated transparent overlay will
+   silently swallow clicks on anything it covers. So the reach is asymmetric —
+   the full 60px goes left/right (where the centered control has genuinely empty
+   margin), but only 24px vertically, which stays clear of the 32px (gap-8)
+   space to the tagline above and the methodology line below. That way the halo
+   can never overlap a sibling and steal its clicks (previously it swallowed the
+   "View Our Report Methodology" toggle). z-index:-1 on ::before keeps it behind
+   the control's OWN input so field clicks/paste still work. */
 .search-hover-halo {
   position: relative;
   z-index: 10;
@@ -120,8 +148,6 @@ body {
 .search-hover-halo::before {
   content: "";
   position: absolute;
-  inset: -60px;
-  /* Sit BEHIND the control's own in-flow input/button so it only captures hover
-     in the surrounding halo — never intercepts clicks/paste on the field. */
+  inset: -24px -60px;
   z-index: -1;
 }

@@ -30,8 +30,10 @@ export default function Shell({ children }: { children: ReactNode }) {
         <AdRail id="rail-right" />
       </div>
 
-      <footer className="surface-header w-full">
-        {/* text-ink (not ink-muted): AA on the retoned brighter header band — 5.67:1 vs 3.28:1 */}
+      {/* Transparent: the body gradient runs straight through so the page bg
+          stays continuous to the bottom. text-ink stays AA over the gradient's
+          dark bottom stop (#1a3942 → 10.73:1). */}
+      <footer className="w-full">
         <div className="mx-auto max-w-6xl px-6 py-6 text-center text-sm text-ink">
           © Born Yesterday
         </div>
