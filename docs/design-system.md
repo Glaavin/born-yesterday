@@ -1,9 +1,9 @@
 # Born Yesterday — Design System Specification
 
 **Document:** `docs/design-system.md`
-**Sprint:** 1.2 — Owner-led branded visual design system
-**Status:** Decisions locked; type & color foundation accepted for MVP (iteration expected post-launch)
-**Companion to:** `PRODUCT.md` v1.1 (product/strategy source of truth)
+**Epic:** Hydrogen — owner-led branded visual design system (see `docs/conventions.md`)
+**Status:** Decisions locked; type & color foundation accepted for MVP (iteration expected post-launch). **Palette retoned in PRs #34/#35 — see §8.2.**
+**Companion to:** `PRODUCT.md` v1.3 (product/strategy source of truth)
 
 ---
 
@@ -28,6 +28,7 @@ These supersede the placeholder copy in the mockups.
 - **Methodology statement (MVP):** deterministic and sourced. No reference to AI on the hot path — there is none in the MVP, and claiming it invites the skepticism the product exists to apply. Draft:
   > *Born Yesterday checks are built entirely from public data and fixed, published rubrics — no black box, no guesswork. Every signal we raise links back to the source it came from.*
   Supporting bullets: what a report covers · sources of data · the scoring rubric (links to methodology page) · how to read a result.
+  **As shipped (PR #34):** the methodology statement is no longer an always-open card. It sits **behind a disclosure** — a "View Our Report Methodology" link at the end of the hatch-counter line (the `HatchMethodology` client component owns the open/closed state; it reveals `MethodologyCard`). Collapsed by default.
 - **Disclaimer (report page):** reframed from "our AI may be wrong" to interpretation guidance. Draft:
   > *A Born Yesterday report surfaces signals, not verdicts. A raised flag means something is worth a closer look — not proof of wrongdoing.*
   Followed by the correction link (see §3).
@@ -68,7 +69,9 @@ The mascot layer must support these named states. Each gets a static placeholder
 | `limit-reached` | 3/3 daily searches used | Out of searches for now |
 | `error` | Invalid URL / fetch failure | Couldn't run the check |
 
-The four result states form a green → amber → red severity ladder plus blue as the orthogonal "can't assess yet." The amber **"Some concerns"** state carries the overall moderate verdict; this is distinct from the inline pink-flagged / cyan-positive highlights in the report body, which mark *which specific data points* are concerning or reassuring. **Mascot art note:** the placeholder PNG has three flags (blue/green/red); the four-state contract needs a fourth (amber) flag treatment — exact visual is a design pass during the mascot redraw.
+The four result states form a green → amber → red severity ladder plus blue as the orthogonal "can't assess yet." The amber **"Some concerns"** state carries the overall moderate verdict; this is distinct from the inline pink-flagged / cyan-positive highlights in the report body, which mark *which specific data points* are concerning or reassuring.
+
+> **Mascot art note (as shipped — reality, corrected in Story 18.1).** §4.2 promises "a static SVG placeholder for each state," wired so a Rive file slots in later. **What shipped is the state contract wired to *one shared inline-SVG asset* across all eight states** — the `state` prop switches, but the pixels do not (`src/components/Mascot.tsx`). There is no `BY_egg.png` in the repo, and the fourth **amber** flag the four-state contract needs still does not exist. Meaning is not lost — the `SkepticismPill` carries the verdict in words, so the never-by-color-alone requirement holds. **But the mascot *is* the Skepticism Indicator per §4, and right now it does not indicate.** This is a tracked **product gap**, not merely a doc correction (`docs/ops-tasks.md`).
 
 The report card's status pill mirrors the active result state in words ("Checks out" / "Some concerns" / "Red flags found" / "Too new to tell"), which also satisfies the accessibility requirement that the indicator never be carried by color alone.
 
@@ -76,6 +79,7 @@ The report card's status pill mirrors the active result state in words ("Checks 
 
 - **Animation tech:** **Rive** — its built-in state machine matches the "input state → transition" model directly. (Lottie was considered; it is export-from-After-Effects and linear, requiring JS segment orchestration for state logic.)
 - **MVP phasing:** ship a **static SVG placeholder** for each state. Build the layer architecture and state contract now; slot the Rive file in post-MVP with zero layout change. The provided `BY_egg.png` is raster — redraw as SVG for crisp wordmark overlap and future animation.
+  > **Shipped reality (Story 18.1):** the "placeholder *for each state*" part did not ship — the contract is wired to **one shared inline-SVG** across all eight states. The layering/architecture is in place (so per-state art or Rive can slot in later with no layout change), but distinct per-state art is outstanding. See the §4.1 mascot art note and `docs/ops-tasks.md`.
 - **Layering:** the mascot occupies a **separate, higher z-index layer** than the wordmark, within a shared positioned container, so the egg sits in the "." of the wordmark. In Next.js, the mascot is a **client component** (it will host the Rive runtime later); the wordmark and everything else stay server-rendered/static (keeps the page fast and cheap, per the cost-reduction principle).
 
 ---
@@ -87,7 +91,7 @@ Built now, served later. No ads run during development.
 - **Density:** **two slots per page**, one per rail, on every page (landing and report). Consistent and modest.
 - **Sizing:** IAB-standard **160×600 wide skyscraper** per rail. (Standard sizes are mandatory — non-standard slots won't be filled by any network.)
 - **Layout shift:** each slot reserves fixed dimensions so ad load causes no CLS.
-- **Loading:** lazy-load; label each slot "Advertisement."
+- **Loading:** lazy-load; label each slot. **As shipped (PR #35):** the reserved placeholder reads as empty-but-reserved inventory — a `bg-black/30` recessed panel, **no border**, with a **stacked "FUTURE / ADVERTISEMENT"** label (was a single "Advertisement"). The §5 constraints are unchanged: still a plain in-flow, fixed-size, labeled box, ads gated off by default (`src/components/AdSlot.tsx`).
 - **Component:** a single `<AdSlot size id />` — renders a labeled placeholder in dev, injects the ad script in prod, gated by config/env.
 - **Never list (brand integrity — a transparency brand must not use the patterns it flags):** no interstitials · no sticky/anchor ads · no autoplay · no pop-ups · **no native ads disguised as content.**
 - **Mobile:** rails drop below the responsive breakpoint; at most one in-content unit, or none, for MVP.
@@ -126,65 +130,74 @@ A three-role system, all open-licensed (no licensing cost):
 
 ### 8.2 Color tokens
 
-Approximate values read from the mockups — **sample exact values from the source files before locking.** Defined as semantic CSS custom properties.
+Values below are the **shipped palette**, read directly from `src/app/globals.css` `@theme` — the **source of truth** (each token is available as a `--color-*` utility **and** a CSS variable). The palette was **retoned in PRs #34/#35** — **pink accent, green positive, mint labels, azure masthead, dark-teal body** — superseding the earlier teal/gold/coral sampling. Gradients are vertical (top→bottom).
 
-> **Status (Story 2):** Tokens are implemented in `src/app/globals.css` via Tailwind v4 `@theme static` (each available as a `--color-*` / `--font-*` / `--text-*` utility **and** CSS variable). Values below are now **sampled from the mockups** in `docs/mockups/` (kept local-only / gitignored). Gradients are vertical (top→bottom) to match the mockups. `--flag-negative` is AA-adjusted (see Accessibility note).
+**Flat colors**
 
-| Token | Approx. | Use |
+| Token | Value | Use |
 |---|---|---|
-| `--surface-header` | navy gradient `#10153f → #111850` | top nav band |
-| `--surface-body` | dark teal gradient `#111b24 → #1a3942` | page background |
-| `--wordmark-cream` | `#f9db9d` | "BORN" |
-| `--wordmark-cyan` | cyan gradient `#7fdce3 → #99f1f7` | "YESTERDAY" |
-| `--wordmark-blue` | `#5c7ddf` | ".TECH" |
-| `--accent-gold` | `#f8d181` | counter number, report title, card border |
-| `--link-coral` | `#c65644` | nav links |
-| `--label-teal` | `#87d3d8` | true labels & section accents (plain body copy uses `--ink`) |
-| `--flag-negative` | `#e77da3` *(adjusted from sampled `#e46a95` for AA)* | flagged data, red-flag pill |
-| `--flag-positive` | `#63b0bb` | positive findings |
+| `--accent-gold` | `#ff4f93` (**pink**) | counter number, report title, card border, methodology link |
+| `--link-coral` | `#ff6fa8` (**pink**) | nav links |
+| `--label-teal` | `#83f0c4` (**mint / aqua-green**) | labels, section accents, search hover |
+| `--flag-positive` | `#56dd86` (**green**) | positive findings |
+| `--flag-negative` | `#ff5f88` (**pink-red**) | flagged data |
+| `--wordmark-cream` | `#ff5c9a` (**pink**) | "BORN" + tagline + egg fill |
+| `--wordmark-blue` | `#45c8ff` (**azure**) | ".TECH" / mascot poles |
 | `--input-surface` | `#eaffff` | input field |
 | `--ink` | `#e9f1f2` | primary body copy |
-| `--ink-muted` | `#a7bcc0` | secondary copy / captions |
-| `--indicator-green` | `#6fbf8e` | report pill — "Checks out" |
-| `--indicator-amber` | `#f0b347` *(deepened vs accent-gold)* | report pill — "Some concerns" |
-| `--indicator-red` | `#e8827a` *(lightened from `#e0584e` for AA)* | report pill — "Red flags found" |
-| `--indicator-blue` | `#829ce7` *(lightened from wordmark-blue for AA)* | report pill — "Too new to tell" |
+| `--ink-muted` | `#99b7b3` (muted teal) | secondary copy / captions / faint borders |
 
-> **Accessibility (verified, Story 2):** Contrast measured against the sampled `--surface-body`, worst-case (lighter) stop `#1a3942`.
-> - `--flag-positive` `#63b0bb` — **4.95:1**, passes WCAG AA. No change.
-> - `--flag-negative` sampled `#e46a95` — **3.98:1**, *failed* AA for normal text. Lightened (same hue) to **`#e77da3` → 4.60:1**, which clears AA.
+**Indicator (Skepticism Indicator pill)**
+
+| Token | Value | Use |
+|---|---|---|
+| `--indicator-green` | `#56dd86` (green) | pill — "Checks out" |
+| `--indicator-amber` | `#ff5f88` (**pink**) | pill — "Some concerns" |
+| `--indicator-red` | `#ff2f5c` (crimson) | pill — "Red flags found" |
+| `--indicator-blue` | `#3fb0f2` (azure) | pill — "Too new to tell" |
+
+**Gradients** (paired stop tokens + a composed `--gradient-*`)
+
+| Token | Value | Use |
+|---|---|---|
+| `--gradient-surface-header` | `--navy-deep #071233` → `--surface-header-from #1670cc` → `--surface-header-to #2ba6f5` | masthead band (navy → azure) |
+| `--gradient-surface-body` | `--surface-body-from #0c4744` → `--surface-body-to #062c2d` | page background (dark teal) |
+| `--gradient-wordmark-cyan` | `--wordmark-cyan-from #45de79` → `--wordmark-cyan-to #8ff0a6` | "YESTERDAY" (**green**) |
+
+> **Token names are stale in several places — known, tracked separately.** The retone kept the old names for stability, so several no longer describe their value:
+> - `--accent-gold` is **pink** (`#ff4f93`)
+> - `--wordmark-cyan` is **green** (`#45de79 → #8ff0a6`)
+> - `--link-coral` is **pink** (`#ff6fa8`)
+> - `--indicator-amber` is **pink** (`#ff5f88`)
+> - (also: `--wordmark-cream` is pink; `--label-teal` is mint-green)
 >
-> Never carry flagged-vs-positive by color alone (the worded pill + the report's inline labels satisfy this).
+> **`--indicator-amber` is the highest-risk name.** The indicator has a real **amber** state ("Some concerns"), so a token literally named `indicator-amber` that renders **pink** invites a wrong assumption in the exact component where correctness matters most. The rename is tracked as its own task (`docs/ops-tasks.md`); until it lands, treat the **value in `globals.css` as authoritative, not the name.**
 
-> **Body-text tokens (added in the text-tokens follow-up):** `--ink` `#e9f1f2` (primary copy) and `--ink-muted` `#a7bcc0` (secondary / captions) are the neutral body-copy colors — replacing the earlier `--label-teal` stand-in, which is now reserved for true labels and section accents. On `--surface-body` (worst-case stop `#1a3942`): `--ink` = **10.73:1**, `--ink-muted` = **6.21:1** — both pass WCAG AA.
-
-> **Indicator tokens (Skepticism Indicator pill):** dedicated signal colors, decoupled from accent/wordmark usage even where similar. The pill is worded text + a border/tint in the state colour, so each is verified as **text** on `--surface-body` (worst-case stop `#1a3942`):
-> - `--indicator-green` `#6fbf8e` — **5.57:1** ✅ (new hue)
-> - `--indicator-amber` `#f0b347` — **6.58:1** ✅ (deepened from `--accent-gold` `#f8d181` so the pill reads distinct from the gold report title)
-> - `--indicator-red` `#e8827a` — **4.63:1** ✅ (lightened from `#e0584e`, which was 3.32:1)
-> - `--indicator-blue` `#829ce7` — **4.60:1** ✅ (lightened from `--wordmark-blue` `#5c7ddf`, which is 3.19:1 as normal text)
->
-> Color is never the sole signal — the four-state verdict is always carried in words by the pill (§4.1).
+> **Accessibility — WCAG AA re-verify is PARKED (owner).** The old AA ratios were measured against the previous navy body and **no longer apply**; `globals.css` marks them pending against the new dark-teal body. A formal re-verify is **parked pending palette lock — not unnoticed.** Recorded now: the **pink accent used as small text** — the hatch-counter number and the "View Our Report Methodology" link — measures roughly **3.4–4.2:1** on the teal body gradient, **below the 4.5:1 normal-text standard.** Not fixed in this story. Meaning is never carried by color alone — the four-state verdict is always worded by the pill (§4.1) and inline findings carry labels.
 
 ---
 
-## 9. Component inventory (Story Plan checklist)
+## 9. Component inventory (reconciled against `src/components/`, Story 18.1)
 
-- Top nav (Support Born Yesterday · Report an issue)
-- Wordmark (SVG, accessible `<h1>`) + mascot layer (state-driven)
-- Hero input (real `<label>`, not placeholder-only) + witty instructions
-- Hatch counter
-- Methodology card
-- Report tab nav (My Report Results · Recent Searches · Search Again)
-- Report card: title + worded indicator pill (4 states) + body with highlight styles + footer actions (Search again · Copy · Download — the shareable report is a well-formatted rich-text object that copies and downloads cleanly; image/PDF forms can evolve later) + Request a correction link
-- Recent-search list item (anonymized)
-- `<AdSlot>` (placeholder in dev, script in prod)
-- Footer / disclaimer
-- Non-result UI states: searches-remaining indicator, limit-reached
+**Deleted since the original checklist:** `HatchCounter` and `WordmarkMascot` (both removed in PR #34). **New since:** `HatchMethodology`, `Masthead`, `Shell`.
+
+- Top nav (Support Born Yesterday · Report an issue) — `Masthead.tsx`
+- Wordmark (SVG, accessible `<h1>`) + mascot layer (state-driven) — `Wordmark.tsx` + `Mascot.tsx`, composed in `Shell.tsx` (the old combined `WordmarkMascot` is deleted)
+- Hero input (real `<label>`, not placeholder-only) + witty instructions — `HeroSearch.tsx`
+- Hatch counter — **no standalone component**; the counter line now lives inside `HatchMethodology.tsx` (the `HatchCounter` component was deleted)
+- Methodology card — `MethodologyCard.tsx`, surfaced via the `HatchMethodology` disclosure (§2), not as an always-open card
+- Report tab nav (My Report Results · Recent Searches · Search Again) — `ReportTabs.tsx`
+- Report card: worded indicator pill (4 states) `SkepticismPill.tsx` (+ `report-state.ts`) + body highlight styles + footer actions `ReportActions.tsx` (Search again · Copy · Download — a rich-text object; image/PDF forms can evolve later) + Request-a-correction link
+- Recent-search list item (anonymized) — `RecentSearches.tsx`
+- `<AdSlot>` (placeholder in dev, script in prod) — `AdSlot.tsx` (+ `AdScriptStub.tsx`)
+- Footer / disclaimer — rendered in the layout shell (`Shell.tsx`) / route pages
+- Non-result UI states: limit-reached + error (via `Mascot` states + the status screen in `src/app/r/[domain]/page.tsx`). The richer **searches-remaining indicator** is still deferred (§11).
 
 ---
 
-## 10. Changeset to fold back into PRODUCT.md v1.1
+## 10. Changeset to fold back into PRODUCT.md (historical)
+
+> This changeset has been **folded in** — PRODUCT.md is now **v1.3**. Kept for provenance; it describes an earlier sync, not outstanding work.
 
 1. **Voice section:** add the "playful chrome, rigorous substance" principle.
 2. **Methodology section:** remove all "our own AI" language; ensure MVP methodology is framed as deterministic + sourced; scope the AI-error disclaimer to the future AI Pivot Timeline feature only.
@@ -196,7 +209,7 @@ Approximate values read from the mockups — **sample exact values from the sour
 
 ## 11. MVP scope / phasing reminders
 
-- Mascot: static SVG placeholders now; Rive animations post-MVP.
+- Mascot: static placeholder now (**one shared inline-SVG across all eight states** as shipped — per-state art still outstanding, see §4.1); Rive animations post-MVP.
 - Ads: architecture (`<AdSlot>`, reserved dimensions, config gating) now; ad scripts served later.
 - 3 searches/day limit: enforce mechanism (app/DB-backed) now; richer visual treatment of the limit later.
-- Skepticism Indicator *weights* finalized in Sprint 1.7 — this document fixes only the *visual expression* and state contract.
+- Skepticism Indicator: the **model** is decided in **Story 18** (rule-based — `docs/decisions/story-18-indicator-model.md`) and **thresholds** in **Story 19**; this document fixes only the *visual expression* and state contract.
