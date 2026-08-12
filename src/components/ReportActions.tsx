@@ -10,7 +10,7 @@ import { useState } from "react";
  * stub — the rich-text/file format is a later story.
  */
 const BTN =
-  "rounded-md border border-ink-muted/30 px-4 py-2 text-sm text-ink transition-colors hover:border-accent-gold";
+  "rounded-md border border-ink-muted/30 px-4 py-2 text-sm text-ink transition-colors hover:border-accent-primary";
 
 export default function ReportActions({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);

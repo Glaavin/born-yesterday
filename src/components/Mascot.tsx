@@ -44,19 +44,19 @@ export default function Mascot({
     >
       <svg viewBox="0 0 48 60" className="block h-auto w-full">
         {/* flag poles */}
-        <g className="stroke-wordmark-blue" strokeWidth={1.4} strokeLinecap="round">
+        <g className="stroke-wordmark-tech" strokeWidth={1.4} strokeLinecap="round">
           <line x1="17" y1="16" x2="17" y2="5" />
           <line x1="24" y1="14" x2="24" y2="2" />
           <line x1="31" y1="16" x2="31" y2="7" />
         </g>
         {/* flags up (idle = calm, all flags up) */}
         <path d="M17 5 L26 8 L17 11 Z" className="fill-flag-positive" />
-        <path d="M24 2 L33 5 L24 8 Z" className="fill-accent-gold" />
+        <path d="M24 2 L33 5 L24 8 Z" className="fill-accent-primary" />
         <path d="M31 7 L39 10 L31 13 Z" className="fill-flag-negative" />
         {/* egg body */}
         <path
           d="M24 15 C14 15 10 29 10 39 C10 50 16 57 24 57 C32 57 38 50 38 39 C38 29 34 15 24 15 Z"
-          className="fill-wordmark-cream"
+          className="fill-wordmark-born"
         />
         {/* highlight */}
         <ellipse cx="19" cy="36" rx="3.2" ry="2.1" className="fill-input-surface" />

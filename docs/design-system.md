@@ -130,48 +130,43 @@ A three-role system, all open-licensed (no licensing cost):
 
 ### 8.2 Color tokens
 
-Values below are the **shipped palette**, read directly from `src/app/globals.css` `@theme` — the **source of truth** (each token is available as a `--color-*` utility **and** a CSS variable). The palette was **retoned in PRs #34/#35** — **pink accent, green positive, mint labels, azure masthead, dark-teal body** — superseding the earlier teal/gold/coral sampling. Gradients are vertical (top→bottom).
+Values below are the **shipped palette**, read directly from `src/app/globals.css` `@theme` — the **source of truth** (each token is available as a `--color-*` utility **and** a CSS variable). The palette was **retoned in PRs #34/#35** (pink accent, green positive, mint labels, azure masthead, dark-teal body); the token layer was **renamed to role-based names in Story 18.1** (see the convention below). Gradients are vertical (top→bottom). **The name describes the role; the value is whatever the current skin sets** — so the "current colour" notes are descriptive, not guaranteed.
 
 **Flat colors**
 
-| Token | Value | Use |
+| Token | Value (current skin) | Role / use |
 |---|---|---|
-| `--accent-gold` | `#ff4f93` (**pink**) | counter number, report title, card border, methodology link |
-| `--link-coral` | `#ff6fa8` (**pink**) | nav links |
-| `--label-teal` | `#83f0c4` (**mint / aqua-green**) | labels, section accents, search hover |
-| `--flag-positive` | `#56dd86` (**green**) | positive findings |
-| `--flag-negative` | `#ff5f88` (**pink-red**) | flagged data |
-| `--wordmark-cream` | `#ff5c9a` (**pink**) | "BORN" + tagline + egg fill |
-| `--wordmark-blue` | `#45c8ff` (**azure**) | ".TECH" / mascot poles |
+| `--accent-primary` | `#ff4f93` (pink) | counter number, report title, card border, methodology link |
+| `--link-default` | `#ff6fa8` (pink) | nav links |
+| `--label-accent` | `#83f0c4` (mint) | labels, section accents, search hover |
+| `--flag-positive` | `#56dd86` (green) | positive findings |
+| `--flag-negative` | `#ff5f88` (pink-red) | flagged data |
+| `--wordmark-born` | `#ff5c9a` (pink) | "BORN" + tagline + egg fill |
+| `--wordmark-tech` | `#45c8ff` (azure) | ".TECH" / mascot poles |
 | `--input-surface` | `#eaffff` | input field |
 | `--ink` | `#e9f1f2` | primary body copy |
 | `--ink-muted` | `#99b7b3` (muted teal) | secondary copy / captions / faint borders |
 
-**Indicator (Skepticism Indicator pill)**
+**Indicator (Skepticism Indicator pill)** — role-named *per verdict*, so the name can never contradict the value:
 
-| Token | Value | Use |
+| Token | Value (current skin) | Verdict |
 |---|---|---|
-| `--indicator-green` | `#56dd86` (green) | pill — "Checks out" |
-| `--indicator-amber` | `#ff5f88` (**pink**) | pill — "Some concerns" |
-| `--indicator-red` | `#ff2f5c` (crimson) | pill — "Red flags found" |
-| `--indicator-blue` | `#3fb0f2` (azure) | pill — "Too new to tell" |
+| `--indicator-checks-out` | `#56dd86` (green) | "Checks out" |
+| `--indicator-concerns` | `#ff5f88` (pink) | "Some concerns" |
+| `--indicator-red-flags` | `#ff2f5c` (crimson) | "Red flags found" |
+| `--indicator-too-new` | `#3fb0f2` (azure) | "Too new to tell" |
 
 **Gradients** (paired stop tokens + a composed `--gradient-*`)
 
-| Token | Value | Use |
+| Token | Value (current skin) | Role / use |
 |---|---|---|
-| `--gradient-surface-header` | `--navy-deep #071233` → `--surface-header-from #1670cc` → `--surface-header-to #2ba6f5` | masthead band (navy → azure) |
-| `--gradient-surface-body` | `--surface-body-from #0c4744` → `--surface-body-to #062c2d` | page background (dark teal) |
-| `--gradient-wordmark-cyan` | `--wordmark-cyan-from #45de79` → `--wordmark-cyan-to #8ff0a6` | "YESTERDAY" (**green**) |
+| `--gradient-surface-header` | `--surface-header-deep #071233` → `--surface-header-from #1670cc` → `--surface-header-to #2ba6f5` | masthead band |
+| `--gradient-surface-body` | `--surface-body-from #0c4744` → `--surface-body-to #062c2d` | page background |
+| `--gradient-wordmark-yesterday` | `--wordmark-yesterday-from #45de79` → `--wordmark-yesterday-to #8ff0a6` | "YESTERDAY" |
 
-> **Token names are stale in several places — known, tracked separately.** The retone kept the old names for stability, so several no longer describe their value:
-> - `--accent-gold` is **pink** (`#ff4f93`)
-> - `--wordmark-cyan` is **green** (`#45de79 → #8ff0a6`)
-> - `--link-coral` is **pink** (`#ff6fa8`)
-> - `--indicator-amber` is **pink** (`#ff5f88`)
-> - (also: `--wordmark-cream` is pink; `--label-teal` is mint-green)
+> **Naming convention (rule).** **Token names describe role, never color.** The palette is expected to change; names must survive it. **Do not introduce a token named for its current value.** (`--indicator-red-flags` keeps the word "red" deliberately: "red flag" is the warning-sign idiom drawn from the locked verdict label "Red flags found," not a color claim.)
 >
-> **`--indicator-amber` is the highest-risk name.** The indicator has a real **amber** state ("Some concerns"), so a token literally named `indicator-amber` that renders **pink** invites a wrong assumption in the exact component where correctness matters most. The rename is tracked as its own task (`docs/ops-tasks.md`); until it lands, treat the **value in `globals.css` as authoritative, not the name.**
+> **Renamed in Story 18.1** (names only — every value byte-identical): `accent-gold→accent-primary` · `link-coral→link-default` · `label-teal→label-accent` · `wordmark-cream→wordmark-born` · `wordmark-cyan→wordmark-yesterday` (+ stops/gradient) · `wordmark-blue→wordmark-tech` · `navy-deep→surface-header-deep` · `indicator-green→indicator-checks-out` · `indicator-amber→indicator-concerns` · `indicator-red→indicator-red-flags` · `indicator-blue→indicator-too-new`. Historical build-logs keep the old names (point-in-time records).
 
 > **Accessibility — WCAG AA re-verify is PARKED (owner).** The old AA ratios were measured against the previous navy body and **no longer apply**; `globals.css` marks them pending against the new dark-teal body. A formal re-verify is **parked pending palette lock — not unnoticed.** Recorded now: the **pink accent used as small text** — the hatch-counter number and the "View Our Report Methodology" link — measures roughly **3.4–4.2:1** on the teal body gradient, **below the 4.5:1 normal-text standard.** Not fixed in this story. Meaning is never carried by color alone — the four-state verdict is always worded by the pill (§4.1) and inline findings carry labels.
 

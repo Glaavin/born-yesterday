@@ -11,10 +11,10 @@ function Nav() {
       aria-label="Primary"
       className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-end gap-x-5 gap-y-1 px-4 text-sm font-semibold sm:px-6"
     >
-      <a href="#" className="text-link-coral hover:underline">
+      <a href="#" className="text-link-default hover:underline">
         Support Born Yesterday
       </a>
-      <a href="#" className="text-link-coral hover:underline">
+      <a href="#" className="text-link-default hover:underline">
         Report an issue
       </a>
     </nav>

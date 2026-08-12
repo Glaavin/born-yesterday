@@ -20,16 +20,19 @@ flag the four-state contract needs does not exist. Meaning is not lost (the `Ske
 carries the verdict in words), but the indicator's *visual* channel is inert. Needs distinct
 per-state art (and the amber flag), then Rive later. **Product gap, not just a doc fix.**
 
-### Design-token names are stale after the palette retone
-**Status:** PENDING DECISION (Story 18.1 Stage 6) · **Surfaced:** Story 18.1 (design-system §8.2)
-PRs #34/#35 retoned the palette but kept the old token names for stability, so several no
-longer describe their value: `--accent-gold` → pink, `--wordmark-cyan` → green,
-`--link-coral` → pink, `--indicator-amber` → pink (also `--wordmark-cream` → pink,
-`--label-teal` → mint). **`--indicator-amber` is the highest-risk name** — the indicator has a
-real amber state, so a token named `indicator-amber` that renders pink invites a wrong
-assumption in the component where correctness matters most. Rename in `globals.css` `@theme`
-and every usage site, then re-verify the site renders identically. Until then, the **value in
-`globals.css` is authoritative, not the name.**
+### Design-token names → role-based (no color words)  — **DONE** (Story 18.1 Stage 6)
+**Status:** DONE · **Closed:** Story 18.1
+The palette will change several more times during skin exploration, so token names were
+renamed to describe **role, never color** — names now survive any reskin. Names only; every
+value byte-identical; `report-state.ts` verdict→token mapping preserved. Mapping:
+`accent-gold→accent-primary` · `link-coral→link-default` · `label-teal→label-accent` ·
+`wordmark-cream→wordmark-born` · `wordmark-cyan→wordmark-yesterday` (+ stops/gradient) ·
+`wordmark-blue→wordmark-tech` · `navy-deep→surface-header-deep` ·
+`indicator-green→indicator-checks-out` · `indicator-amber→indicator-concerns` ·
+`indicator-red→indicator-red-flags` · `indicator-blue→indicator-too-new`. The convention is
+recorded in `design-system.md` §8.2. Historical build-logs keep the old names (point-in-time
+records). *(Possible follow-up, owner to scope: extend the ESLint token guardrail to reject
+`@theme` names containing a color word — see the Story 18.1 final report.)*
 
 ### WCAG AA re-verify parked pending palette lock
 **Status:** OPEN (parked by owner) · **Surfaced:** Story 18.1 (design-system §8.2)
