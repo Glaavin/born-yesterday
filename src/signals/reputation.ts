@@ -2,7 +2,7 @@ import type { Fetcher } from "../lib/cached-fetch";
 import type { CollectorResult, Signal } from "./types";
 import { fetchTrustpilot, parseTrustpilot, trustpilotUrl } from "./trustpilot";
 import { bbbSearchUrl } from "./bbb";
-import { webReviewSearchUrl, redditSearchUrl } from "./reputation-links";
+import { webReviewsSearchUrl, webComplaintsSearchUrl, redditSearchUrl } from "./reputation-links";
 
 /**
  * Reputation presence (mvp-spec §2C) — best-effort DISCOVERY signals: Trustpilot
@@ -61,12 +61,21 @@ export async function collectReputation(
       source: { label: "BBB", url: bbbSearchUrl(domain) },
     },
     {
-      // Link-outs are ALWAYS present (links, not scrapes).
-      key: "reputation_search",
+      // Link-outs are ALWAYS present (links, not scrapes). NEUTRAL terms only —
+      // "reviews" / "complaints" name the content category, never a claim about
+      // the company (legal register L-10; no "scam"/"fraud"/etc.).
+      key: "reputation_reviews",
       label: "Web reviews",
-      valueText: "Search the web for reviews / scam reports",
+      valueText: "Search the web for reviews",
       valueNum: null,
-      source: { label: "Web search", url: webReviewSearchUrl(domain) },
+      source: { label: "Web search", url: webReviewsSearchUrl(domain) },
+    },
+    {
+      key: "reputation_complaints",
+      label: "Web complaints",
+      valueText: "Search the web for complaints",
+      valueNum: null,
+      source: { label: "Web search", url: webComplaintsSearchUrl(domain) },
     },
     {
       key: "reddit_search",
