@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { parseTrustpilot } from "./trustpilot";
-import { webReviewSearchUrl, redditSearchUrl } from "./reputation-links";
+import { webReviewsSearchUrl, webComplaintsSearchUrl, redditSearchUrl } from "./reputation-links";
 import { collectReputation, type ReputationDeps } from "./reputation";
 import type { Fetcher, FetchResult } from "../lib/cached-fetch";
 
@@ -26,11 +26,21 @@ describe("parseTrustpilot (pure)", () => {
 });
 
 describe("reputation link-outs (pure)", () => {
-  it("constructs encoded search URLs", () => {
-    expect(webReviewSearchUrl("ex-ample.com")).toBe(
-      "https://www.google.com/search?q=ex-ample.com%20review%20scam",
+  it("constructs encoded search URLs with NEUTRAL terms only (L-10)", () => {
+    expect(webReviewsSearchUrl("ex-ample.com")).toBe(
+      "https://www.google.com/search?q=ex-ample.com%20reviews",
+    );
+    expect(webComplaintsSearchUrl("ex-ample.com")).toBe(
+      "https://www.google.com/search?q=ex-ample.com%20complaints",
     );
     expect(redditSearchUrl("ex-ample.com")).toBe("https://www.reddit.com/search/?q=ex-ample.com");
+  });
+
+  it("never appends a characterizing term (no scam/fraud/ripoff/lawsuit)", () => {
+    const urls = [webReviewsSearchUrl("ex-ample.com"), webComplaintsSearchUrl("ex-ample.com")];
+    for (const u of urls) {
+      expect(u).not.toMatch(/scam|fraud|ripoff|lawsuit/i);
+    }
   });
 });
 
@@ -55,7 +65,8 @@ describe("collectReputation", () => {
     // BBB: a link-out, never a scraped grade
     expect(by.bbb.valueText).toBe("Check BBB for this domain");
     expect(by.bbb.source?.url).toBe("https://www.bbb.org/search?find_text=example.com");
-    expect(by.reputation_search.source?.url).toContain("google.com/search");
+    expect(by.reputation_reviews.source?.url).toContain("google.com/search");
+    expect(by.reputation_complaints.source?.url).toContain("google.com/search");
     expect(by.reddit_search.source?.url).toContain("reddit.com/search");
   });
 
@@ -67,7 +78,8 @@ describe("collectReputation", () => {
     expect(by.trustpilot.valueText).toBeNull();
     expect(by.trustpilot.source).toBeNull();
     expect(by.bbb.source).not.toBeNull(); // link-out always present
-    expect(by.reputation_search.source).not.toBeNull();
+    expect(by.reputation_reviews.source).not.toBeNull();
+    expect(by.reputation_complaints.source).not.toBeNull();
     expect(by.reddit_search.source).not.toBeNull();
   });
 
@@ -83,6 +95,7 @@ describe("collectReputation", () => {
     const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
     expect(by.trustpilot.valueText).toBeNull();
     expect(by.bbb.valueText).toBe("Check BBB for this domain");
-    expect(by.reputation_search.valueText).toBe("Search the web for reviews / scam reports");
+    expect(by.reputation_reviews.valueText).toBe("Search the web for reviews");
+    expect(by.reputation_complaints.valueText).toBe("Search the web for complaints");
   });
 });
