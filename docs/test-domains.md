@@ -40,9 +40,9 @@ The generous middle: *one* concern point, or legit-but-not-clearly-established. 
 
 A genuinely thin public footprint — young domain, few/no Wayback snapshots, no reputation, not listed.
 
-8. **A throwaway Porkbun domain you register fresh** — *the* reliable Blue, and literally born yesterday. **Owner-supplied, pending** (Ops list): days old, zero Wayback, no reputation, not on any list → textbook Blue, fully under your control, re-usable. Not committed here.
+8. **digitaldumplings.store** — the reliable owner-controlled Blue. **Resolved (18.2 follow-up):** an OWNER-CONTROLLED placeholder, ~63d old, no DMARC/SPF, no organic history → textbook Blue, re-usable, fully under the owner's control. The owner can swap in a fresher (days-old) registration at test time.
 
-9. **A very-recent public launch (days old).** **UNRESOLVED (18.2):** no days-old public launch qualified from the candidate pool — the youngest real registration observed is bolt.new (~2.1y). Product Hunt / Show HN churn too fast for a committed name; run two or three *this-week* launches at test time (or lean on the Slot 8 throwaway) and keep whichever the tool confirms as thin-footprint Blue.
+9. **writelikepg.com** — a very-recent public launch. **Resolved (18.2 follow-up):** an organic HN Show HN launch, **~4 days old** at observation, email auth configured but no archive/reputation footprint yet → a genuine days-old real launch (the modal Born Yesterday query). *(Listings like this age out; re-source a this-week launch at test time if needed.)*
 
 ---
 

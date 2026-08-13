@@ -6,7 +6,7 @@ Lithium Epic. Research + data. Anchors off Story 18; does not advance the counte
 
 ## Files changed
 - `docs/test-domains.md` — (new to repo) Tier 1 / methodology doc; open slots resolved to named domains, Slot 6 annotated, pointer to the corpus.
-- `docs/calibration/corpus.json` — (new) 40 entries (Tier 1 = 10 incl. 3 open slots, Tier 2 = 16, Tier 3 = 14); raw observed signals with explicit per-signal status; no verdicts (except Tier 1 expected states).
+- `docs/calibration/corpus.json` — (new) **50 entries** (Tier 1 = 10 incl. 1 open slot [Slot 10], Tier 2 = 26, Tier 3 = 14); raw observed signals with explicit per-signal status; no verdicts (except Tier 1 expected states). Includes a `findings` block (archive-continuity, hygiene-rarity, age-skew) for Story 19.
 - `docs/calibration/synthetic-accumulation.json` — (new) 6 clearly-labelled SYNTHETIC fixtures (3–7 concurrent soft flags, varied denominator) for the accumulation-Red threshold; each flag grounded/marked observed-vs-extrapolated.
 - `docs/calibration/observations.ndjson` — (new) raw merged collector output for all 73 qualified domains (provenance).
 - `scripts/qualify-corpus.ts` — (new) cheap pass: real domain-identity (RDAP/WHOIS) + DNS (DoH) collectors, batch, incremental NDJSON.
@@ -40,6 +40,16 @@ Across 37 real corpus domains (3 open slots excluded):
 - **Wayback (n=9 collected):** min 318 · median 449 · max 2524 daily-collapsed captures.
 - **AI-onset (sampled, approx):** sugarcrm.com 2021-04-25 (constantcontact.com 2021-01-12 in observations.ndjson; freshbooks.com none).
 - **Clustering flag:** the corpus over-represents old, clean, well-run domains and under-represents (a) sub-2-year registrations and (b) multi-flag domains. Story 19 should read Green/Amber calibration as well-supported, but Blue/Amber-youth and accumulation-Red as thin on real data (synthetics + owner-supplied Slot 8 fill part of the gap).
+
+## Follow-up pass — sub-2-year addition (owner-requested)
+The first pass produced **zero** sub-2-year registrations (median ~25y) — disqualifying, since Story 19 must set Blue thresholds and domain-age bands that all sit below 2 years. Additive fix (nothing removed):
+- **+11 domains under 2 years**, sourced deliberately (findable-by-reputation correlates with established, so young data had to be sought): **organic HN Show HN launches** (RDAP-verified age) plus **one owner-controlled placeholder** at Slot 8. Provenance labels the two so calibration doesn't conflate a parked placeholder with a real launch. Wayback SKIPPED for these (young ⇒ thin by definition; snapshot_count recorded not_collected, never inferred zero).
+- **Distribution:** <3mo=4, 3-12mo=4, 12-24mo=3 (11 under-2y). Age histogram median ~19y (still old-skewed by the 22 domains at 20y+, but the young end is now populated). Hygiene: 3+ flags still 0.
+- **Slot 8 → digitaldumplings.store** (owner-controlled Blue, ~63d). **Slot 9 → writelikepg.com** (organic HN launch, ~4d — a genuine days-old launch). Only Slot 10 (URLhaus) remains open, by design.
+- **+constantcontact.com** as a 2nd real pivot (AI-onset ~2021-01-12) so Slot 6's highest-stakes case isn't a single example.
+- **+secondlibrary.com** (~2.8y, clean) added to the pool at owner request — Green/Amber young-clean edge.
+- **Named findings promoted into corpus.json** (`findings`): F1 archive-continuity (retool.com/cursor.com = old domains, prior-owner archives → Green needs an archive-CONTINUITY test, not registration age), F2 hygiene-rarity, F3 age-skew.
+- **Owner-domain privacy (owner decision):** repo is public (re-privatize = issue #6). Owner elected **keep one, remove two** — only **digitaldumplings.store** (Slot 8) is published; two owner-controlled placeholder domains were removed and swapped for organic HN launches (ojcp.dev, lifesprites.com), and the branch tip was rewritten (force-push) so the removed domains never enter the history that reaches `main`. (The removed names are deliberately not recorded here.)
 
 ## Known gaps (report item 6)
 - **No sub-2-year real registration** — youngest is bolt.new (2.1y). Would need a genuinely days/weeks-old launch captured at test time (Slot 9) or the owner-supplied Slot 8 throwaway.

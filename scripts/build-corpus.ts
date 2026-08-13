@@ -69,15 +69,16 @@ const SELECTION: Sel[] = [
       "Slot 7 RESOLVED (18.2): bolt.new observed a 2.1y domain with 449 daily-collapsed Wayback captures beginning 2024-09 — too young for Green (unestablished), too much footprint for Blue (not thin).",
   },
   {
-    domain: null, tier: 1, slot: 8, expected_state: "blue",
-    probe: "throwaway Blue — days-old, zero footprint",
-    provenance: "OWNER-SUPPLIED, PENDING: a fresh Porkbun domain under the owner's control (test-domains.md Slot 8). Not committed here.",
+    domain: "digitaldumplings.store", tier: 1, slot: 8, expected_state: "blue",
+    probe: "throwaway Blue — owner-controlled, weeks old, thin footprint",
+    provenance:
+      "Slot 8 RESOLVED (18.2 follow-up): OWNER-CONTROLLED placeholder (parked), the youngest owner domain at ~63d, no DMARC/SPF, no organic history — a reusable textbook Blue. The owner can swap in a fresher registration at test time.",
   },
   {
-    domain: null, tier: 1, slot: 9, expected_state: "blue",
+    domain: "writelikepg.com", tier: 1, slot: 9, expected_state: "blue",
     probe: "very-recent public launch (days old)",
     provenance:
-      "UNRESOLVED (18.2): no days-old public launch qualified from the candidate pool; the youngest real registration observed is bolt.new (~2.1y). A genuine days-old Blue needs the Slot 8 throwaway or a fresh capture at test time.",
+      "Slot 9 RESOLVED (18.2 follow-up): organic HN Show HN launch, ~4d old at observation, email auth configured (DMARC+SPF) but no archive/reputation footprint yet — a genuine days-old real launch, the modal Born Yesterday query.",
   },
   {
     domain: null, tier: 1, slot: 10, expected_state: "red",
@@ -102,6 +103,23 @@ const SELECTION: Sel[] = [
   { domain: "ccc.de", tier: 2, probe: "accumulation edge — 2 concurrent hygiene flags (age unknown; .de RDAP gap)", provenance: "observed 2-flag domain; ccTLD age unavailable" },
   { domain: "perplexity.ai", tier: 2, probe: "Blue/Amber edge — ~4yr, clean, no email-auth gaps; archive not collected (not in patient set)", provenance: "candidate for the young-clean cluster" },
   { domain: "turso.tech", tier: 2, probe: "Green/Amber edge — ~3.6yr, clean; archive not collected", provenance: "candidate for the 3-4yr cluster" },
+  {
+    domain: "constantcontact.com", tier: 2,
+    probe: "classic pivot (2nd exemplar) — established domain (Wayback from 1999) + AI-language onset ~2021-01-12 ('A.I.'); complements Slot 6 sugarcrm.com so the highest-stakes calibration case is not a single example",
+    provenance: "pivot candidate scanned in 18.2; added as a second real pivot per owner",
+  },
+
+  // ---- TIER 2 (18.2 follow-up) — sub-2-year coverage. Wayback intentionally SKIPPED (young ⇒ thin by definition; snapshot_count recorded not_collected, never inferred zero). Provenance distinguishes owner-controlled PLACEHOLDERS (parked, thin by construction) from organic HN launches (the modal "startup you just saw" case). ----
+  { domain: "txta.dev", tier: 2, probe: "young <3mo (~1d) organic launch + 2 hygiene flags (no DMARC/SPF) — the young+flags Blue/Amber-youth case", provenance: "organic HN Show HN launch" },
+  { domain: "picklebrowser.com", tier: 2, probe: "young <3mo (~23d) organic launch, CLEAN (DMARC+SPF) — the young-Green vs Blue edge", provenance: "organic HN Show HN launch" },
+  { domain: "ojcp.dev", tier: 2, probe: "young 3-12mo (~0.5y) organic launch + 2 hygiene flags (no DMARC/SPF)", provenance: "organic HN Show HN launch" },
+  { domain: "lifesprites.com", tier: 2, probe: "young 3-12mo (~0.8y) organic launch, CLEAN", provenance: "organic HN Show HN launch" },
+  { domain: "crewscore.ai", tier: 2, probe: "young 3-12mo (~124d) organic launch + 2 hygiene flags", provenance: "organic HN Show HN launch" },
+  { domain: "vostride.com", tier: 2, probe: "young 3-12mo (~157d) organic launch, CLEAN", provenance: "organic HN Show HN launch" },
+  { domain: "secondlibrary.com", tier: 2, probe: "Green/Amber edge — ~2.8yr, clean (DMARC+SPF); archive not collected — near the young-Green threshold", provenance: "added to the pool at owner request" },
+  { domain: "hellodeck.ai", tier: 2, probe: "12-24mo (~390d) organic launch, CLEAN — the young-Green boundary (old enough to begin establishing?)", provenance: "organic HN Show HN launch" },
+  { domain: "brickroad.network", tier: 2, probe: "12-24mo (~415d) organic launch, CLEAN", provenance: "organic HN Show HN launch" },
+  { domain: "talkform.org", tier: 2, probe: "12-24mo (~609d) organic launch, CLEAN", provenance: "organic HN Show HN launch" },
 
   // ---- TIER 3 — volume (no expected state; variety in sector / geography / age) ----
   { domain: "sae.org", tier: 3, probe: "US professional/trade association", provenance: "modal-report variety" },
@@ -182,6 +200,39 @@ function main() {
       },
       honesty: "Every signal carries an explicit status. A null/absent value under status:collected is an observed negative (e.g. SPF/DMARC absent); status:not_collected is an explicit gap, never an implied finding.",
     },
+    findings: [
+      {
+        id: "F1-archive-continuity",
+        title: "Registration age poorly separates establishment; archive CONTINUITY is the real discriminator",
+        for: "Story 19 — Green's positive-establishment conjunction (§5)",
+        finding:
+          "Registration age is a weak proxy for 'established.' Young products routinely sit on OLD domains bought on the aftermarket: retool.com (~28y domain, deep Wayback from 1999, product 2017) and cursor.com (~30y domain, 777 captures from PRIOR OWNERS, product 2022) are ancient domains whose deep archives belong to previous owners. An age-driven rubric would read these as long-established when the current operator is recent — a real failure mode for the indicator.",
+        recommendation:
+          "Green's positive-establishment condition should consider an archive-CONTINUITY test (continuous archive activity / content lineage under the CURRENT operator) rather than leaning on registration date or raw Wayback count. Wayback snapshot COUNT conflates prior ownership and must not stand alone as an establishment signal.",
+        corpus_domains_exhibiting: ["retool.com", "cursor.com"],
+        also_relevant:
+          "The same pattern recurs whenever an old aftermarket domain is re-used by a new operator: a long registration and a deep Wayback history that predate the current site.",
+      },
+      {
+        id: "F2-hygiene-rarity",
+        title: "Concurrent hygiene flags are rare in reputable domains; accumulation-Red is thin on real data",
+        for: "Story 19 — accumulation trigger threshold + denominator (§3.4/§5)",
+        finding:
+          "Across all qualified domains, DMARC present ~76% / SPF ~89%; the maximum concurrent hygiene-flag count among reputable ESTABLISHED domains was 2, with ZERO at 3+. Young placeholder/launch domains DO stack flags (many lack DMARC/SPF), so multi-flag is correlated with youth, not with being an established bad actor.",
+        recommendation:
+          "Calibrate accumulation-Red primarily against synthetic-accumulation.json and re-validate against real domains as they appear. Do not assume a reputable established domain will present 3+ concurrent soft flags; a high flag count more often signals a young/placeholder site (→ Blue territory) than an established concern.",
+        corpus_domains_exhibiting: ["gutenberg.org", "catb.org", "ccc.de", "v0.dev"],
+      },
+      {
+        id: "F3-age-skew",
+        title: "The reachable universe of 'known' domains skews old; young data needed deliberate sourcing",
+        for: "Story 19 — Blue thresholds and domain-age bands",
+        finding:
+          "Findable-by-reputation correlates with established. The first corpus pass (reputable + varied) produced ZERO sub-2-year registrations (median ~25y). Sub-2-year coverage required deliberate sourcing: organic HN Show HN launches qualified by RDAP age, plus one owner-controlled placeholder at Slot 8 (parked; thin by construction). Provenance labels the two so calibration does not conflate a parked placeholder with an organic launch.",
+        recommendation:
+          "Read Blue and young-age-band thresholds as calibrated against a deliberately-sourced young set (not an organic sample). Weight the organic HN launches over the single owner placeholder (Slot 8) when tuning the young-Green / Blue boundary.",
+      },
+    ],
     counts: {
       total: entries.length,
       tier1: entries.filter((e) => e.tier === 1).length,
