@@ -81,7 +81,7 @@ export default function ReportTabs({ tabs }: { tabs: Tab[] }) {
               onKeyDown={(e) => onKeyDown(e, i)}
               className={`-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
                 active
-                  ? "border-accent-gold text-accent-gold"
+                  ? "border-accent-primary text-accent-primary"
                   : "border-transparent text-ink-muted hover:text-ink"
               }`}
             >

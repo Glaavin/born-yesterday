@@ -19,22 +19,22 @@ export const REPORT_STATES: Record<
   "checks-out": {
     label: "Checks out",
     mascot: "result-green",
-    pill: "text-indicator-green border-indicator-green/50 bg-indicator-green/10",
+    pill: "text-indicator-checks-out border-indicator-checks-out/50 bg-indicator-checks-out/10",
   },
   "some-concerns": {
     label: "Some concerns",
     mascot: "result-amber",
-    pill: "text-indicator-amber border-indicator-amber/50 bg-indicator-amber/10",
+    pill: "text-indicator-concerns border-indicator-concerns/50 bg-indicator-concerns/10",
   },
   "red-flags": {
     label: "Red flags found",
     mascot: "result-red",
-    pill: "text-indicator-red border-indicator-red/50 bg-indicator-red/10",
+    pill: "text-indicator-red-flags border-indicator-red-flags/50 bg-indicator-red-flags/10",
   },
   "too-new": {
     label: "Too new to tell",
     mascot: "result-blue",
-    pill: "text-indicator-blue border-indicator-blue/50 bg-indicator-blue/10",
+    pill: "text-indicator-too-new border-indicator-too-new/50 bg-indicator-too-new/10",
   },
 };
 

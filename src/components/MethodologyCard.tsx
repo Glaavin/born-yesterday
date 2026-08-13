@@ -1,7 +1,7 @@
 /**
  * MethodologyCard — the factual "how it works" panel (design-system.md §2).
  * Deterministic + sourced; NO reference to AI, no "vibe check". Server Component.
- * The card border uses --accent-gold (§8.2 "card border").
+ * The card border uses --accent-primary (§8.2 "card border").
  */
 export default function MethodologyCard({
   id,
@@ -15,7 +15,7 @@ export default function MethodologyCard({
       id={id}
       hidden={hidden}
       aria-label="How Born Yesterday works"
-      className="w-full max-w-2xl rounded-lg border border-accent-gold/40 p-6"
+      className="w-full max-w-2xl rounded-lg border border-accent-primary/40 p-6"
     >
       <p className="text-ink">
         Born Yesterday checks are built entirely from public data and fixed,
@@ -26,7 +26,7 @@ export default function MethodologyCard({
         <li>What a report covers</li>
         <li>Sources of data</li>
         <li>
-          <a href="#" className="text-accent-gold underline hover:no-underline">
+          <a href="#" className="text-accent-primary underline hover:no-underline">
             The scoring rubric
           </a>
         </li>

@@ -6,10 +6,15 @@
 **Companions:** `docs/PRODUCT.md` (strategy source of truth), `docs/design-system.md` (visual system)
 **Live placeholder:** https://bornyesterday.tech/
 
-> Reconciliation note (this version): updated to align with PRODUCT.md v1.2 and the Sprint 1.2
+> Reconciliation note (this version): updated to align with PRODUCT.md v1.3 and the shipped
 > design system. The technical core (architecture, data model, signal collection, caching) is
 > carried forward intact. Product-surface and framing sections were revised. All prior open items
 > are now resolved (see §11); genuinely deferred items live in PRODUCT.md §16.
+>
+> Story 18.1 reconciliation (2026-08-12): §2E rewritten to the rule-based Story 18 model (the
+> point-based draft is retired); §2C reputation moved to link-outs with neutral search terms;
+> §2D tech-stack fingerprint reassigned to the Profile Section; analytics, the four-state naming,
+> the corrections-SLA basis, the dropped B2B API, and sprint→epic references all corrected.
 
 ---
 
@@ -36,7 +41,7 @@ The voice is split by surface (see `design-system.md` §1):
 2. Tech journalists and researchers sanity-checking companies.
 3. Curious consumers reacting to hyped AI ads.
 
-Procurement / B2B buyers are a Year-2 audience (the B2B API). Do not build for them yet.
+Procurement / B2B buyers are **out of scope** — the previously-planned Year-2 B2B API was **dropped** (see PRODUCT.md §6; per the legal summary §4 — owner-held, not in repo). Do not build for them.
 
 ### What success looks like at launch
 
@@ -85,12 +90,16 @@ Principle: we count, we don't judge. Surface public mentions and link out.
 
 | Signal | Source | Notes |
 |---|---|---|
-| Trustpilot presence | Scrape public Trustpilot search page | Rating + review count if present, link out |
-| BBB presence | Scrape BBB search | Rating + link if present |
+| Trustpilot presence | Link-out to the public Trustpilot page | **Link only, not scraped.** Demoted from a scrape on ToS grounds (legal risk register L-14 — owner-held, not in repo). |
+| BBB presence | Link-out to BBB search | **Link only, not scraped** (demoted earlier on accuracy grounds). |
 | PhishTank listing | PhishTank free feed | Binary: listed / not listed |
 | URLhaus listing | URLhaus free API | Binary: listed / not listed |
-| "[name] scam" / "[name] review" | Link-out to search; do not scrape SERPs | Links, not displayed counts |
+| Web reviews / complaints | Link-out to search; never scrape SERPs | **Neutral query terms only** ("reviews", "complaints"). Characterizing words ("scam", "fraud", "ripoff", "lawsuit", …) are **never** appended (legal risk register L-10 — owner-held, not in repo). |
 | Reddit search link | Link-out to `reddit.com/search?q=<domain>` | |
+
+> **Change from the prior version (do not lose the history):** Trustpilot was previously specced as a *scrape*, and the web-search link-out previously appended the word **"scam"** to every company. Both were wrong and are superseded — Trustpilot and BBB are now link-outs, and the search link-outs use neutral terms only (L-14, L-10). Of the reputation sources, only PhishTank/URLhaus (and the live homepage, §2B) are fetched.
+>
+> Implementation note: the **L-10** neutral-terms fix has shipped in `src/signals/reputation-links.ts`. The **L-14** Trustpilot demotion is decided here but **not yet in the code** — `src/signals/reputation.ts` still scrapes Trustpilot best-effort. That code demotion is a tracked follow-up (see `docs/ops-tasks.md`), not a change made by this docs pass.
 
 ### Section D — Ownership & Stack
 
@@ -98,7 +107,9 @@ Principle: we count, we don't judge. Surface public mentions and link out.
 |---|---|---|
 | Organization on SSL cert | TLS cert OU/O fields | Often reveals parent company |
 | WHOIS registrant org (where not privacy-protected) | RDAP / WHOIS | |
-| Tech stack fingerprint | Open-source Wappalyzer-style detection | "Powered by Vercel, uses Stripe, Intercom" — useful color |
+| ~~Tech stack fingerprint~~ | *Reassigned — see note* | Moved out of the Trust Report proper into the Profile Section (non-scoring) |
+
+> **Tech-stack fingerprint — reassigned, not dropped (Story 18).** It is **not** built into the Trust Report. It survives as scan **A5 ("Technology and services in use")** in the proposed **Profile Section** — a non-scoring block that **does not feed the Skepticism Indicator** (the Profile firewall; decision doc §4) — pending that epic. **Build constraint carried with it:** the fingerprint list must be **hand-rolled**. Wappalyzer's detection database moved to a proprietary licence in 2023 and **must not be vendored**; that constraint is precisely why this entry is kept rather than deleted — whoever builds it later needs to know not to reach for the obvious library.
 
 ### Section E — The Skepticism Indicator
 
@@ -112,13 +123,19 @@ A single categorical indicator, **not a score** (see PRODUCT.md §3, design-syst
 
 The indicator's visual expression is the **mascot** (wordless), with a worded pill on the report card stating the result in text so meaning never rests on color alone. The amber state carries the overall *moderate* verdict; this is distinct from the inline pink-flagged / cyan-positive highlights in the report body, which mark which specific data points are concerning or reassuring.
 
-**Rubric — DRAFT, finalized in Sprint 1.7.** The point-based draft below is a starting input only. The required change from the prior version: it must resolve to the **four states above**. The old four *severity* bands (green/yellow/orange/red) are retired — yellow and orange collapse into a single **amber**, and **blue** is added as an orthogonal "can't assess." In particular:
-- **blue ("too new to tell")** fires on *thin* signals — very young domain, few/no Wayback snapshots, no reputation presence, not listed anywhere. Insufficiency, not suspicion.
-- **green ("checks out")** is established + clean.
-- **amber ("some concerns")** is the middle — some flags present but not damning.
-- **red ("red flags found")** fires on *material* concerns — PhishTank/URLhaus listing, the classic pivot (established domain + very recent AI-language onset), or accumulated skeptic-flags past a threshold.
+**Rubric — rule-based (Story 18).** The indicator is a **rule-based** model, *not* a numeric score: the verdict is a transparent function of a small set of enumerated, linked, sourced facts. This **supersedes the point-based draft that previously lived here** — that draft (green/yellow/orange/red severity bands with per-signal weights TBD) is **retired, and a future reader should not implement it.** The authority is [`docs/decisions/story-18-indicator-model.md`](decisions/story-18-indicator-model.md); the summary below is a pointer, not a substitute.
 
-Draft signals (weights TBD in 1.7): domain age bands; AI-language-age-vs-domain-age pivot; PhishTank/URLhaus listing; missing SPF/DMARC; WHOIS privacy on a young domain; long-lived first SSL cert (mitigating); strong Trustpilot presence (mitigating). Always show which signals contributed, with links. The indicator is a summary of facts, not a verdict.
+The four states are **three rule shapes plus a residual**, not a severity ladder:
+- **Red — "Red flags found"** — **disjunctive** over a short enumerated list: any single material trigger fires it. Triggers: a threat-feed listing (PhishTank/URLhaus); the classic pivot (established domain + very recent AI-language onset); or **accumulation** — a count of findings across successfully-checked signals. Accumulation is a *peer* trigger, not a lesser one, because the count is itself one nameable, linkable fact.
+- **Blue — "Too new to tell"** — a **conjunction of absences**: insufficient footprint to assess. Insufficiency, not suspicion.
+- **Green — "Checks out"** — **conjunctive**, requires *positive* establishment evidence, never merely the absence of red flags.
+- **Amber — "Some concerns"** — the **residual**: some findings, none individually damning; the default when no other state claims the domain.
+
+**Precedence: Red → Blue → Green → Amber**, in that order, Amber as catch-all. Material concern survives establishment evidence (Red beats Green — a live listing is not laundered by age); a clean bill cannot be certified on a thin footprint (Blue before Green). On a domain that is both thin *and* mildly flagged, **Blue wins** — soft flags on a thin evidence base do not carry Amber's weight.
+
+Two cross-cutting rules: **caveats are orthogonal to state** — a `kind: "caveat"` note (e.g. "threat feed unreachable at check time") qualifies but never changes the verdict; and a **degraded/unperformed signal blocks Green without forcing Amber** — an unperformed check is not a finding, so the domain falls through to Blue/Amber on the strength of everything else, with a caveat disclosing the gap.
+
+**No thresholds here, no weights.** Every number — domain-age bands, the pivot window, archive-depth floors, the accumulation threshold *and its denominator* — is a **Story 19 calibration output**, deliberately not specified in this spec. No weights are specified because the model is not weighted. See the decision doc §5.
 
 ### Section F — Disclaimer (every report, fixed copy)
 
@@ -160,7 +177,7 @@ Deliberately boring, deliberately cheap. Next.js on Vercel with serverless Postg
 | Background jobs | Vercel Cron (weekly refresh); stale-refresh via `after()` / `waitUntil` | Dedicated queue (Upstash QStash) deferred |
 | Rate limiting | DB-backed via `search_quota` (see §7a) | 3 searches/day/session; no extra service needed |
 | Email | corrections@ inbound via Cloudflare Email Routing or a mailbox provider (DNS-level, host-independent) | Outbound (later, watchlist) via Resend |
-| Analytics | **Basic at launch** (Vercel Web Analytics — privacy-friendly); advanced funnel/insights in Sprint 1.8 | No Google Analytics — wrong vibe |
+| Analytics | **Not yet implemented — deferred.** No analytics package is installed. Basic privacy-friendly analytics (candidate: Vercel Web Analytics) is planned; advanced funnel/insights later. No Google Analytics — wrong vibe. | Deferred to a later analytics story |
 | Mascot animation | Rive via `@rive-app/react-canvas` (post-MVP); static placeholder at MVP | See design-system.md §4 |
 
 **Expected fixed monthly cost: ~$20/mo (Vercel Pro — required for a commercial/ad-supported site) + low usage; still far inside the $3K/mo budget. Cloudflare would trim this toward ~$0 at MVP scale (the parked option).**
@@ -342,17 +359,17 @@ Refuse scope creep on these; surface to the owner if pressure builds:
 
 - LLM-generated narrative or summaries; the AI Pivot Timeline *as an LLM feature* (the regex version in §2B stays)
 - User accounts / passwords
-- Public B2B API; bulk lookups
+- Public B2B API; bulk lookups (the B2B API is **dropped**, not merely deferred)
 - Browser extension; embeddable badge; verified-profile / company-response feature
 - Compare-two-domains view
 - **Live ad serving** (architecture is in scope; serving is not)
 - Image/PDF share-card export (the MVP shareable report is a rich-text object; richer forms evolve later)
 - Crunchbase / LinkedIn / Harmonic integration; any paid data source
 - SEO content marketing
-- **Consumer paid tier** — dropped; the model is ad-supported + Year-2 B2B API only
+- **Consumer paid tier** — dropped. The revenue model is **ad-supported or tip-supported — currently open, leaning tip, decision pending** (see PRODUCT.md §6–§7). The previously-planned Year-2 B2B API is also **dropped**.
 - **Email watchlist** — a planned *post-MVP* retention feature (PRODUCT.md §10), not in the MVP build; the `watchlist_subscriptions` table is provisioned now but unused at MVP
 
-For the full phase/sprint roadmap, defer to **PRODUCT.md §10**. This document defines the MVP build only; its definition-of-done is: all §2 signals working end-to-end, caching (§3) live, the 3-state indicator, report permalinks rendering server-side, the rate limit, the recent-searches feed, the design system, and the disclaimer on every report.
+For the full epic roadmap, defer to **PRODUCT.md §10**. This document defines the MVP build only; its definition-of-done is: all §2 signals working end-to-end, caching (§3) live, the four-state indicator, report permalinks rendering server-side, the rate limit, the recent-searches feed, the design system, and the disclaimer on every report.
 
 ---
 
@@ -362,7 +379,7 @@ For the full phase/sprint roadmap, defer to **PRODUCT.md §10**. This document d
 - **Two correction channels** (design-system.md §3, PRODUCT.md §12):
   - "Report an issue" (global nav) → site bugs.
   - "Request a correction" (on each report, by the disclaimer) → content → **corrections@bornyesterday.tech**.
-  - SLA: **72-hour public / 48-hour internal** for content corrections.
+  - SLA: **[PENDING — basis changed; wording not yet available].** The prior flat "72-hour public / 48-hour internal" promise is **superseded**. The corrections SLA is now a **tiered, process-not-outcome** commitment; the exact wording lives in a **Lane 3 legal document that is not in the repo (owner-held)** and is **subject to Lane 4 licensed-attorney review**. Do not treat any specific number as current until that wording lands. *(Owner action — see the final report.)*
 - **Robots.txt respect.** If a site's robots.txt forbids our agent, we still report public data from third parties (Wayback, crt.sh) but do not fetch the live site.
 - **Polite identification.** User agent: `BornYesterdayBot/1.0 (+https://bornyesterday.tech/about-bot)`.
 - **No PII.** Companies/domains only. WHOIS personal contact fields are never displayed, even when public.
@@ -375,14 +392,14 @@ For the full phase/sprint roadmap, defer to **PRODUCT.md §10**. This document d
 All prior open questions for this document are settled:
 
 1. **AI keyword list (§2B):** locked (see §2B).
-2. **Skepticism rubric:** four-state output confirmed (green/amber/red/blue); exact weights finalized in Sprint 1.7.
+2. **Skepticism rubric:** four-state output confirmed (green/amber/red/blue); model decided in Story 18 — **rule-based, not weighted** (see `docs/decisions/story-18-indicator-model.md`); thresholds calibrated in Story 19.
 3. **Consumer paid tier:** dropped.
 4. **Email watchlist:** post-MVP retention feature (PRODUCT.md §10); out of the MVP build.
 5. **Report download:** MVP shareable report is a rich-text object (copy + download); image/PDF forms deferred.
-6. **Analytics:** basic at launch (Vercel Web Analytics); advanced in Sprint 1.8.
+6. **Analytics:** not yet implemented (no analytics package installed); basic privacy-friendly analytics (candidate: Vercel Web Analytics) deferred to a later story. No Google Analytics.
 7. **Indicator visual:** the mascot flag-state (design-system.md §4).
 
-Genuinely deferred items (timing, not indecision) live in **PRODUCT.md §16**: Sprint 1.7 weights, ad-network choice (apply to AdSense early), economics validation, and the AI Pivot Timeline mitigation pipeline.
+Genuinely deferred items (timing, not indecision) live in **PRODUCT.md §16**: Story 19 indicator thresholds, ad-network choice (apply to AdSense early), economics validation, and — only if it is ever built — the *post-MVP, LLM-assisted* AI-pivot analysis and its mitigation pipeline (the deterministic, no-LLM AI-pivot signal in §2B has already shipped).
 
 ---
 
