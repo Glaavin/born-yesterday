@@ -77,9 +77,10 @@ blocks **Story 20b**.
 
 ## Launch pre-flight
 
-### Re-privatize the repo before launch (issue #5)
+### Re-privatize the repo before launch (issue #6)
 **Status:** OPEN · The repo is currently **public** to support the agent-driven workflow.
-Re-privatization before launch is tracked as issue #5. (PRODUCT.md §14.)
+Re-privatization before launch is tracked as issue #6 ("Launch pre-flight: re-privatize repo +
+require visual-regression gate"). The related visual-regression CI gate is issue #5. (PRODUCT.md §14.)
 
 ### Set production secrets before launch
 **Status:** OPEN · Threat-feed keys (above) plus `SERVER_SALT` must be set in Vercel before

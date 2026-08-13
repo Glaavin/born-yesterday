@@ -186,7 +186,7 @@ SLA for content corrections: **[PENDING — basis changed; wording not yet avail
 - **Data:** Vercel Postgres / Neon (serverless Postgres); Vercel Cron for background refresh; rate limiting app/DB-backed via `search_quota`.
 - **Email:** corrections@ inbound via Cloudflare Email Routing or a mailbox provider (DNS-level, host-independent).
 - **Registrar/DNS:** Porkbun → Vercel.
-- **Repo:** GitHub (`Glaavin`), gitflow-lite branch protection; pnpm. **Currently public** to support the agent-driven workflow; **re-privatization before launch is tracked (issue #5).** (Not "private" today.)
+- **Repo:** GitHub (`Glaavin`), gitflow-lite branch protection; pnpm. **Currently public** to support the agent-driven workflow; **re-privatization before launch is tracked (issue #6).** (Not "private" today.)
 - **Parked (scale-time option):** Cloudflare Pages/Workers/D1/R2 — cheaper edge primitives worth revisiting when traffic justifies a migration. Deferring to the existing Vercel repo now does not blow the MVP economics (per-report cost is dominated by free external APIs, not hosting); Cloudflare would trim the ~$20/mo Vercel-Pro floor toward ~$0 at scale.
 
 ---
