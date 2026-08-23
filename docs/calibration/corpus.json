@@ -1,0 +1,2631 @@
+{
+  "document": "docs/calibration/corpus.json",
+  "purpose": "Calibration corpus for Story 19 indicator-threshold tuning (and the later Profile-Section capture spike). Raw observed signals only — NO indicator was run and NO verdict/state is recorded, except Tier 1 which retains the pre-Story-18 smoke-test expected states from docs/test-domains.md.",
+  "generated_by": "scripts/build-corpus.ts from docs/calibration/observations.ndjson",
+  "story": "18.2",
+  "observed_window": "2026-08-13",
+  "collection_notes": {
+    "collectors_used": "domain-identity (RDAP/WHOIS) + DNS (DoH) for all; patient Wayback (CDX + sampled AI-onset) for a targeted subset",
+    "not_collected": {
+      "cert_history": "crt.sh returned 5xx (502/503) throughout the run — a source outage, not a per-domain finding. Backfill in Story 19 when crt.sh recovers.",
+      "threat_listing": "not queried; these are legitimate domains and asserting 'not listed' without a check would be an unsourced claim. Slot 10 pulls a live URLhaus host at test time.",
+      "wayback": "collected only for the archive-depth cluster + pivot candidates (~11 domains); ~38s/request from this environment made a full-corpus pass impractical."
+    },
+    "honesty": "Every signal carries an explicit status. A null/absent value under status:collected is an observed negative (e.g. SPF/DMARC absent); status:not_collected is an explicit gap, never an implied finding."
+  },
+  "tier2_composition": {
+    "note": "Tier 2 has two groups, and the distinction is deliberate. The ORIGINAL boundary probes were each selected and vetted individually — chosen because that specific domain's outcome is uncertain at a named boundary. The 'young-age coverage' cohort (cohort: \"young-age coverage\") was added as a GROUP in the 18.2 follow-up to cover the sub-2-year range the first pass missed entirely; those entries do probe real boundaries (Blue/Amber-youth, young-Green, the sub-2y age bands), but they were sourced as a block rather than vetted one at a time. Story 19 should weight the individually-vetted probes accordingly.",
+    "individually_vetted": "entries with no `cohort` field",
+    "added_as_cohort": "entries with cohort: \"young-age coverage\""
+  },
+  "findings": [
+    {
+      "id": "F1-archive-continuity",
+      "title": "Registration age poorly separates establishment; archive CONTINUITY is the real discriminator",
+      "for": "Story 19 — Green's positive-establishment conjunction (§5)",
+      "finding": "Registration age is a weak proxy for 'established.' Young products routinely sit on OLD domains bought on the aftermarket: retool.com (~28y domain, deep Wayback from 1999, product 2017) and cursor.com (~30y domain, 777 captures from PRIOR OWNERS, product 2022) are ancient domains whose deep archives belong to previous owners. An age-driven rubric would read these as long-established when the current operator is recent — a real failure mode for the indicator.",
+      "recommendation": "Green's positive-establishment condition should consider an archive-CONTINUITY test (continuous archive activity / content lineage under the CURRENT operator) rather than leaning on registration date or raw Wayback count. Wayback snapshot COUNT conflates prior ownership and must not stand alone as an establishment signal.",
+      "corpus_domains_exhibiting": [
+        "retool.com",
+        "cursor.com"
+      ],
+      "also_relevant": "The same pattern recurs whenever an old aftermarket domain is re-used by a new operator: a long registration and a deep Wayback history that predate the current site."
+    },
+    {
+      "id": "F2-hygiene-rarity",
+      "title": "A lone email-auth gap is a candidate for NOT being a standalone concern at all; and accumulation-Red cannot fire on hygiene alone",
+      "for": "Story 19 — (a) the mvp-spec draft rule 'missing SPF/DMARC → +1 concern point', (b) the accumulation trigger threshold + denominator (§3.4/§5)",
+      "finding": "Missing email auth is COMMON among reputable, established organizations: ~24% of the corpus lacks DMARC and ~11% lacks SPF, including long-established institutions with no other findings (e.g. multi-decade nonprofits and OSS projects). A rule that scores a lone missing SPF/DMARC as a concern point therefore measures EMAIL-AUTH ADOPTION LAG, not risk — it would flag a large slice of ordinary, legitimate organizations. Separately, 3+ concurrent hygiene gaps did not occur AT ALL among established domains (maximum observed = 2), and flag-stacking correlates with YOUTH (young/placeholder sites) rather than with established bad actors.",
+      "recommendation": "(a) Story 19 must TEST whether a lone email-auth gap belongs in the rubric at all, rather than assuming the draft 'missing SPF/DMARC → +1 concern' rule survives. On this evidence it is a candidate for being REMOVED as a standalone concern and treated as meaningful only in combination with non-hygiene signals. (b) Because 3+ hygiene gaps do not occur in established domains and stacking tracks youth, the accumulation-Red trigger CANNOT fire on hygiene alone: its threshold must require non-hygiene signals to be meaningful, or it will either never fire on an established domain or fire only on young sites that Story 18 §3.3 already routes to Blue. Calibrate the threshold against synthetic-accumulation.json and re-validate on real domains as they appear.",
+      "corpus_domains_exhibiting": [
+        "gutenberg.org",
+        "catb.org",
+        "ccc.de",
+        "v0.dev"
+      ],
+      "established_domains_lacking_dmarc_with_no_other_findings": [
+        "masshist.org",
+        "suckless.org",
+        "slackware.com",
+        "xfce.org"
+      ]
+    },
+    {
+      "id": "F3-age-skew",
+      "title": "The reachable universe of 'known' domains skews old; young data needed deliberate sourcing",
+      "for": "Story 19 — Blue thresholds and domain-age bands",
+      "finding": "Findable-by-reputation correlates with established. The first corpus pass (reputable + varied) produced ZERO sub-2-year registrations (median ~25y). Sub-2-year coverage required deliberate sourcing: organic HN Show HN launches qualified by RDAP age, plus one owner-controlled placeholder at Slot 8 (parked; thin by construction). Provenance labels the two so calibration does not conflate a parked placeholder with an organic launch.",
+      "recommendation": "Read Blue and young-age-band thresholds as calibrated against a deliberately-sourced young set (not an organic sample). Weight the organic HN launches over the single owner placeholder (Slot 8) when tuning the young-Green / Blue boundary."
+    }
+  ],
+  "counts": {
+    "total": 50,
+    "tier1": 10,
+    "tier2": 26,
+    "tier3": 14,
+    "open_slots": 1
+  },
+  "entries": [
+    {
+      "domain": "stripe.com",
+      "tier": 1,
+      "slot": 1,
+      "probe": "Green anchor (established + clean)",
+      "provenance": "test-domains.md Slot 1 (named)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1995-09-12T04:00:00Z",
+          "age_days": 11293,
+          "age_years": 30.9,
+          "registrar": "SafeNames Ltd.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=reject; pct=100; fo=1; rua=mailto:dmarc-reports@stripe.com; ruf=mailto:dmarc-forensics@stripe.com;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 ip4:198.2.180.60/32 ip4:13.111.2.227/32 include:spf1.stripe.com include:greenhouse-outbound-mail.stripe.com include:_spf.qualtrics.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com, aspmx2.googlemail.com, aspmx3.googlemail.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      },
+      "expected_state": "green"
+    },
+    {
+      "domain": "github.com",
+      "tier": 1,
+      "slot": 2,
+      "probe": "Green anchor",
+      "provenance": "test-domains.md Slot 2 (named)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2007-10-09T18:20:50Z",
+          "age_days": 6882,
+          "age_years": 18.9,
+          "registrar": "MarkMonitor Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; sp=reject; pct=100; rua=mailto:dmarc@github.com; ruf=mailto:dmarc@github.com; fo=1"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 ip4:192.30.252.0/22 include:spf.protection.outlook.com include:_netblocks.google.com include:_netblocks2.google.com include:mail.zendesk.com include:_spf.salesforce.com include:servers.mcsv.net include:mktomail.com include:sendgrid.net ip4:62.253.227.114 ip4:166.78.69.169 ip4:166.78.69.170 ip4:166.78.71.131 ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "github-com.mail.protection.outlook.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "lb-140-82-112-4-iad.github.com"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      },
+      "expected_state": "green"
+    },
+    {
+      "domain": "wikipedia.org",
+      "tier": 1,
+      "slot": 3,
+      "probe": "Green anchor",
+      "provenance": "test-domains.md Slot 3 (named)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2001-01-13T00:12:14.754Z",
+          "age_days": 9343,
+          "age_years": 25.6,
+          "registrar": "MarkMonitor Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=reject; rua=mailto:dmarc-rua@wikimedia.org;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_cidrs.wikimedia.org ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mx-in1001.wikimedia.org, mx-in2001.wikimedia.org"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "text-lb.eqiad.wikimedia.org"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      },
+      "expected_state": "green"
+    },
+    {
+      "domain": "cloudflare.com",
+      "tier": 1,
+      "slot": 4,
+      "probe": "Green anchor",
+      "provenance": "test-domains.md Slot 4 (named)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2009-02-17T22:07:54Z",
+          "age_days": 6385,
+          "age_years": 17.5,
+          "registrar": "Cloudflare, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=reject; sp=reject; adkim=r; aspf=r; pct=100; rua=mailto:a1c47f179bc04efd8ee4dcd4d85dfc65@dmarc-reports.cloudflare.net,mailto:rua@cloudflare.com"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 ip4:199.15.212.0/22 ip4:173.245.48.0/20 include:_spf.google.com include:spf1.mcsv.net include:spf.mandrillapp.com include:mail.zendesk.com include:stspg-customer.com include:_spf.salesforce.com -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mxa-canary.global.inbound.cf-emailsecurity.net, mxb-canary.global.inbound.cf-emailsecurity.net, mxa.global.inbound.cf-emailsecurity.net, mxb.global.inbound.cf-emailsecurity.net"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      },
+      "expected_state": "green"
+    },
+    {
+      "domain": "masshist.org",
+      "tier": 1,
+      "slot": 5,
+      "probe": "missing-DMARC — one hygiene concern on an otherwise-clean established org",
+      "provenance": "Slot 5 RESOLVED (18.2): ran org/nonprofit candidates; masshist.org observed no-DMARC + has-SPF, otherwise clean, established (~30y). Other observed no-DMARC-only established candidates kept in Tier 2: suckless.org, slackware.com, xfce.org.",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1996-11-15T05:00:00.056Z",
+          "age_days": 10863,
+          "age_years": 29.8,
+          "registrar": "DomainPeople, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:spf.protection.outlook.com include:mailgun.com include:spf.constantcontact.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "masshist-org.mail.protection.outlook.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      },
+      "expected_state": "amber"
+    },
+    {
+      "domain": "sugarcrm.com",
+      "tier": 1,
+      "slot": 6,
+      "probe": "classic pivot — established domain + a datable AI-language onset (the guard against false Reds)",
+      "provenance": "Slot 6 RESOLVED (18.2): ran legacy-vendor candidates (sugarcrm.com, freshbooks.com, constantcontact.com). sugarcrm.com and constantcontact.com each show an AI-language onset (~2021) against a 15+yr domain; freshbooks.com showed none in sampled captures. Chose sugarcrm.com (onset 2021-04-25, term 'artificial intelligence'). Onset date is APPROXIMATE (earliest of 6 sampled captures).",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2004-03-05T16:58:07Z",
+          "age_days": 8195,
+          "age_years": 22.5,
+          "registrar": "MarkMonitor Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1;p=quarantine;pct=100;rua=mailto:d16993fca6@rua.easydmarc.us,mailto:dmarc_rua@emaildefense.proofpoint.com;ruf=mailto:d16993fca6@ruf.easydmarc.us,mailto:dmarc_ruf@emaildefense.proofpoint.com;ri=86400;fo=1:d:s;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.sugarcrm_com._d.easydmarc.pro -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mxa-002fcd01.gslb.pphosted.com, mxb-002fcd01.gslb.pphosted.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 2524,
+          "first": "2008-08-28",
+          "last": "2026-08-03"
+        },
+        "ai_language_onset": {
+          "status": "collected",
+          "first_seen": "2021-04-25",
+          "snapshot_url": "https://web.archive.org/web/20210425044756id_/https://www.sugarcrm.com/",
+          "matched_term": "artificial intelligence"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      },
+      "expected_state": "contingent (Story 19 PIVOT_RECENT_DAYS)",
+      "notes": "Boundary probe, not a clear case — the ONE Tier-1 entry that functions as a boundary rather than an anchor. Expected state is contingent on the Story 19 pivot-recency threshold (PIVOT_RECENT_DAYS): Story 18 §3.4 makes the classic pivot a disjunctive Red trigger, but the threshold that decides whether THIS domain trips it does not exist yet (Story 18 §5 defers it). A lone pivot with no other findings is exactly the guard against false Reds. The file's pre-Story-18 assignment (Amber) is left in place as the smoke-test record but is superseded as an expectation."
+    },
+    {
+      "domain": "bolt.new",
+      "tier": 1,
+      "slot": 7,
+      "probe": "young-but-not-thin — young domain with a real footprint",
+      "provenance": "Slot 7 RESOLVED (18.2): bolt.new observed a 2.1y domain with 449 daily-collapsed Wayback captures beginning 2024-09 — too young for Green (unestablished), too much footprint for Blue (not thin).",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2024-07-09T16:32:39.763Z",
+          "age_days": 764,
+          "age_years": 2.1,
+          "registrar": "CloudFlare, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none; rua=mailto:eccae4a77eef461e9220ef9ead526bee@dmarc-reports.cloudflare.net;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com include:45403856.spf03.hubspotemail.net -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 449,
+          "first": "2024-09-06",
+          "last": "2026-08-10"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan not requested for this domain"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      },
+      "expected_state": "amber"
+    },
+    {
+      "domain": "txta.dev",
+      "tier": 1,
+      "slot": 8,
+      "probe": "thin-footprint Blue — days-old, no archive, no reputation",
+      "provenance": "Slot 8 (18.2 follow-up): organic HN Show HN launch, ~1 day old at observation, no DMARC/SPF, no archive or reputation footprint — the thinnest real domain in the corpus.",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2026-08-11T19:34:41.936Z",
+          "age_days": 1,
+          "age_years": 0,
+          "registrar": "CloudFlare, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "mx": {
+          "status": "collected",
+          "value": null
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young-tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      },
+      "expected_state": "blue",
+      "notes": "The DURABLE Slot 8 answer is a METHODOLOGY, not a committed domain: when a guaranteed Blue is needed, register a fresh throwaway and run it (procedure in docs/test-domains.md). This entry is a dated observation of a real launch and WILL age out of Blue — re-source at test time rather than trusting the row."
+    },
+    {
+      "domain": "writelikepg.com",
+      "tier": 1,
+      "slot": 9,
+      "probe": "very-recent public launch (days old)",
+      "provenance": "Slot 9 RESOLVED (18.2 follow-up): organic HN Show HN launch, ~4d old at observation, email auth configured (DMARC+SPF) but no archive/reputation footprint yet — a genuine days-old real launch, the modal Born Yesterday query.",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2026-08-08T22:08:09Z",
+          "age_days": 4,
+          "age_years": 0,
+          "registrar": "IONOS SE",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf-eu.ionos.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mx00.ionos.co.uk, mx01.ionos.co.uk"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young-tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      },
+      "expected_state": "blue"
+    },
+    {
+      "domain": null,
+      "tier": 1,
+      "slot": 10,
+      "probe": "live threat-feed listing → Red",
+      "provenance": "OPEN BY DESIGN: pull a current host from the URLhaus feed at test time (listings churn hourly). Never committed. Do not commit a URLhaus host.",
+      "observed_at": null,
+      "observed": null,
+      "expected_state": "red"
+    },
+    {
+      "domain": "neon.tech",
+      "tier": 2,
+      "probe": "Green/Amber edge — 3-4yr, clean, healthy archive (404 daily captures from 2022)",
+      "provenance": "candidate for the 3-4yr healthy-archive cluster; qualified by observed age + Wayback depth",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2022-04-06T16:58:49.000Z",
+          "age_days": 1589,
+          "age_years": 4.4,
+          "registrar": "MarkMonitor Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=reject; rua=mailto:e1076c4c66df4c0bb080549e2bafe84d@dmarc-reports.cloudflare.net,mailto:aws-ses-rua@neon.tech"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com include:amazonses.com include:26233105.spf04.hubspotemail.net include:mail.zendesk.com -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 404,
+          "first": "2022-04-23",
+          "last": "2025-05-29"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan not requested for this domain"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "val.town",
+      "tier": 2,
+      "probe": "Green/Amber edge — ~4yr, clean, moderate archive (318 captures)",
+      "provenance": "candidate for the 3-4yr cluster; qualified by observed signals",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2022-07-04T20:28:28.714Z",
+          "age_days": 1500,
+          "age_years": 4.1,
+          "registrar": "Squarespace Domains II LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; rua=mailto:b2d96e7145b84168a04cf3ceae7034c0@dmarc-reports.cloudflare.net"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 318,
+          "first": "2022-08-10",
+          "last": "2026-08-08"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan not requested for this domain"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "retool.com",
+      "tier": 2,
+      "probe": "§5 established-by-registration vs by-activity — domain reg ~28y, deep archive from 1999 (prior owner), product is 2017; clean",
+      "provenance": "surfaced by the cheap pass (old registration, recent product); the §5 open question made concrete",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1997-10-15T04:00:00Z",
+          "age_days": 10529,
+          "age_years": 28.8,
+          "registrar": "Cloudflare, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=reject; rua=mailto:gkgfdnke@ag.us.dmarcian.com; ruf=mailto:gkgfdnke@fr.us.dmarcian.com; fo=1; adkim=s; aspf=s;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com include:customeriomail.com include:mg-spf.greenhouse.io include:7660877.spf03.hubspotemail.net include:_spf.salesforce.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, aspmx2.googlemail.com, aspmx3.googlemail.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 898,
+          "first": "1999-05-08",
+          "last": "2026-08-06"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan not requested for this domain"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "cursor.com",
+      "tier": 2,
+      "probe": "§5 same shape — domain reg ~30y, 777 captures from prior owners; product 2022. Wayback count conflates prior ownership (caveat for Story 19)",
+      "provenance": "surfaced by the cheap pass; second §5 exemplar",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1995-12-20T05:00:00Z",
+          "age_days": 11194,
+          "age_years": 30.7,
+          "registrar": "NameCheap, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; rua=mailto:dmarc_agg@vali.email;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com include:stspg-customer.com include:spf.mtasv.net ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 777,
+          "first": "1996-11-01",
+          "last": "2026-08-11"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan not requested for this domain"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "warp.dev",
+      "tier": 2,
+      "probe": "Green/Amber edge — 6y, clean; INTENDED thin-archive but OBSERVED healthy (660 captures from 2020). Kept as observed data, not fitted to intent",
+      "provenance": "candidate for the 5-7yr thin-archive cluster; observation did not match the intent — reported honestly",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2020-08-24T19:07:24.256Z",
+          "age_days": 2179,
+          "age_years": 6,
+          "registrar": "GoDaddy.com, LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none; rua=mailto:rua@dmarc-reports.senders.ai; fo=1"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:dc-aa8e722993._spfm.warp.dev ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "Google"
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 660,
+          "first": "2020-11-09",
+          "last": "2026-08-09"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan not requested for this domain"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "hex.tech",
+      "tier": 2,
+      "probe": "Green/Amber edge — 6.4y, clean, 369 captures from 2020",
+      "provenance": "candidate for the 5-7yr cluster; qualified by observed signals",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2020-03-29T10:24:27.000Z",
+          "age_days": 2328,
+          "age_years": 6.4,
+          "registrar": "Porkbun LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=reject; fo=1; ri=3600; rua=mailto:dmarc-reports@hex.tech;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com include:243040889.spf05.hubspotemail.net include:_spf.salesforce.com -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 369,
+          "first": "2020-08-10",
+          "last": "2026-08-09"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan not requested for this domain"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "suckless.org",
+      "tier": 2,
+      "probe": "Green/Amber edge — 8+yr (~20y), one hygiene gap (no DMARC), otherwise clean",
+      "provenance": "observed no-DMARC established domain",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2006-10-06T15:51:24.497Z",
+          "age_days": 7250,
+          "age_years": 19.9,
+          "registrar": "Vautron Rechenzentrum AG",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 mx -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mx.suckless.org"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "mx.suckless.org"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "slackware.com",
+      "tier": 2,
+      "probe": "Green/Amber edge — 8+yr (~31y), one hygiene gap (no DMARC)",
+      "provenance": "observed no-DMARC established domain",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1995-12-26T05:00:00Z",
+          "age_days": 11188,
+          "age_years": 30.7,
+          "registrar": "Network Solutions, LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 ip4:64.57.102.36/29 -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mail.cwo.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "connie.slackware.com"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "xfce.org",
+      "tier": 2,
+      "probe": "Green/Amber edge — 8+yr (~28y), one hygiene gap (no DMARC)",
+      "provenance": "observed no-DMARC established domain",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1998-09-28T04:00:00.000Z",
+          "age_days": 10181,
+          "age_years": 27.9,
+          "registrar": "Network Solutions, LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 a mx ip4:46.226.110.88/32 ip4:217.70.191.87/32 ip4:138.48.2.103/32 ip4:138.48.2.107/32 ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mail.xfce.org"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "xfce2.xfce.org"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "v0.dev",
+      "tier": 2,
+      "probe": "Blue/Amber edge — young (~3y) AND soft flags (no DMARC + no SPF); archive NOT thin (401 captures from 2023). The young+flags case Story 18 sends to Blue",
+      "provenance": "observed young domain carrying two hygiene flags",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2023-09-09T03:47:09.013Z",
+          "age_days": 1069,
+          "age_years": 2.9,
+          "registrar": "Namecheap Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "mx": {
+          "status": "collected",
+          "value": null
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 401,
+          "first": "2023-09-14",
+          "last": "2026-05-28"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan not requested for this domain"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "bun.sh",
+      "tier": 2,
+      "probe": "Blue/Amber edge — 5y, one hygiene gap (no DMARC)",
+      "provenance": "observed one-flag mid-age domain",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2021-08-16T06:07:43.000Z",
+          "age_days": 1823,
+          "age_years": 5,
+          "registrar": "MarkMonitor Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:spf.efwd.registrar-servers.com include:_spf.google.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "gutenberg.org",
+      "tier": 2,
+      "probe": "accumulation edge — 2 concurrent hygiene flags (no DMARC + no SPF), established (~30y)",
+      "provenance": "observed 2-flag established domain",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1996-12-01T05:00:00Z",
+          "age_days": 10847,
+          "age_years": 29.7,
+          "registrar": "Network Solutions, LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx3.googlemail.com, aspmx2.googlemail.com, alt2.aspmx.l.google.com, alt1.aspmx.l.google.com, aspmx.l.google.com, aspmx5.googlemail.com, aspmx4.googlemail.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "catb.org",
+      "tier": 2,
+      "probe": "accumulation edge — 2 concurrent hygiene flags, established (~24y)",
+      "provenance": "observed 2-flag established domain",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2003-01-16T01:07:41.505Z",
+          "age_days": 8610,
+          "age_years": 23.6,
+          "registrar": "Tucows Domains Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "mx": {
+          "status": "collected",
+          "value": null
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "vermontlibraries.org"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "ccc.de",
+      "tier": 2,
+      "probe": "accumulation edge — 2 concurrent hygiene flags (age unknown; .de RDAP gap)",
+      "provenance": "observed 2-flag domain; ccTLD age unavailable",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "not_collected",
+          "registration_date": null,
+          "age_days": null,
+          "age_years": null,
+          "registrar": null,
+          "collector_ok": false
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "mx": {
+          "status": "collected",
+          "value": "nomail.ccc.de, mail.ccc.de, nomail2.ccc.de"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "web.ber.ccc.de"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "perplexity.ai",
+      "tier": 2,
+      "probe": "Blue/Amber edge — ~4yr, clean, no email-auth gaps; archive not collected (not in patient set)",
+      "provenance": "candidate for the young-clean cluster",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2022-07-08T20:44:58Z",
+          "age_days": 1496,
+          "age_years": 4.1,
+          "registrar": "GoDaddy.com, LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1;p=reject;pct=25;rua=mailto:fbfd91c994e04da79e26e045e40c3204@dmarc-reports.cloudflare.net,mailto:dmarc@perplexity.ai,mailto:06d199fb77@rua.easydmarc.us;ruf=mailto:06d199fb77@ruf.easydmarc.us;fo=1;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 ip4:192.174.84.143 include:_spf.google.com include:mailgun.org include:sendgrid.net ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "turso.tech",
+      "tier": 2,
+      "probe": "Green/Amber edge — ~3.6yr, clean; archive not collected",
+      "provenance": "candidate for the 3-4yr cluster",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2023-01-13T15:28:23.000Z",
+          "age_days": 1307,
+          "age_years": 3.6,
+          "registrar": "NameCheap, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; rua=mailto:mailadmin@turso.tech; ruf=mailto:mailadmin@turso.tech; sp=quarantine"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com include:mailgun.org ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "smtp.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "constantcontact.com",
+      "tier": 2,
+      "probe": "classic pivot (2nd exemplar) — established domain (Wayback from 1999) + AI-language onset ~2021-01-12 ('A.I.'); complements Slot 6 sugarcrm.com so the highest-stakes calibration case is not a single example",
+      "provenance": "pivot candidate scanned in 18.2; added as a second real pivot per owner",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1998-09-30T04:00:00Z",
+          "age_days": 10179,
+          "age_years": 27.9,
+          "registrar": "MarkMonitor Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=reject; rua=mailto:tk0syg54@ag.dmarcian.com,mailto:dmarc_agg@vali.email; ruf=mailto:tk0syg54@fr.dmarcian.com; rf=afrf;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 ip4:208.75.120.0/22 ip4:205.207.104.0/22 include:_ext.constantcontact.com include:_spf.salesforce.com include:_spf.google.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "edgemail1.constantcontact.com, edgemail2.constantcontact.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "www.constantcontact.com"
+        },
+        "wayback": {
+          "status": "collected",
+          "snapshot_count": 2191,
+          "first": "1999-02-08",
+          "last": "2026-08-10"
+        },
+        "ai_language_onset": {
+          "status": "collected",
+          "first_seen": "2021-01-12",
+          "snapshot_url": "https://web.archive.org/web/20210112042001id_/https://www.constantcontact.com/",
+          "matched_term": "A.I."
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "picklebrowser.com",
+      "tier": 2,
+      "cohort": "young-age coverage",
+      "probe": "young <3mo (~23d) organic launch, CLEAN (DMARC+SPF) — the young-Green vs Blue edge",
+      "provenance": "organic HN Show HN launch",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2026-07-20T16:53:19Z",
+          "age_days": 23,
+          "age_years": 0.1,
+          "registrar": "HOSTINGER operations, UAB",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; rua=mailto:info@picklebrowser.com"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:spf.protection.outlook.com -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "picklebrowser-com.mail.protection.outlook.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young-tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      }
+    },
+    {
+      "domain": "ojcp.dev",
+      "tier": 2,
+      "cohort": "young-age coverage",
+      "probe": "young 3-12mo (~0.5y) organic launch + 2 hygiene flags (no DMARC/SPF)",
+      "provenance": "organic HN Show HN launch",
+      "observed_at": "2026-08-23",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2026-03-09T20:58:41.964Z",
+          "age_days": 167,
+          "age_years": 0.5,
+          "registrar": "Tucows Domains Inc",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "mx": {
+          "status": "collected",
+          "value": null
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "AWS"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young/edge tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      }
+    },
+    {
+      "domain": "lifesprites.com",
+      "tier": 2,
+      "cohort": "young-age coverage",
+      "probe": "young 3-12mo (~0.8y) organic launch, CLEAN",
+      "provenance": "organic HN Show HN launch",
+      "observed_at": "2026-08-23",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2025-11-11T17:57:25Z",
+          "age_days": 285,
+          "age_years": 0.8,
+          "registrar": "Squarespace Domains LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:zohomail.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mx.zoho.com, mx3.zoho.com, mx2.zoho.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young/edge tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      }
+    },
+    {
+      "domain": "crewscore.ai",
+      "tier": 2,
+      "cohort": "young-age coverage",
+      "probe": "young 3-12mo (~124d) organic launch + 2 hygiene flags",
+      "provenance": "organic HN Show HN launch",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2026-04-11T02:01:43.141Z",
+          "age_days": 124,
+          "age_years": 0.3,
+          "registrar": "NameCheap, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "spf": {
+          "status": "collected",
+          "present": false,
+          "value": null
+        },
+        "mx": {
+          "status": "collected",
+          "value": null
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "cdn-185-199-109-153.github.com"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young-tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      }
+    },
+    {
+      "domain": "vostride.com",
+      "tier": 2,
+      "cohort": "young-age coverage",
+      "probe": "young 3-12mo (~157d) organic launch, CLEAN",
+      "provenance": "organic HN Show HN launch",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2026-03-09T08:18:30Z",
+          "age_days": 157,
+          "age_years": 0.4,
+          "registrar": "Cloudflare, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none; rua=mailto:dmarc@vostride.com; pct=100"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, alt3.aspmx.l.google.com, alt4.aspmx.l.google.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young-tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      }
+    },
+    {
+      "domain": "secondlibrary.com",
+      "tier": 2,
+      "probe": "Green/Amber establishment edge — the LOW end of the 2-5y band: ~2.8y with clean hygiene, so the question is purely 'is this old enough to be established?' with no hygiene confound",
+      "provenance": "Qualified on observed signals: RDAP registration 2023-10-29 (~2.8y / 1030d), DMARC and SPF both present, MX present — no hygiene gaps. That makes it the YOUNGEST CLEAN domain in the corpus's 2-5y establishment band (vs turso.tech ~3.6y, val.town ~4.1y, perplexity.ai ~4.1y, neon.tech ~4.4y), so it probes the lower boundary of where 'established' may begin — the §5 question Story 19 must answer. Archive depth NOT collected, so its establishment-by-activity is untested and this entry speaks only to the age/hygiene axis.",
+      "observed_at": "2026-08-23",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2023-10-29T07:22:28Z",
+          "age_days": 1030,
+          "age_years": 2.8,
+          "registrar": "NameCheap, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.mail.hostinger.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mx2.hostinger.com, mx1.hostinger.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "88-222-222-187.init.lt"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young/edge tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      }
+    },
+    {
+      "domain": "hellodeck.ai",
+      "tier": 2,
+      "cohort": "young-age coverage",
+      "probe": "12-24mo (~390d) organic launch, CLEAN — the young-Green boundary (old enough to begin establishing?)",
+      "provenance": "organic HN Show HN launch",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2025-07-18T17:59:30.000Z",
+          "age_days": 390,
+          "age_years": 1.1,
+          "registrar": "Tucows Domains Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none; rua=mailto:support@hellodeck.ai; ruf=mailto:support@hellodeck.ai; fo=1"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com include:servers.mcsv.net ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "smtp.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young-tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      }
+    },
+    {
+      "domain": "brickroad.network",
+      "tier": 2,
+      "cohort": "young-age coverage",
+      "probe": "12-24mo (~415d) organic launch, CLEAN",
+      "provenance": "organic HN Show HN launch",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2025-06-24T11:21:24.245Z",
+          "age_days": 415,
+          "age_years": 1.1,
+          "registrar": "NameCheap, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; rua=mailto:luis@brickroadapp.com"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:amazonses.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "inbound-smtp.us-east-1.amazonaws.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young-tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      }
+    },
+    {
+      "domain": "talkform.org",
+      "tier": 2,
+      "cohort": "young-age coverage",
+      "probe": "12-24mo (~609d) organic launch, CLEAN",
+      "provenance": "organic HN Show HN launch",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2024-12-11T16:23:10.000Z",
+          "age_days": 609,
+          "age_years": 1.7,
+          "registrar": "HOSTINGER operations, UAB",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.mail.hostinger.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mx1.hostinger.com, mx2.hostinger.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; young-tier — Slot 10 pulls a live URLhaus host at test time"
+        }
+      }
+    },
+    {
+      "domain": "sae.org",
+      "tier": 3,
+      "probe": "US professional/trade association",
+      "provenance": "modal-report variety",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1995-06-08T04:00:00.663Z",
+          "age_days": 11389,
+          "age_years": 31.2,
+          "registrar": "Network Solutions, LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; rua=mailto:postmaster@sae.org; ruf=mailto:postmaster@sae.org; sp=quarantine; fo=0;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 ip4:206.160.145.0/24 ip4:208.103.126.154/32 include:spf.protection.outlook.com include:spf.sae.org include:mktomail.com include:spf.workfront.com  include:docebosaas.com include:sent-via.netsuite.com -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "sae-org.mail.protection.outlook.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "eff.org",
+      "tier": 3,
+      "probe": "US digital-rights nonprofit",
+      "provenance": "modal-report variety",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1990-10-10T04:00:00.177Z",
+          "age_days": 13091,
+          "age_years": 35.9,
+          "registrar": "Gandi SAS",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none; rua=mailto:dmarc_rua@eff.org; ruf=mailto:dmarc_ruf@eff.org;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 mx ip4:173.239.79.202 include:spf1.eff.org include:spf2.eff.org include:spf.protection.outlook.com include:salsalabs.org -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "eff-org.mail.protection.outlook.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "observatory1.eff.org"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "laquadrature.net",
+      "tier": 3,
+      "probe": "FR digital-rights nonprofit",
+      "provenance": "geography variety (France)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2008-03-16T15:36:34.000Z",
+          "age_days": 6723,
+          "age_years": 18.4,
+          "registrar": "Scaleway SAS",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1;p=none;pct=100;rua=mailto:admin@pi4.lqdn.fr;aspf=r;adkim=r"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 a mx include:spf.octopuce.fr ?all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "pi.lqdn.fr"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "tau.lqdn.fr"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "wheatsville.coop",
+      "tier": 3,
+      "probe": "US regional food co-op",
+      "provenance": "sector variety (co-op)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2005-06-16T10:22:18.000Z",
+          "age_days": 7728,
+          "age_years": 21.2,
+          "registrar": "Domains.coop Limited",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:spf.protection.outlook.com ip4:199.30.234.249 ip4:8.31.233.150 ip4:8.31.233.160 ip4:8.31.233.159 ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "wheatsville-coop.mx1.arsmtp.com, wheatsville-coop.mx2.arsmtp.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "wordpress.com"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "kexp.org",
+      "tier": 3,
+      "probe": "US regional public radio",
+      "provenance": "sector variety (cultural)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1999-12-17T16:55:34.657Z",
+          "age_days": 9735,
+          "age_years": 26.7,
+          "registrar": "GoDaddy.com, LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.mailersend.net mx a ip4:128.208.196.1 ip4:128.208.196.2 ip4:50.234.71.225 ip4:50.234.71.226 ip4:202.27.250.5 ip4:202.27.250.6 include:braintreegateway.com include:spf.protection.outlook.com include:amazonses.com include:woexchange.com include:mktomail.com include:_spf.mlsend.com ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "kexp-org.mail.protection.outlook.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "nybg.org",
+      "tier": 3,
+      "probe": "US cultural institution (botanical garden)",
+      "provenance": "sector variety",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1992-06-01T04:00:00.382Z",
+          "age_days": 12491,
+          "age_years": 34.2,
+          "registrar": "Network Solutions, LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=reject; pct=100; rua=mailto:azdgqnpn@ag.dmarcian.com; ruf=mailto:azdgqnpn@fr.dmarcian.com"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 ip4:69.74.186.153 ip4:216.17.115.248 include:spf.protection.outlook.com include:mailgun.org include:spf.us.exclaimer.net -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "nybg-org.mail.protection.outlook.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "AWS"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "citizensadvice.org.uk",
+      "tier": 3,
+      "probe": "UK charity",
+      "provenance": "geography variety (UK)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1999-04-28T16:47:06Z",
+          "age_days": 9968,
+          "age_years": 27.3,
+          "registrar": "Gandi",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; rua=mailto:5a512069bc65534@rep.dmarcanalyzer.com; ruf=mailto:5a512069bc65534@for.dmarcanalyzer.com; fo=1;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com include:eu._netblocks.mimecast.com include:_spf.citizensadvice.org.uk +include:outboundmail.blackbaud.net include:amazonses.com include:spf.ssmx.net -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "eu-smtp-inbound-1.mimecast.com, eu-smtp-inbound-2.mimecast.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "server-3-162-174-65.ord56.r.cloudfront.net"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "zerodha.com",
+      "tier": 3,
+      "probe": "India fintech",
+      "provenance": "geography variety (India)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2010-02-17T12:26:39Z",
+          "age_days": 6021,
+          "age_years": 16.5,
+          "registrar": "Cloudflare, Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; sp=quarantine; pct=100; rua=mailto:dmarc@zerodha.com"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com ip4:180.179.153.155 ip4:124.153.66.254 ip4:180.179.153.181 ip4:35.154.75.169 -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "aspmx.l.google.com, aspmx2.googlemail.com, aspmx3.googlemail.com, alt1.aspmx.l.google.com, alt2.aspmx.l.google.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "tuta.com",
+      "tier": 3,
+      "probe": "DE privacy email",
+      "provenance": "geography variety (Germany)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1997-06-14T04:00:00.000Z",
+          "age_days": 10652,
+          "age_years": 29.2,
+          "registrar": "INWX GmbH",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; adkim=s"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:spf.tutanota.de -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mail.tutanota.de"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "sonic.net",
+      "tier": 3,
+      "probe": "US regional ISP",
+      "provenance": "sector variety",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1994-07-26T04:00:00Z",
+          "age_days": 11706,
+          "age_years": 32.1,
+          "registrar": "Tucows Domains Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none; rua=mailto:kxjcdjbi@ag.us.dmarcian.com;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:mail.sonic.net ~all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "mailin-01.mx.sonic.net, mailin-02.mx.sonic.net"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "squall.sonic.net"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "gnome.org",
+      "tier": 3,
+      "probe": "international open-source project",
+      "provenance": "sector variety (OSS)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1997-07-23T04:00:00.526Z",
+          "age_days": 10613,
+          "age_years": 29.1,
+          "registrar": "Gandi SAS",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=reject; adkim=s; aspf=s;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 a:smtp.gnome.org -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "smtp.gnome.org"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": null
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "bethpagefcu.com",
+      "tier": 3,
+      "probe": "US regional credit union",
+      "provenance": "sector variety (finance)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "2001-11-15T20:38:20.000Z",
+          "age_days": 9036,
+          "age_years": 24.8,
+          "registrar": "GoDaddy.com, LLC",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=quarantine; rua=mailto:kyadyeum@ag.us.dmarcian.com; ruf=mailto:kyadyeum@fr.us.dmarcian.com; fo=1;"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:spf1.bethpagefcu.com include:spf2.bethpagefcu.com include:spf3.bethpagefcu.com include:spf4.bethpagefcu.com include:spf5.bethpagefcu.com -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "bethpagefcu-com.mail.protection.outlook.com"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "AWS"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "kenyon.edu",
+      "tier": 3,
+      "probe": "US small liberal-arts college (age unknown — .edu RDAP gap)",
+      "provenance": "sector variety (education)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "not_collected",
+          "registration_date": null,
+          "age_days": null,
+          "age_years": null,
+          "registrar": null,
+          "collector_ok": false
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1;p=none;sp=none;pct=100;rua=mailto:kenyon-dmarc@kenyon.edu;ruf=mailto:kenyon-dmarc@kenyon.edu;ri=86400;aspf=r;adkim=r;fo=1"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 include:_spf.google.com ip4:52.14.181.245 ip4:52.15.108.173 ip4:50.31.43.252 ip4:205.133.67.33 ip4:205.201.128.0/20 ip4:198.2.128.0/18 ip4:148.105.0.0/16 ip4:199.231.134.73 ip4:216.248.199.106 include:_spf.qualtrics.com include:technolutions.net include:spf.topdesk.net include:kenyon.campusgroups.com include:e2ma.net include:spf.app.jaggaer.com include:spf.symplicity.com include:u538675.wl176.sendgrid.net ip4:205.133.67.0/26 include:cust-spf.cashnet.com include:spf-na.exlibrisgroup.com include:mbssmtp.mbsbooks.com include:us._extnetblocks.mimecast.com include:sphosts.publishingconcepts.com -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "ASPMX.L.GOOGLE.COM, ALT1.ASPMX.L.GOOGLE.COM, ALT2.ASPMX.L.GOOGLE.COM, ASPMX2.GOOGLEMAIL.COM, ASPMX3.GOOGLEMAIL.COM, ASPMX4.GOOGLEMAIL.COM, ASPMX5.GOOGLEMAIL.COM"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "AWS"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    },
+    {
+      "domain": "lwn.net",
+      "tier": 3,
+      "probe": "niche tech publication",
+      "provenance": "sector variety (media)",
+      "observed_at": "2026-08-13",
+      "observed": {
+        "domain_age": {
+          "status": "collected",
+          "registration_date": "1998-05-22T04:00:00Z",
+          "age_days": 10310,
+          "age_years": 28.2,
+          "registrar": "Tucows Domains Inc.",
+          "collector_ok": true
+        },
+        "dmarc": {
+          "status": "collected",
+          "present": true,
+          "value": "v=DMARC1; p=none; rua=mailto:dmarc@lwn.net"
+        },
+        "spf": {
+          "status": "collected",
+          "present": true,
+          "value": "v=spf1 a:mail.lwn.net a:prod.lwn.net a:git.lwn.net a:ms.lwn.net -all"
+        },
+        "mx": {
+          "status": "collected",
+          "value": "ms.lwn.net"
+        },
+        "hosting": {
+          "status": "collected",
+          "value": "prodcs.lwn.net"
+        },
+        "wayback": {
+          "status": "not_collected",
+          "reason": "deferred to patient Wayback pass"
+        },
+        "ai_language_onset": {
+          "status": "not_collected",
+          "reason": "AI-onset scan run only for pivot candidates"
+        },
+        "cert_history": {
+          "status": "not_collected",
+          "reason": "crt.sh returning 5xx at run time; skipped per Story 18.2"
+        },
+        "threat_listing": {
+          "status": "not_collected",
+          "reason": "not queried during corpus build; legitimate corpus (Slot 10 pulls a live URLhaus host at test time)"
+        }
+      }
+    }
+  ]
+}

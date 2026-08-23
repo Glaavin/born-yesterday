@@ -1,0 +1,74 @@
+{
+  "document": "docs/calibration/synthetic-accumulation.json",
+  "SYNTHETIC": true,
+  "warning": "These are SYNTHETIC report fixtures — NOT observations of real domains. They must never be read as, merged with, or cited as real-domain data. No real company is described here.",
+  "purpose": "Calibrate the accumulation-Red threshold AND its denominator (Story 18 §3.4 / §5). Real domains with 3+ concurrent soft flags and no threat listing did not occur in the 18.2 corpus — the maximum observed was 2 concurrent hygiene flags (or 3 counting young-domain age on v0.dev). Owner pre-approved synthetics for this range.",
+  "story": "18.2",
+  "caveat": "The accumulation threshold set against these fixtures MUST be re-validated against real domains when any turn up. A threshold calibrated only on synthetic data is provisional. Only no_dmarc, no_spf and young_domain are grounded in observed co-occurrence (v0.dev, gutenberg.org, catb.org, ccc.de); flags beyond those are real signal TYPES the collectors produce but were not observed stacked this high in the corpus, so their co-occurrence is extrapolated and flagged per fixture.",
+  "denominator_note": "Story 18 §5 recommends the accumulation ratio be findings / SUCCESSFULLY-CHECKED signals (not attempted), with a minimum-checks floor. Fixtures vary checks_succeeded so Story 19 can exercise that ratio. A full report attempts ~12 checks: domain_age, dmarc, spf, mx, hosting, wayback_depth, ai_pivot, cert_history, phishtank, urlhaus, trustpilot, bbb.",
+  "flag_vocabulary": {
+    "no_dmarc": "OBSERVED in corpus (masshist.org, suckless.org, slackware.com, xfce.org, bun.sh, gutenberg.org, catb.org, ccc.de, v0.dev)",
+    "no_spf": "OBSERVED in corpus (gutenberg.org, catb.org, ccc.de, deepsprings.edu, v0.dev)",
+    "young_domain": "OBSERVED in corpus (bolt.new ~2.1y, v0.dev ~2.9y)",
+    "thin_archive": "real signal type (low Wayback capture count); NOT observed stacked with hygiene flags — 18.2's young domains had healthy archives — so co-occurrence is EXTRAPOLATED",
+    "whois_privacy": "real signal type (RDAP/WHOIS registrant privacy); not extracted in 18.2 — EXTRAPOLATED",
+    "no_reputation": "real signal type (no Trustpilot/BBB presence); reputation collector not run in 18.2 — EXTRAPOLATED",
+    "no_mx": "real signal type (no DNS MX); all 18.2 corpus domains had MX — EXTRAPOLATED (plausible for a non-email site)"
+  },
+  "fixtures": [
+    {
+      "id": "synth-acc-3",
+      "synthetic": true,
+      "soft_flag_count": 3,
+      "soft_flags": ["no_dmarc", "no_spf", "young_domain"],
+      "derived_from": "v0.dev — this exact triple (young ~2.9y + no DMARC + no SPF) was OBSERVED together in the corpus. Fully realistic.",
+      "grounding": "all three flags observed co-occurring",
+      "denominator": { "checks_attempted": 12, "checks_succeeded": 12, "checks_failed": [], "findings_over_succeeded": "3/12" }
+    },
+    {
+      "id": "synth-acc-4",
+      "synthetic": true,
+      "soft_flag_count": 4,
+      "soft_flags": ["no_dmarc", "no_spf", "young_domain", "thin_archive"],
+      "derived_from": "the v0.dev triple + thin_archive. In the corpus young domains were NOT thin (v0.dev had 401 captures), so young+thin co-occurrence is extrapolated but plausible for a hastily-stood-up site.",
+      "grounding": "3 observed + 1 extrapolated (thin_archive)",
+      "denominator": { "checks_attempted": 12, "checks_succeeded": 12, "checks_failed": [], "findings_over_succeeded": "4/12" }
+    },
+    {
+      "id": "synth-acc-4-lowdenom",
+      "synthetic": true,
+      "soft_flag_count": 4,
+      "soft_flags": ["no_dmarc", "no_spf", "young_domain", "thin_archive"],
+      "derived_from": "same 4 flags as synth-acc-4, but with a DEGRADED denominator — cert_history, phishtank and urlhaus checks failed. Included specifically to exercise the §5 ratio: 4/8 (0.50) here vs 4/12 (0.33) in synth-acc-4, same findings.",
+      "grounding": "3 observed + 1 extrapolated; denominator degraded (mirrors the real crt.sh + no-threat-key gaps seen in 18.2)",
+      "denominator": { "checks_attempted": 12, "checks_succeeded": 8, "checks_failed": ["cert_history", "phishtank", "urlhaus", "trustpilot"], "findings_over_succeeded": "4/8" }
+    },
+    {
+      "id": "synth-acc-5",
+      "synthetic": true,
+      "soft_flag_count": 5,
+      "soft_flags": ["no_dmarc", "no_spf", "young_domain", "thin_archive", "whois_privacy"],
+      "derived_from": "the 4-flag set + whois_privacy. WHOIS privacy on a young domain is a named draft signal (mvp-spec §2E draft) though not extracted in 18.2 — extrapolated.",
+      "grounding": "3 observed + 2 extrapolated",
+      "denominator": { "checks_attempted": 12, "checks_succeeded": 12, "checks_failed": [], "findings_over_succeeded": "5/12" }
+    },
+    {
+      "id": "synth-acc-6",
+      "synthetic": true,
+      "soft_flag_count": 6,
+      "soft_flags": ["no_dmarc", "no_spf", "young_domain", "thin_archive", "whois_privacy", "no_reputation"],
+      "derived_from": "the 5-flag set + no_reputation (no Trustpilot/BBB). Reputation was not collected in 18.2 — extrapolated. Denominator degraded by the (real) crt.sh outage.",
+      "grounding": "3 observed + 3 extrapolated; cert check failed",
+      "denominator": { "checks_attempted": 12, "checks_succeeded": 11, "checks_failed": ["cert_history"], "findings_over_succeeded": "6/11" }
+    },
+    {
+      "id": "synth-acc-7",
+      "synthetic": true,
+      "soft_flag_count": 7,
+      "soft_flags": ["no_dmarc", "no_spf", "young_domain", "thin_archive", "whois_privacy", "no_reputation", "no_mx"],
+      "derived_from": "the 6-flag set + no_mx. An extreme stack — deliberately at the high end to bracket the threshold. Several flags extrapolated; least realistic fixture, use only to bound the top end.",
+      "grounding": "3 observed + 4 extrapolated — HIGHEST extrapolation, treat as an upper bracket only",
+      "denominator": { "checks_attempted": 12, "checks_succeeded": 12, "checks_failed": [], "findings_over_succeeded": "7/12" }
+    }
+  ]
+}

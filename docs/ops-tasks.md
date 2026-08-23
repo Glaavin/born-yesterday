@@ -85,3 +85,26 @@ require visual-regression gate"). The related visual-regression CI gate is issue
 ### Set production secrets before launch
 **Status:** OPEN · Threat-feed keys (above) plus `SERVER_SALT` must be set in Vercel before
 launch, or threat signals and quota hashing degrade.
+
+---
+
+## Standing lesson — public-repo pushes are not reversible
+
+**Recorded:** Story 18.2 · **Applies while the repo is public (issue #6)**
+
+**On a public repo, force-push and branch deletion do not remove anything.** Once pushed, content
+is reachable and may already have been copied:
+
+- **Pull-request refs persist indefinitely.** `refs/pull/<n>/head` survives closing the PR *and*
+  deleting the branch — verified in 18.2: a closed PR's head ref was still fetchable, still
+  carrying content that had been force-pushed away. Only a **GitHub Support purge request** removes
+  it; there is no self-serve option.
+- **Dangling commits stay reachable by SHA**, and public push events are logged to third-party
+  archives (e.g. GH Archive) that we cannot edit.
+- **Therefore:** anything that shouldn't be public must **not be pushed in the first place**. Amend
+  and force-push reduce *future* discoverability and keep `main` clean, but they are damage control,
+  not deletion.
+
+Practical rule: before committing anything owner-identifying, personal, or otherwise sensitive,
+stop and ask — not after the push. **Re-privatizing the repo before launch (issue #6) closes this
+exposure surface off**, but it does not retroactively unpublish what was public in the meantime.
