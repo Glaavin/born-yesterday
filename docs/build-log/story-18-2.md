@@ -1,6 +1,6 @@
 # Build log — Story 18.2: Build the calibration corpus
 
-- PR: #40   - Branch: data/story-18-2-calibration-corpus   - Base: develop   - Status: opened (CI green)   - Date (UTC): 2026-08-13
+- PR: #41   - Branch: data/story-18-2-corpus   - Base: develop   - Status: opened (CI green)   - Date (UTC): 2026-08-13
 
 Lithium Epic. Research + data. Anchors off Story 18; does not advance the counter. Ran COLLECTORS to qualify domains; **never ran the indicator and recorded no verdict** (Tier 1 retains its pre-Story-18 smoke states from `test-domains.md`).
 
