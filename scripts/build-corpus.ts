@@ -125,7 +125,13 @@ const SELECTION: Sel[] = [
   { domain: "lifesprites.com", tier: 2, cohort: "young-age coverage", probe: "young 3-12mo (~0.8y) organic launch, CLEAN", provenance: "organic HN Show HN launch" },
   { domain: "crewscore.ai", tier: 2, cohort: "young-age coverage", probe: "young 3-12mo (~124d) organic launch + 2 hygiene flags", provenance: "organic HN Show HN launch" },
   { domain: "vostride.com", tier: 2, cohort: "young-age coverage", probe: "young 3-12mo (~157d) organic launch, CLEAN", provenance: "organic HN Show HN launch" },
-  { domain: "secondlibrary.com", tier: 2, cohort: "young-age coverage", probe: "Green/Amber edge — ~2.8yr, clean (DMARC+SPF); archive not collected — near the young-Green threshold", provenance: "added to the pool at owner request" },
+  {
+    domain: "secondlibrary.com", tier: 2,
+    probe:
+      "Green/Amber establishment edge — the LOW end of the 2-5y band: ~2.8y with clean hygiene, so the question is purely 'is this old enough to be established?' with no hygiene confound",
+    provenance:
+      "Qualified on observed signals: RDAP registration 2023-10-29 (~2.8y / 1030d), DMARC and SPF both present, MX present — no hygiene gaps. That makes it the YOUNGEST CLEAN domain in the corpus's 2-5y establishment band (vs turso.tech ~3.6y, val.town ~4.1y, perplexity.ai ~4.1y, neon.tech ~4.4y), so it probes the lower boundary of where 'established' may begin — the §5 question Story 19 must answer. Archive depth NOT collected, so its establishment-by-activity is untested and this entry speaks only to the age/hygiene axis.",
+  },
   { domain: "hellodeck.ai", tier: 2, cohort: "young-age coverage", probe: "12-24mo (~390d) organic launch, CLEAN — the young-Green boundary (old enough to begin establishing?)", provenance: "organic HN Show HN launch" },
   { domain: "brickroad.network", tier: 2, cohort: "young-age coverage", probe: "12-24mo (~415d) organic launch, CLEAN", provenance: "organic HN Show HN launch" },
   { domain: "talkform.org", tier: 2, cohort: "young-age coverage", probe: "12-24mo (~609d) organic launch, CLEAN", provenance: "organic HN Show HN launch" },
