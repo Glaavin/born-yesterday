@@ -49,7 +49,7 @@ function vcardFn(entity: unknown): string | null {
 export function parseRdap(json: string): {
   registrationDate: string | null;
   registrar: string | null;
-} {
+} | null {
   try {
     const o = JSON.parse(json) as {
       events?: Array<{ eventAction?: string; eventDate?: string }>;
@@ -74,6 +74,6 @@ export function parseRdap(json: string): {
 
     return { registrationDate, registrar };
   } catch {
-    return { registrationDate: null, registrar: null };
+    return null; // unparseable — NOT "no registration data"
   }
 }

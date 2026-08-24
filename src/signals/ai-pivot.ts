@@ -37,12 +37,16 @@ export async function collectAiPivot(
   try {
     const r = await fetchCdx(domain, deps.fetcher);
     if (r.ok && r.json) {
-      cdxChecked = true;
       const p = parseCdx(r.json);
-      count = p.count;
-      firstTs = p.firstTs;
-      lastTs = p.lastTs;
-      snapshots = p.snapshots;
+      // Status comes from the PARSE, not the fetch: a 200 with a malformed body
+      // is a failed observation, not "zero captures" (docs/conventions.md).
+      if (p) {
+        cdxChecked = true;
+        count = p.count;
+        firstTs = p.firstTs;
+        lastTs = p.lastTs;
+        snapshots = p.snapshots;
+      }
     }
   } catch {
     // non-throwing — Wayback unreachable just means no archive signals
@@ -60,7 +64,7 @@ export async function collectAiPivot(
       if (!r.ok || r.html == null) scanGaps = true;
       if (r.ok && r.html) {
         const terms = matchAiTerms(stripToText(r.html));
-        if (terms.length) {
+        if (terms && terms.length) {
           aiFirst = {
             dateIso: tsToIso(s.ts),
             term: mostSpecific(terms)!,
@@ -81,10 +85,13 @@ export async function collectAiPivot(
   try {
     const h = await fetchHomepage(domain, deps.fetcher);
     if (h.ok && h.html != null) {
-      liveReached = true;
       const terms = matchAiTerms(stripToText(h.html));
-      currentText = terms.length ? "Mentions AI" : "Does not mention AI";
-      currentTerm = terms.length ? mostSpecific(terms)! : undefined;
+      // A scan that could not run is not "does not mention AI".
+      if (terms) {
+        liveReached = true;
+        currentText = terms.length ? "Mentions AI" : "Does not mention AI";
+        currentTerm = terms.length ? mostSpecific(terms)! : undefined;
+      }
     }
   } catch {
     // blocked/robots/timeout ⇒ "not checked"

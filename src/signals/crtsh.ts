@@ -48,7 +48,7 @@ export async function fetchCrtsh(
 export function parseCrtsh(json: string): {
   firstCertDate: string | null;
   certCount: number | null;
-} {
+} | null {
   try {
     const entries = JSON.parse(json) as Array<{ not_before?: string }>;
     if (!Array.isArray(entries) || entries.length === 0) {
@@ -68,6 +68,6 @@ export function parseCrtsh(json: string): {
       certCount: entries.length,
     };
   } catch {
-    return { firstCertDate: null, certCount: null };
+    return null; // unparseable — NOT "no certificates found"
   }
 }

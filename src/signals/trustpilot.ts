@@ -75,7 +75,7 @@ const intOrNull = (v: unknown): number | null => {
 export function parseTrustpilot(html: string): {
   rating: number | null;
   reviewCount: number | null;
-} {
+} | null {
   try {
     for (const block of extractJsonLd(html)) {
       const agg = findAggregateRating(block);
@@ -87,6 +87,6 @@ export function parseTrustpilot(html: string): {
     }
     return { rating: null, reviewCount: null };
   } catch {
-    return { rating: null, reviewCount: null };
+    return null; // unparseable — NOT "no rating on the page"
   }
 }

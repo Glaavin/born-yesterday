@@ -171,8 +171,10 @@ export async function queryWhois(
 export function parseWhois(text: string): {
   registrationDate: string | null;
   registrar: string | null;
-} {
-  if (!text) return { registrationDate: null, registrar: null };
+} | null {
+  // No text at all = nothing was observed, not "a record with no dates in it"
+  // (docs/conventions.md).
+  if (!text || !text.trim()) return null;
 
   const dateLine = text.match(
     /^\s*(?:Creation Date|Created On|Created|Registered on|Registration Time|Registration Date|created)\s*:\s*(.+?)\s*$/im,

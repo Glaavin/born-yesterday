@@ -49,7 +49,7 @@ async function aiOnset(snapshots: Snapshot[]) {
     await sleep(1500);
     if (!r.ok || !r.body) continue;
     const terms = matchAiTerms(stripToText(r.body));
-    if (terms.length) {
+    if (terms && terms.length) {
       return { first_seen: tsToIso(s.ts), snapshot_url: snapshotUrl(s.ts, s.original), matched_term: mostSpecific(terms) };
     }
   }
@@ -82,6 +82,10 @@ async function main() {
         rec = { domain, observed_at: new Date().toISOString().slice(0, 10), wayback: { status: "error", http: cdx.status } };
       } else {
         const p = parseCdx(cdx.body);
+        if (!p) {
+          console.error(`✗ ${domain}: CDX body unparseable`);
+          continue;
+        }
         const wb = {
           status: "collected",
           snapshot_count: p.count,

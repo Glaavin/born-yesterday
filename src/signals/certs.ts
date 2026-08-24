@@ -29,10 +29,13 @@ export async function collectCerts(
   try {
     const r = await fetchCrtsh(domain, deps.fetcher);
     if (r.ok && r.json) {
-      crtshOk = true;
       const p = parseCrtsh(r.json);
-      firstCertIso = p.firstCertDate;
-      certCount = p.certCount;
+      // Status from the PARSE, not the fetch (docs/conventions.md).
+      if (p) {
+        crtshOk = true;
+        firstCertIso = p.firstCertDate;
+        certCount = p.certCount;
+      }
     }
   } catch {
     // non-throwing contract

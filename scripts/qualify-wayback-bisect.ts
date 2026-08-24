@@ -46,6 +46,7 @@ async function mentionsAi(s: Snapshot): Promise<{ hit: boolean; term: string | n
   await sleep(1200);
   if (!r.ok || !r.body) return null;
   const terms = matchAiTerms(stripToText(r.body));
+  if (!terms) return null; // scan failed — not "no AI language"
   return { hit: terms.length > 0, term: terms.length ? mostSpecific(terms) : null };
 }
 
@@ -61,6 +62,7 @@ async function main() {
       await sleep(1200);
       if (!cdx.ok) { console.error(`✗ ${domain}: CDX failed`); continue; }
       const p = parseCdx(cdx.body);
+      if (!p) { console.error(`✗ ${domain}: CDX body unparseable`); continue; }
       const snaps = p.snapshots;
       if (snaps.length < 2) { console.error(`- ${domain}: ${snaps.length} capture(s), nothing to bisect`); continue; }
 

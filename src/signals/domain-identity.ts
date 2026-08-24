@@ -46,13 +46,17 @@ export async function collectDomainIdentity(
   try {
     const r = await fetchRdap(domain, deps.fetcher);
     if (r.ok && r.json) {
-      rdapOk = true;
       const p = parseRdap(r.json);
-      if (p.registrationDate) {
+      // Status from the PARSE, not the fetch (docs/conventions.md). The WHOIS
+      // fallback below is gated on the VALUE, so it still runs either way.
+      if (p) {
+        rdapOk = true;
+      }
+      if (p?.registrationDate) {
         regIso = p.registrationDate;
         regFrom = "rdap";
       }
-      if (p.registrar) {
+      if (p?.registrar) {
         registrar = p.registrar;
         registrarFrom = "rdap";
       }
@@ -66,13 +70,13 @@ export async function collectDomainIdentity(
     try {
       const text = await queryWhois(domain, deps);
       if (text) {
-        whoisOk = true;
         const p = parseWhois(text);
-        if (!regIso && p.registrationDate) {
+        if (p) whoisOk = true; // parsed, not merely fetched
+        if (!regIso && p?.registrationDate) {
           regIso = p.registrationDate;
           regFrom = "whois";
         }
-        if (!registrar && p.registrar) {
+        if (!registrar && p?.registrar) {
           registrar = p.registrar;
           registrarFrom = "whois";
         }
