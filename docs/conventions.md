@@ -40,3 +40,10 @@ adding a collector, a parser, or any code that reads an external source.
   fields are null because the data was genuinely absent.
 - A collector derives a signal's status from **parse** success, not fetch success. HTTP 200
   with a malformed body is a failed observation, not an empty one.
+
+### Scope of verification
+
+`src/signals/` was swept in Story 18.3. `src/serve/`, `src/lib/`, and any future code reading
+an external source are governed by this rule but have been **spot-checked, not swept**. Three of
+the four known instances were found while looking for something else, so absence of known
+violations is weak evidence.
