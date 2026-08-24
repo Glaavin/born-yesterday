@@ -13,6 +13,27 @@ export interface SignalSource {
   url: string;
 }
 
+/**
+ * The OUTCOME of a check, carried separately from its value (Story 18.3 §1.1).
+ *
+ * A null value alone is ambiguous — it used to mean both "this check did not
+ * complete" and "this check completed and found nothing." Those are different
+ * facts and the second one is a FINDING:
+ *
+ *   "ok"            the check RAN to completion. The value may be present
+ *                   (found) or null (**checked, found nothing** — a finding,
+ *                   which is why this case carries a source: the query we ran).
+ *   "failed"        the check was attempted but did not complete (network
+ *                   error, timeout, HTTP error, unparseable response).
+ *   "not_attempted" the check was never run (missing key, gated, or an upstream
+ *                   dependency was unavailable).
+ *
+ * INVARIANT: a source is carried when (and only when) status is "ok". So
+ * `source != null` continues to mean "we have something we can cite," and a
+ * failed check can never be mistaken for an observation.
+ */
+export type SignalStatus = "ok" | "failed" | "not_attempted";
+
 /** One sourced data point. valueText/valueNum are null when not found. */
 export interface Signal {
   key: string; // becomes signal_history.signal_type
@@ -20,8 +41,14 @@ export interface Signal {
   valueText: string | null;
   valueNum: number | null;
   source: SignalSource | null;
+  /** Did the check run? Required — a null value alone cannot answer it. */
+  status: SignalStatus;
   note?: string;
 }
+
+/** True when the check ran to completion and found nothing — itself a finding. */
+export const isCheckedEmpty = (s: Signal): boolean =>
+  s.status === "ok" && s.valueText == null && s.valueNum == null;
 
 export interface CollectorResult {
   collector: string;

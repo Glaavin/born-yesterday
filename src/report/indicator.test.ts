@@ -12,6 +12,7 @@ const sig = (key: string, o: Partial<Signal> = {}): Signal => ({
   valueText: null,
   valueNum: null,
   source: null,
+  status: "ok", // tests describe COMPLETED checks unless they say otherwise
   ...o,
 });
 const results = (signals: Signal[]): CollectorResult[] => [{ collector: "t", signals, ok: true }];

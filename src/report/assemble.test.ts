@@ -11,6 +11,7 @@ const sig = (key: string, o: Partial<Signal> = {}): Signal => ({
   valueText: null,
   valueNum: null,
   source: null,
+  status: "ok", // tests describe COMPLETED checks unless they say otherwise
   ...o,
 });
 

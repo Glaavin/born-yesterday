@@ -1,5 +1,5 @@
 import type { Fetcher } from "../lib/cached-fetch";
-import type { CollectorResult, Signal, SignalSource } from "./types";
+import type { CollectorResult, Signal, SignalSource, SignalStatus } from "./types";
 import { fetchRdap, parseRdap, rdapUrl } from "./rdap";
 import { queryWhois, parseWhois, type WhoisDeps } from "./whois";
 import { isoToEpochSec } from "./dates";
@@ -36,10 +36,17 @@ export async function collectDomainIdentity(
   let registrar: string | null = null;
   let registrarFrom: Source = null;
 
+  // Did each registry lookup COMPLETE? A registry that answers without a
+  // creation date (common for .edu and several ccTLDs) is a checked-empty
+  // FINDING; a lookup that timed out is not (Story 18.3 §1.1, §1.3).
+  let rdapOk = false;
+  let whoisOk = false;
+
   // RDAP (primary).
   try {
     const r = await fetchRdap(domain, deps.fetcher);
     if (r.ok && r.json) {
+      rdapOk = true;
       const p = parseRdap(r.json);
       if (p.registrationDate) {
         regIso = p.registrationDate;
@@ -59,6 +66,7 @@ export async function collectDomainIdentity(
     try {
       const text = await queryWhois(domain, deps);
       if (text) {
+        whoisOk = true;
         const p = parseWhois(text);
         if (!regIso && p.registrationDate) {
           regIso = p.registrationDate;
@@ -84,8 +92,17 @@ export async function collectDomainIdentity(
   }
   const ageDays = regSec != null ? Math.floor((nowSec - regSec) / SECONDS_PER_DAY) : null;
 
+  // At least one registry answered ⇒ the check RAN.
+  const lookupStatus: SignalStatus = rdapOk || whoisOk ? "ok" : "failed";
+  // Where a value was found, cite where it came from. Where the lookup ran and
+  // the field simply is not published, cite the record we actually consulted.
+  const consulted: SignalSource | null = rdapOk
+    ? sources.rdap
+    : whoisOk
+      ? sources.whois
+      : null;
   const srcFor = (from: Source): SignalSource | null =>
-    from ? sources[from] : null;
+    from ? sources[from] : consulted;
   const noteFor = (from: Source): string | undefined =>
     from === "whois" ? "via WHOIS fallback" : undefined;
 
@@ -96,6 +113,7 @@ export async function collectDomainIdentity(
       valueText: regIso,
       valueNum: regSec,
       source: srcFor(regFrom),
+      status: lookupStatus,
       note: noteFor(regFrom),
     },
     {
@@ -104,6 +122,7 @@ export async function collectDomainIdentity(
       valueText: null,
       valueNum: ageDays,
       source: srcFor(regFrom),
+      status: lookupStatus,
       note: noteFor(regFrom),
     },
     {
@@ -112,6 +131,7 @@ export async function collectDomainIdentity(
       valueText: registrar, // display only — never editorialized
       valueNum: null,
       source: srcFor(registrarFrom),
+      status: lookupStatus,
       note: noteFor(registrarFrom),
     },
   ];
