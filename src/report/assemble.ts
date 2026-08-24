@@ -118,9 +118,16 @@ export function assembleReport(
     0,
   );
   const note = caveats.length ? ` Note: ${caveats.map((c) => c.text).join(" ")}` : "";
+  // BLUE reached no assessment, so its reasons are NOT "worth a closer look" —
+  // that phrasing would present insufficiency as concern (the state's own meaning
+  // is "too new to tell"). Counting them would compound it.
+  const tally =
+    indicator.state === "blue"
+      ? "not enough to assess yet"
+      : `${flagged.length === 0 ? "none" : flagged.length} worth a closer look`;
   const summary =
     `Surfaces ${signalCount} public signal${signalCount !== 1 ? "s" : ""} for ${domain}; ` +
-    `${flagged.length === 0 ? "none" : flagged.length} worth a closer look.${note}`;
+    `${tally}.${note}`;
 
   return {
     domain,

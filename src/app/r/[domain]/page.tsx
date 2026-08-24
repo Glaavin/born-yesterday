@@ -32,21 +32,44 @@ function SourceLink({ source }: { source: Source }) {
 }
 
 /** A single finding — data point in its flag colour AND a worded cue (§4). */
-function FindingItem({ kind, finding }: { kind: "flagged" | "positive"; finding: Finding }) {
-  const flagged = kind === "flagged";
+/**
+ * A finding's presentation. "unestablished" is the BLUE case: the report reached
+ * no assessment, so its reason is neither a concern nor a reassurance — it states
+ * what WE could not determine. It therefore uses neutral copy and neutral tokens
+ * (ink-muted / ink), never the flag-negative concern treatment. Presentation only:
+ * the Report shape is unchanged and the reason still lives in `flagged[]`.
+ */
+type FindingKind = "flagged" | "positive" | "unestablished";
+
+const FINDING_STYLES: Record<FindingKind, { label: string; badge: string; text: string }> = {
+  flagged: {
+    label: "Flagged",
+    badge: "border-flag-negative/50 text-flag-negative",
+    text: "text-flag-negative",
+  },
+  positive: {
+    label: "Positive",
+    badge: "border-flag-positive/50 text-flag-positive",
+    text: "text-flag-positive",
+  },
+  unestablished: {
+    label: "Couldn’t establish",
+    badge: "border-ink-muted/50 text-ink-muted",
+    text: "text-ink",
+  },
+};
+
+function FindingItem({ kind, finding }: { kind: FindingKind; finding: Finding }) {
+  const style = FINDING_STYLES[kind];
   return (
     <li className="flex flex-col gap-1 py-2">
       <div className="flex items-baseline gap-2">
         <span
-          className={`shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold uppercase ${
-            flagged
-              ? "border-flag-negative/50 text-flag-negative"
-              : "border-flag-positive/50 text-flag-positive"
-          }`}
+          className={`shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold uppercase ${style.badge}`}
         >
-          {flagged ? "Flagged" : "Positive"}
+          {style.label}
         </span>
-        <span className={flagged ? "text-flag-negative" : "text-flag-positive"}>{finding.text}</span>
+        <span className={style.text}>{finding.text}</span>
       </div>
       <p className="text-sm text-ink-muted">
         Source: <SourceLink source={finding.source} />
@@ -120,13 +143,18 @@ export default async function ReportPage({
     `Correction request: ${report.domain}`,
   )}`;
 
+  // BLUE means "we could not establish enough to assess" — insufficiency, not
+  // suspicion. Its reasons must not be presented as concerns.
+  const inconclusive = report.state === "too-new";
+  const reasonKind: FindingKind = inconclusive ? "unestablished" : "flagged";
+
   const overview = (
     <div className="flex flex-col gap-4">
       <SkepticismPill state={report.state} />
       <p className="text-ink">{report.summary}</p>
       <p className="text-sm text-ink-muted">Last checked: {report.lastChecked}</p>
       <ul className="mt-1">
-        {report.flagged[0] && <FindingItem kind="flagged" finding={report.flagged[0]} />}
+        {report.flagged[0] && <FindingItem kind={reasonKind} finding={report.flagged[0]} />}
         {report.positive[0] && <FindingItem kind="positive" finding={report.positive[0]} />}
       </ul>
     </div>
@@ -136,12 +164,14 @@ export default async function ReportPage({
     <div className="flex flex-col gap-6">
       <section aria-labelledby="signals-flagged">
         <h2 id="signals-flagged" className="text-sm font-semibold text-ink-muted">
-          Flagged findings
+          {inconclusive ? "What we couldn’t establish" : "Flagged findings"}
         </h2>
         <ul>
-          {report.flagged.length === 0 && <li className="py-2 text-ink-muted">None flagged.</li>}
+          {report.flagged.length === 0 && (
+            <li className="py-2 text-ink-muted">{inconclusive ? "Nothing recorded." : "None flagged."}</li>
+          )}
           {report.flagged.map((f, i) => (
-            <FindingItem key={i} kind="flagged" finding={f} />
+            <FindingItem key={i} kind={reasonKind} finding={f} />
           ))}
         </ul>
       </section>

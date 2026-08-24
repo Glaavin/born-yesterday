@@ -27,6 +27,31 @@ describe("state ⇄ ReportStateKey mapping", () => {
   });
 });
 
+describe("summary phrasing by state (insufficiency is not concern)", () => {
+  const ind = (state: Indicator["state"], reasons: Indicator["reasons"]): Indicator => ({ state, reasons });
+  const oneSourced = [{ text: "a reason", source: S("RDAP", "u-rdap") }];
+
+  it("BLUE is never described as 'worth a closer look' and carries no tally", () => {
+    const r = assembleReport("x.com", [], { pivot: null }, ind("blue", oneSourced), NOW);
+    expect(r.state).toBe("too-new");
+    expect(r.summary).toMatch(/not enough to assess yet/);
+    expect(r.summary).not.toMatch(/worth a closer look/);
+    expect(r.summary).not.toMatch(/\b1\b/); // the reason is not counted as a concern
+  });
+
+  it("AMBER and RED keep the concern tally", () => {
+    for (const st of ["amber", "red"] as const) {
+      const r = assembleReport("x.com", [], { pivot: null }, ind(st, oneSourced), NOW);
+      expect(r.summary).toMatch(/1 worth a closer look/);
+    }
+  });
+
+  it("GREEN still reads 'none worth a closer look'", () => {
+    const r = assembleReport("x.com", [], { pivot: null }, ind("green", oneSourced), NOW);
+    expect(r.summary).toMatch(/none worth a closer look/);
+  });
+});
+
 describe("assembleReport", () => {
   const results: CollectorResult[] = [
     {
