@@ -1,5 +1,5 @@
 import type { Fetcher } from "../lib/cached-fetch";
-import type { CollectorResult, Signal, SignalSource } from "./types";
+import type { CollectorResult, Signal, SignalSource, SignalStatus } from "./types";
 import { stripToText, matchAiTerms, mostSpecific } from "./ai-keywords";
 import { fetchCdx, parseCdx, fetchSnapshot, pickSnapshots, snapshotUrl, tsToIso, cdxUrl } from "./wayback";
 import { fetchHomepage, homepageUrl } from "./homepage";
@@ -50,9 +50,14 @@ export async function collectAiPivot(
 
   // --- Earliest archived AI language (scan representative snapshots, ascending) ---
   let aiFirst: { dateIso: string | null; term: string; url: string } | null = null;
+  // Did every sampled capture actually load? A PARTIAL scan cannot conclude
+  // "no AI language" — it can only report that the scan did not complete
+  // (Story 18.3 §2.6: a partial scan never produces a conclusion).
+  let scanGaps = false;
   for (const s of pickSnapshots(snapshots)) {
     try {
       const r = await fetchSnapshot(s.ts, s.original, deps.fetcher);
+      if (!r.ok || r.html == null) scanGaps = true;
       if (r.ok && r.html) {
         const terms = matchAiTerms(stripToText(r.html));
         if (terms.length) {
@@ -65,7 +70,7 @@ export async function collectAiPivot(
         }
       }
     } catch {
-      // skip a bad snapshot
+      scanGaps = true; // skip a bad snapshot, but remember the scan is incomplete
     }
   }
 
@@ -85,6 +90,18 @@ export async function collectAiPivot(
     // blocked/robots/timeout ⇒ "not checked"
   }
 
+  // The onset scan's outcome, distinct from its value:
+  //   not_attempted — CDX never listed the captures, so nothing was scanned
+  //   ok            — a match was found, OR every sampled capture was read and
+  //                   none mentioned AI (a finding)
+  //   failed        — the scan was incomplete, so "no AI language" is NOT a
+  //                   conclusion we are entitled to draw
+  const aiOnsetStatus: SignalStatus = !cdxChecked
+    ? "not_attempted"
+    : aiFirst || !scanGaps
+      ? "ok"
+      : "failed";
+
   const signals: Signal[] = [
     {
       key: "wayback_snapshot_count",
@@ -94,27 +111,37 @@ export async function collectAiPivot(
       valueText: cdxChecked ? String(count) : null,
       valueNum: cdxChecked ? count : null,
       source: cdxChecked ? cdxSource : null,
+      status: cdxChecked ? "ok" : "failed",
     },
     {
       key: "wayback_first",
       label: "First archived",
       valueText: tsToIso(firstTs),
       valueNum: null,
-      source: firstTs ? cdxSource : null,
+      source: cdxChecked ? cdxSource : null,
+      status: cdxChecked ? "ok" : "failed",
     },
     {
       key: "wayback_last",
       label: "Last archived",
       valueText: tsToIso(lastTs),
       valueNum: null,
-      source: lastTs ? cdxSource : null,
+      source: cdxChecked ? cdxSource : null,
+      status: cdxChecked ? "ok" : "failed",
     },
     {
       key: "ai_language_first_seen",
       label: "AI language first seen",
       valueText: aiFirst?.dateIso ?? null,
       valueNum: null,
-      source: aiFirst ? { label: "Wayback snapshot", url: aiFirst.url } : null,
+      // Found ⇒ cite the capture that matched. Scanned everything and found
+      // nothing ⇒ a FINDING, cited to the captures we read. Otherwise no source.
+      source: aiFirst
+        ? { label: "Wayback snapshot", url: aiFirst.url }
+        : aiOnsetStatus === "ok"
+          ? cdxSource
+          : null,
+      status: aiOnsetStatus,
       note: aiFirst ? `matched "${aiFirst.term}"` : undefined,
     },
     {
@@ -122,7 +149,8 @@ export async function collectAiPivot(
       label: "AI language now",
       valueText: currentText,
       valueNum: null,
-      source: currentText != null ? { label: "Live homepage", url: homepageUrl(domain) } : null,
+      source: liveReached ? { label: "Live homepage", url: homepageUrl(domain) } : null,
+      status: liveReached ? "ok" : "failed",
       note: currentText == null ? "not checked" : currentTerm ? `matched "${currentTerm}"` : undefined,
     },
   ];

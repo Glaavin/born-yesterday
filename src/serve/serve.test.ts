@@ -30,7 +30,7 @@ const aRow = (over: Partial<ReportRow> = {}): ReportRow => ({
   ...over,
 });
 
-const aSignal: Signal = { key: "k", label: "k", valueText: "v", valueNum: null, source: null };
+const aSignal: Signal = { key: "k", label: "k", valueText: "v", valueNum: null, source: null, status: "ok" };
 
 describe("isFresh", () => {
   it("is fresh until expires_at passes", () => {

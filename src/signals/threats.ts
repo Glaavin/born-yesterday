@@ -1,5 +1,5 @@
 import type { Fetcher } from "../lib/cached-fetch";
-import type { CollectorResult, Signal, SignalSource } from "./types";
+import type { CollectorResult, Signal, SignalSource, SignalStatus } from "./types";
 import { fetchUrlhaus, parseUrlhaus } from "./urlhaus";
 
 /**
@@ -33,9 +33,20 @@ function listingSignal(
   label: string,
   listed: boolean | null,
   source: SignalSource,
+  /** Why there is no verdict: the feed was unreachable ("failed") or we never
+   *  queried it — no key, never ingested ("not_attempted"). */
+  unavailable: SignalStatus = "failed",
 ): Signal {
   if (listed === null) {
-    return { key, label, valueText: null, valueNum: null, source: null, note: "not checked" };
+    return {
+      key,
+      label,
+      valueText: null,
+      valueNum: null,
+      source: null,
+      status: unavailable,
+      note: "not checked",
+    };
   }
   return {
     key,
@@ -43,6 +54,7 @@ function listingSignal(
     valueText: listed ? THREAT_LISTED : THREAT_NOT_LISTED,
     valueNum: null,
     source, // a checked result (listed or clean) is sourced
+    status: "ok",
   };
 }
 
@@ -56,28 +68,36 @@ export async function collectThreats(
     url: `https://urlhaus.abuse.ch/browse.php?search=${encodeURIComponent(domain)}`,
   };
 
-  // PhishTank — local table. count 0 ⇒ never ingested ⇒ not checked (null).
+  // PhishTank — local table. count 0 ⇒ never ingested ⇒ we never ran the check.
   let phishtankListed: boolean | null = null;
+  let phishtankUnavailable: SignalStatus = "not_attempted";
   try {
     if ((await deps.phishtankCount()) > 0) {
       phishtankListed = await deps.phishtankListed(domain);
     }
   } catch {
-    phishtankListed = null; // DB hiccup ⇒ not checked
+    phishtankListed = null;
+    phishtankUnavailable = "failed"; // DB hiccup ⇒ attempted, did not complete
   }
 
   // URLhaus — harness.
   let urlhausListed: boolean | null = null;
+  // A response we could not turn into a verdict (e.g. invalid_auth_key) means the
+  // check never really ran; a transport failure means it was attempted and failed.
+  let urlhausUnavailable: SignalStatus = "failed";
   try {
     const r = await fetchUrlhaus(domain, deps.fetcher, deps.urlhausKey);
-    if (r.ok && r.json) urlhausListed = parseUrlhaus(r.json).listed;
+    if (r.ok && r.json) {
+      urlhausListed = parseUrlhaus(r.json).listed;
+      if (urlhausListed === null) urlhausUnavailable = "not_attempted";
+    }
   } catch {
     urlhausListed = null;
   }
 
   const signals: Signal[] = [
-    listingSignal("phishtank_listed", "PhishTank", phishtankListed, phishtankSource),
-    listingSignal("urlhaus_listed", "URLhaus", urlhausListed, urlhausSource),
+    listingSignal("phishtank_listed", "PhishTank", phishtankListed, phishtankSource, phishtankUnavailable),
+    listingSignal("urlhaus_listed", "URLhaus", urlhausListed, urlhausSource, urlhausUnavailable),
   ];
 
   // ok = at least one source was actually checked (not both null).

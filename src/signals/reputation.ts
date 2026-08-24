@@ -1,5 +1,5 @@
 import type { Fetcher } from "../lib/cached-fetch";
-import type { CollectorResult, Signal } from "./types";
+import type { CollectorResult, Signal, SignalStatus } from "./types";
 import { fetchTrustpilot, parseTrustpilot, trustpilotUrl } from "./trustpilot";
 import { bbbSearchUrl } from "./bbb";
 import { webReviewsSearchUrl, webComplaintsSearchUrl, redditSearchUrl } from "./reputation-links";
@@ -31,9 +31,14 @@ export async function collectReputation(
   // Trustpilot (best-effort).
   let trustpilotText: string | null = null;
   let trustpilotRating: number | null = null;
+  // NAMED in Story 18.3 §1.2: this collector previously collapsed "page fetched,
+  // no rating shown" and "fetch failed" into the same null. They are different
+  // facts — the first is a finding, the second is a gap.
+  let trustpilotStatus: SignalStatus = "failed";
   try {
     const r = await fetchTrustpilot(domain, deps.fetcher);
     if (r.ok && r.html) {
+      trustpilotStatus = "ok"; // the page was retrieved and parsed
       const p = parseTrustpilot(r.html);
       if (p.rating != null || p.reviewCount != null) {
         trustpilotRating = p.rating;
@@ -50,7 +55,10 @@ export async function collectReputation(
       label: "Trustpilot",
       valueText: trustpilotText, // e.g. "4.2/5 (1,203 reviews)" or null ("Not found")
       valueNum: trustpilotRating,
-      source: trustpilotText ? { label: "Trustpilot", url: trustpilotUrl(domain) } : null,
+      // A page we READ and found no rating on cites that page; a page we could
+      // not reach cites nothing.
+      source: trustpilotStatus === "ok" ? { label: "Trustpilot", url: trustpilotUrl(domain) } : null,
+      status: trustpilotStatus,
     },
     {
       // BBB is now a LINK-OUT only (decision A) — always present, never scraped.
@@ -59,6 +67,7 @@ export async function collectReputation(
       valueText: "Check BBB for this domain",
       valueNum: null,
       source: { label: "BBB", url: bbbSearchUrl(domain) },
+      status: "ok", // a constructed link-out, not a check that can fail
     },
     {
       // Link-outs are ALWAYS present (links, not scrapes). NEUTRAL terms only —
@@ -69,6 +78,7 @@ export async function collectReputation(
       valueText: "Search the web for reviews",
       valueNum: null,
       source: { label: "Web search", url: webReviewsSearchUrl(domain) },
+      status: "ok", // link-out
     },
     {
       key: "reputation_complaints",
@@ -76,6 +86,7 @@ export async function collectReputation(
       valueText: "Search the web for complaints",
       valueNum: null,
       source: { label: "Web search", url: webComplaintsSearchUrl(domain) },
+      status: "ok", // link-out
     },
     {
       key: "reddit_search",
@@ -83,6 +94,7 @@ export async function collectReputation(
       valueText: "Search Reddit for mentions",
       valueNum: null,
       source: { label: "Reddit", url: redditSearchUrl(domain) },
+      status: "ok", // link-out
     },
   ];
 

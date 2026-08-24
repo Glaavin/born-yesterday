@@ -121,14 +121,37 @@ describe("collectDns", () => {
     expect(by.dns_a.valueNum).toBe(2);
   });
 
-  it("NXDOMAIN → ok:false with all-null values, no throw", async () => {
+  it("NXDOMAIN → ok:false, all-null values, but the queries RAN (checked-empty is a finding)", async () => {
     const deps: DnsDeps = { fetcher: makeFetcher({}) }; // everything NXDOMAIN
 
     const r = await collectDns("nope.invalid", deps);
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(false); // nothing useful resolved
     for (const s of r.signals) {
       expect(s.valueText).toBeNull();
-      expect(s.source).toBeNull();
+    }
+    // A resolver that answers "no such name" has COMPLETED the check. Story 18.3
+    // §1.1: that is a finding, so it cites the query we ran — distinct from a
+    // lookup that never completed, which cites nothing.
+    const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
+    expect(by.dns_spf.status).toBe("ok");
+    expect(by.dns_spf.source).not.toBeNull();
+    expect(by.dns_dmarc.status).toBe("ok");
+    // No A record ⇒ the reverse lookup was never attempted, which is a third
+    // outcome again — neither a finding nor a failure.
+    expect(by.hosting_provider.status).toBe("not_attempted");
+    expect(by.hosting_provider.source).toBeNull();
+  });
+
+  it("a FAILED lookup carries no source and is not a finding", async () => {
+    // fetcher rejects ⇒ fetchDoh returns !ok ⇒ the query did not complete
+    const deps: DnsDeps = { fetcher: (async () => ({ ok: false, error: "network" })) as DnsDeps["fetcher"] };
+
+    const r = await collectDns("example.com", deps);
+    const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
+    for (const key of ["dns_spf", "dns_dmarc", "dns_a", "dns_mx"]) {
+      expect(by[key].status).toBe("failed");
+      expect(by[key].source).toBeNull();
+      expect(by[key].valueText).toBeNull();
     }
   });
 });
