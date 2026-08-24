@@ -8,6 +8,13 @@
 **Author:** PM
 **Companions:** `PRODUCT.md`, `mvp-spec.md` §2E, `legal-risk-register.md`, `legal-summary-for-advisors.md`, `risk-exposure-and-derisk-analysis.md`, `profile-section-brief.md`
 
+> ## ⚠️ AMENDED — read [`story-18-3-amendment.md`](story-18-3-amendment.md) alongside this document
+> Story 18.3 amends **§3.4, §3.5, §5, §9** and vindicates **§0**. Most consequentially:
+> **§3.4's "the classic pivot is a standalone disjunctive Red trigger" is SUPERSEDED** — the pivot's
+> severity is now conditioned on substantiation. Implementing §3.4 as written would fire Red on any
+> established company that added AI-marketing language in the last year.
+> The decision *record* below is left unedited on purpose; the amendment carries the corrections.
+
 ---
 
 ## 0. Verification gap and precedence (read first)
