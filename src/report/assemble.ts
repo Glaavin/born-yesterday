@@ -3,6 +3,7 @@ import type { CollectorResult, Signal, SignalSource } from "../signals/types";
 import { signalsByKey } from "./signals";
 import { humanAge, type Derivations } from "./derive";
 import type { Indicator, IndicatorState } from "./indicator";
+import { THREAT_NOT_LISTED } from "../signals/threats";
 
 /**
  * Assembly (Story 16 §E) — collector results + derivations + indicator → the
@@ -55,8 +56,8 @@ function gatherPositives(byKey: Map<string, Signal>, nowSec: number): Finding[] 
 
   const pt = byKey.get("phishtank_listed");
   const uh = byKey.get("urlhaus_listed");
-  if (pt?.valueText === "Not listed") push("Not listed on PhishTank (this host).", pt.source);
-  if (uh?.valueText === "Not listed") push("Not listed on URLhaus (this host).", uh.source);
+  if (pt?.valueText === THREAT_NOT_LISTED) push("Not listed on PhishTank (this host).", pt.source);
+  if (uh?.valueText === THREAT_NOT_LISTED) push("Not listed on URLhaus (this host).", uh.source);
 
   return out;
 }
