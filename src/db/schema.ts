@@ -26,6 +26,8 @@ import {
 export type SkepticismState = "green" | "amber" | "red" | "blue";
 
 /** The report schema_version the app writes. Starts at 1 (mvp-spec §5). */
+import type { SignalStatus } from "../signals/types";
+
 export const SCHEMA_VERSION = 1;
 
 // One row per domain we've ever processed.
@@ -73,10 +75,24 @@ export const signalHistory = pgTable(
     signalType: text("signal_type").notNull(),
     valueText: text("value_text"),
     valueNum: doublePrecision("value_num"),
+    /**
+     * Did the check RUN? (Story 18.3 §1.1.) History records what was true when —
+     * and "we didn't look" is part of what was true. Without this, a check that
+     * starts failing is indistinguishable from a value that disappeared, and the
+     * Phase-2 "what changed" digest would report a network hiccup as a real
+     * change event. See docs/build-log/story-18-3-history-status.md for why
+     * DEFAULT 'ok' is provably correct for pre-existing rows.
+     */
+    status: text("status").$type<SignalStatus>().notNull().default("ok"),
   },
   (t) => [
     index("idx_signal_history_domain").on(t.domain, t.capturedAt),
     index("idx_signal_history_type").on(t.signalType, t.capturedAt),
+    // Defense-in-depth, mirroring the reports.skepticism_state precedent (0001).
+    check(
+      "signal_history_status_check",
+      sql`${t.status} in ('ok', 'failed', 'not_attempted')`,
+    ),
   ],
 );
 
