@@ -97,8 +97,8 @@ describe("parseRdap (pure)", () => {
     expect(parseRdap(RDAP_MISSING)).toEqual({ registrationDate: null, registrar: null });
   });
 
-  it("does not throw on malformed JSON", () => {
-    expect(parseRdap("{ not json")).toEqual({ registrationDate: null, registrar: null });
+  it("returns null on malformed JSON — unparseable is not 'no registration data'", () => {
+    expect(parseRdap("{ not json")).toBeNull();
   });
 });
 

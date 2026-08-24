@@ -43,10 +43,16 @@ describe("parseAnswers (pure)", () => {
   it("filters by requested type", () => {
     expect(parseAnswers(TXT_SPF, "A")).toEqual([]); // TXT answers, asked for A
   });
-  it("returns [] for NXDOMAIN / empty / malformed", () => {
+  it("PARSED-but-empty returns [] — 'no such record' is a finding", () => {
     expect(parseAnswers(NXDOMAIN, "A")).toEqual([]);
     expect(parseAnswers(doh([]), "A")).toEqual([]);
-    expect(parseAnswers("{ not json", "A")).toEqual([]);
+  });
+
+  it("UNPARSEABLE returns null, never [] (docs/conventions.md)", () => {
+    // The old contract returned [] here, so a malformed DoH body published as
+    // "SPF/DMARC absent, checked" — feeding the concern point and the Green gate.
+    expect(parseAnswers("{ not json", "A")).toBeNull();
+    expect(parseAnswers('"a string"', "A")).toBeNull();
   });
 });
 
@@ -77,6 +83,21 @@ describe("collectDns", () => {
       const body = map[opts.key] ?? NXDOMAIN;
       return { ok: true, status: 200, body, fromCache: false };
     });
+
+  it("HTTP 200 with a MALFORMED DoH body is 'failed', never 'record absent'", async () => {
+    // Verdict-bearing: the old contract published this as "SPF/DMARC absent,
+    // checked", which feeds the concern point and the Green gate.
+    const fetcher = vi.fn<Fetcher>(async (): Promise<FetchResult> => ({
+      ok: true, status: 200, body: "{ not json", fromCache: false,
+    }));
+    const r = await collectDns("x.com", { fetcher } as DnsDeps);
+    for (const key of ["dns_spf", "dns_dmarc", "dns_a", "dns_mx"]) {
+      const sig = r.signals.find((s) => s.key === key)!;
+      expect(sig.status).toBe("failed");
+      expect(sig.valueText).toBeNull();
+      expect(sig.source).toBeNull();
+    }
+  });
 
   it("emits all five signals when SPF/DMARC/A/MX/PTR are present", async () => {
     const deps: DnsDeps = {

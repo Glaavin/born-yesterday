@@ -38,11 +38,16 @@ export async function collectReputation(
   try {
     const r = await fetchTrustpilot(domain, deps.fetcher);
     if (r.ok && r.html) {
-      trustpilotStatus = "ok"; // the page was retrieved and parsed
       const p = parseTrustpilot(r.html);
-      if (p.rating != null || p.reviewCount != null) {
-        trustpilotRating = p.rating;
-        trustpilotText = formatTrustpilot(p.rating, p.reviewCount);
+      // Status from the PARSE, not the fetch — the comment above used to claim
+      // "retrieved and parsed" while only the retrieval had been checked
+      // (docs/conventions.md).
+      if (p) {
+        trustpilotStatus = "ok";
+        if (p.rating != null || p.reviewCount != null) {
+          trustpilotRating = p.rating;
+          trustpilotText = formatTrustpilot(p.rating, p.reviewCount);
+        }
       }
     }
   } catch {

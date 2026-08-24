@@ -53,17 +53,25 @@ describe("parseCdx (pure)", () => {
   ]);
 
   it("counts rows + first/last ts (sorted), dropping the header", () => {
-    const p = parseCdx(CDX);
+    const p = parseCdx(CDX)!;
+    expect(p).not.toBeNull();
     expect(p.count).toBe(3);
     expect(p.firstTs).toBe("20130101000000");
     expect(p.lastTs).toBe("20230301000000");
     expect(p.snapshots).toHaveLength(3);
   });
 
-  it("returns empty on empty / header-only / malformed", () => {
-    expect(parseCdx("[]").count).toBe(0);
-    expect(parseCdx('[["timestamp","original"]]').count).toBe(0);
-    expect(parseCdx("{ not json").count).toBe(0);
+  it("PARSED-but-empty returns 0 captures — a finding", () => {
+    // These parsed fine and genuinely hold no captures.
+    expect(parseCdx("[]")?.count).toBe(0);
+    expect(parseCdx('[["timestamp","original"]]')?.count).toBe(0);
+  });
+
+  it("UNPARSEABLE returns null, never 0 captures (docs/conventions.md)", () => {
+    // The old contract returned {count: 0} here, which published as
+    // "0 archived captures" — a false stated fact about a check that failed.
+    expect(parseCdx("{ not json")).toBeNull();
+    expect(parseCdx('{"not":"an array"}')).toBeNull();
   });
 });
 
@@ -90,6 +98,17 @@ describe("collectAiPivot", () => {
       }
       return over.home ?? fetchOk(HOME); // homepage
     });
+
+  it("HTTP 200 with a MALFORMED CDX body is 'failed', never '0 captures'", async () => {
+    // The sweep's headline case: status used to come from the FETCH, so a 200
+    // carrying junk published as a checked "0 archived captures".
+    const r = await collectAiPivot("x.com", { fetcher: aiFetcher({ cdx: fetchOk("{ not json") }) });
+    const snaps = r.signals.find((s) => s.key === "wayback_snapshot_count")!;
+    expect(snaps.status).toBe("failed");
+    expect(snaps.valueNum).toBeNull();
+    expect(snaps.valueText).toBeNull();
+    expect(snaps.source).toBeNull();
+  });
 
   it("reports counts, the EARLIEST archived AI date (cited), and current status", async () => {
     const deps: AiPivotDeps = { fetcher: aiFetcher() };

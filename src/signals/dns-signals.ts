@@ -34,9 +34,11 @@ const answers = async (
   fetcher: Fetcher,
 ): Promise<{ ok: boolean; values: string[] }> => {
   const r = await fetchDoh(name, type, fetcher);
-  return r.ok && r.json
-    ? { ok: true, values: parseAnswers(r.json, type) }
-    : { ok: false, values: [] };
+  if (!r.ok || !r.json) return { ok: false, values: [] };
+  // `ok` tracks the PARSE, not the fetch: a 200 carrying a malformed body is a
+  // failed observation, not "no such record" (docs/conventions.md).
+  const values = parseAnswers(r.json, type);
+  return values ? { ok: true, values } : { ok: false, values: [] };
 };
 
 export async function collectDns(domain: string, deps: DnsDeps): Promise<CollectorResult> {

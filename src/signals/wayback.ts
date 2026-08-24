@@ -74,11 +74,12 @@ export function parseCdx(json: string): {
   firstTs: string | null;
   lastTs: string | null;
   snapshots: Snapshot[];
-} {
+} | null {
   try {
     const rows = JSON.parse(json) as unknown[];
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return { count: 0, firstTs: null, lastTs: null, snapshots: [] };
+    if (!Array.isArray(rows)) return null; // not a CDX payload at all
+    if (rows.length === 0) {
+      return { count: 0, firstTs: null, lastTs: null, snapshots: [] }; // parsed: genuinely no captures
     }
     // Drop the header row if present ("timestamp","original").
     const first = rows[0];
@@ -100,7 +101,7 @@ export function parseCdx(json: string): {
       snapshots,
     };
   } catch {
-    return { count: 0, firstTs: null, lastTs: null, snapshots: [] };
+    return null; // unparseable — NOT "zero captures"
   }
 }
 

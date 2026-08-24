@@ -66,8 +66,13 @@ export function stripToText(html: string): string {
     .toLowerCase();
 }
 
-/** PURE: the canonical AI terms present in the text (list order, deduped). */
-export function matchAiTerms(input: string): string[] {
+/**
+ * PURE: the canonical AI terms present in the text (list order, deduped).
+ * `[]` means the text was scanned and held no AI terms — a finding. **null means
+ * the scan itself failed**, which must not read as "no AI language"
+ * (docs/conventions.md).
+ */
+export function matchAiTerms(input: string): string[] | null {
   try {
     const t = input.toLowerCase();
     const out: string[] = [];
@@ -76,7 +81,7 @@ export function matchAiTerms(input: string): string[] {
     }
     return out;
   } catch {
-    return [];
+    return null; // the scan failed — NOT "no AI terms"
   }
 }
 
