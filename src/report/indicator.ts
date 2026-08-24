@@ -1,6 +1,7 @@
 import type { CollectorResult, Signal, SignalSource } from "../signals/types";
 import { signalsByKey } from "./signals";
 import { humanAge, type Derivations } from "./derive";
+import { THREAT_LISTED } from "../signals/threats";
 
 /**
  * Draft four-state Skepticism Indicator (mvp-spec §2E) — a PUBLISHABLE rubric:
@@ -37,7 +38,7 @@ export const PIVOT_RECENT_DAYS = 365; // DRAFT: AI language added within ~1y →
 
 const SECONDS_PER_DAY = 86400;
 const num = (s?: Signal): number | null => s?.valueNum ?? null;
-const listed = (s?: Signal): boolean => s?.valueText === "Listed";
+const listed = (s?: Signal): boolean => s?.valueText === THREAT_LISTED;
 
 export function computeIndicator(
   domain: string,
@@ -69,31 +70,54 @@ export function computeIndicator(
   if (listings.length) return { state: "red", reasons: listings };
 
   // ---- Discrete, sourced concern points. ----
-  const concerns: Reason[] = [];
+  const candidateConcerns: Reason[] = [];
   const pivot = derivations.pivot;
   if (pivot && pivot.domainAgeDays >= ESTABLISHED_DOMAIN_DAYS && pivot.aiOnsetAgoDays <= PIVOT_RECENT_DAYS) {
-    concerns.push({ text: pivot.text, source: pivot.sources[0] ?? null });
+    candidateConcerns.push({ text: pivot.text, source: pivot.sources[0] ?? null });
   }
   if (dnsResolved && !spf && !dmarc) {
-    concerns.push({
+    candidateConcerns.push({
       text: "No SPF or DMARC email-authentication records found.",
       source: { label: "DNS over HTTPS", url: `https://dns.google/query?name=_dmarc.${domain}&type=TXT` },
     });
   }
+  // SYMMETRY RULE: the product's own standard is "if we can't link a source, we
+  // don't make the claim." Applied consistently, an unsourced reason must neither
+  // PUBLISH nor COUNT toward the verdict — otherwise the disclosed rationale could
+  // be strictly shorter than the computation that produced the state. (Today every
+  // concern above is structurally sourced, so this changes no current verdict; it
+  // closes the path so a future reason cannot inherit it silently.)
+  const concerns = candidateConcerns.filter((c) => c.source != null);
 
   // ---- 2) Footprint THIN → BLUE ("too new to tell"). ----
   const young = ageDays != null && ageDays < YOUNG_DOMAIN_DAYS;
   const fewSnaps = snapshots == null || snapshots < THIN_SNAPSHOT_COUNT;
   if (young && fewSnaps && !hasReputation) {
-    return {
-      state: "blue",
-      reasons: [
-        {
-          text: `Too little public footprint to assess yet: registered ~${humanAge(ageDays)} ago, ${snapshots ?? 0} archived captures, no major reviews found.`,
-          source: reg?.source ?? null,
-        },
-      ],
-    };
+    // Each claim is limited to what its own source supports. The old single
+    // sentence asserted an archive count we may never have obtained ("0 archived
+    // captures" on a FAILED check) and "no major reviews found" — a claim about
+    // reviews sourced to the registration record, when only Trustpilot was checked.
+    const blueReasons: Reason[] = [
+      {
+        text: `Too little public footprint to assess yet: registered ~${humanAge(ageDays)} ago.`,
+        source: reg?.source ?? null,
+      },
+    ];
+    if (snapshots != null) {
+      blueReasons.push({
+        text: `${snapshots} archived capture${snapshots === 1 ? "" : "s"} on the Wayback Machine.`,
+        source: byKey.get("wayback_snapshot_count")?.source ?? null,
+      });
+    } else {
+      // Disclose the gap instead of publishing a count we do not have. A caveat
+      // routes to the report summary and never alters the verdict.
+      blueReasons.push({
+        text: "Archive history was not available at check time, so the capture count is not established.",
+        source: null,
+        kind: "caveat",
+      });
+    }
+    return { state: "blue", reasons: blueReasons };
   }
 
   // ---- 3) ≥ 2 provable sourced concern points → RED. ----

@@ -19,6 +19,15 @@ export interface ThreatsDeps {
   phishtankListed: (host: string) => Promise<boolean>;
 }
 
+/**
+ * The threat-listing value vocabulary. The RED trigger compares against these, so
+ * they are constants rather than inline strings — a renamed label would otherwise
+ * silently stop Red from firing. `null` (absent) means NOT CHECKED, which is
+ * distinct from THREAT_NOT_LISTED (checked, clean).
+ */
+export const THREAT_LISTED = "Listed";
+export const THREAT_NOT_LISTED = "Not listed";
+
 function listingSignal(
   key: string,
   label: string,
@@ -31,7 +40,7 @@ function listingSignal(
   return {
     key,
     label,
-    valueText: listed ? "Listed" : "Not listed",
+    valueText: listed ? THREAT_LISTED : THREAT_NOT_LISTED,
     valueNum: null,
     source, // a checked result (listed or clean) is sourced
   };
