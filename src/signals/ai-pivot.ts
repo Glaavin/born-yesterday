@@ -27,12 +27,17 @@ export async function collectAiPivot(
 
   // --- Wayback CDX history ---
   let count = 0;
+  // Did the CDX query actually COMPLETE? Zero captures is a finding; a failed or
+  // timed-out query is NOT. Conflating them let a failed call publish as "0
+  // archived captures" (a false stated fact), so the two are tracked separately.
+  let cdxChecked = false;
   let firstTs: string | null = null;
   let lastTs: string | null = null;
   let snapshots: { ts: string; original: string }[] = [];
   try {
     const r = await fetchCdx(domain, deps.fetcher);
     if (r.ok && r.json) {
+      cdxChecked = true;
       const p = parseCdx(r.json);
       count = p.count;
       firstTs = p.firstTs;
@@ -84,9 +89,11 @@ export async function collectAiPivot(
     {
       key: "wayback_snapshot_count",
       label: "Wayback captures",
-      valueText: count ? String(count) : null,
-      valueNum: count || null,
-      source: snapshots.length ? cdxSource : null,
+      // CHECKED (even at zero) ⇒ a sourced value. NOT checked ⇒ null, and callers
+      // must not substitute a number for it.
+      valueText: cdxChecked ? String(count) : null,
+      valueNum: cdxChecked ? count : null,
+      source: cdxChecked ? cdxSource : null,
     },
     {
       key: "wayback_first",

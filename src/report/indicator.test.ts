@@ -55,6 +55,77 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     expect(ind.reasons[0].source).toEqual(S("RDAP", "u-rdap"));
   });
 
+  // ---- Hotfix regression tests: stop publishing claims the sources don't support ----
+
+  it("BLUE with an UNCHECKED archive never publishes a capture count; it discloses the gap", () => {
+    // No wayback_snapshot_count signal at all = the CDX query did not complete.
+    const r = results([
+      sig("domain_age_days", { valueNum: 30 }),
+      sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
+    ]);
+    const ind = computeIndicator("x.com", r, noPivot, NOW);
+
+    expect(ind.state).toBe("blue");
+    const all = ind.reasons.map((x) => x.text).join(" ");
+    expect(all).not.toMatch(/0 archived captures/); // the false stated fact
+    expect(all).not.toMatch(/\b0\b/); // no fabricated count of any kind
+    const caveat = ind.reasons.find((x) => x.kind === "caveat");
+    expect(caveat?.text).toMatch(/not available at check time/);
+    // Every non-caveat reason still carries its own source.
+    for (const x of ind.reasons.filter((y) => y.kind !== "caveat")) expect(x.source).not.toBeNull();
+  });
+
+  it("BLUE with a CHECKED-ZERO archive states 0 captures AS A SOURCED FACT", () => {
+    const r = results([
+      sig("domain_age_days", { valueNum: 30 }),
+      sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
+      sig("wayback_snapshot_count", { valueNum: 0, valueText: "0", source: S("Wayback CDX", "u-cdx") }),
+    ]);
+    const ind = computeIndicator("x.com", r, noPivot, NOW);
+
+    expect(ind.state).toBe("blue");
+    const counted = ind.reasons.find((x) => /archived capture/.test(x.text));
+    expect(counted?.text).toMatch(/^0 archived captures/);
+    expect(counted?.source).toEqual(S("Wayback CDX", "u-cdx")); // checked ⇒ cited
+    expect(ind.reasons.some((x) => x.kind === "caveat")).toBe(false);
+  });
+
+  it("BLUE never claims anything about reviews (only Trustpilot is checked, and null is ambiguous)", () => {
+    const r = results([
+      sig("domain_age_days", { valueNum: 30 }),
+      sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
+    ]);
+    const ind = computeIndicator("x.com", r, noPivot, NOW);
+    expect(ind.reasons.map((x) => x.text).join(" ")).not.toMatch(/review/i);
+  });
+
+  it("an UNSOURCED concern neither publishes NOR counts toward the verdict", () => {
+    // Two concern points, but the pivot carries no source: it must not count, so
+    // this is AMBER (one sourced concern), not RED (two).
+    const unsourcedPivot: Derivations = {
+      pivot: {
+        text: "unsourced pivot",
+        sources: [],
+        domainAgeDays: ESTABLISHED_DOMAIN_DAYS + 1,
+        aiOnsetAgoDays: 10,
+      },
+    };
+    const r = results([
+      sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }),
+      sig("domain_age_days", { valueNum: ESTABLISHED_DOMAIN_DAYS + 1 }),
+      sig("domain_registration_date", {
+        valueNum: daysAgoSec(ESTABLISHED_DOMAIN_DAYS + 1),
+        source: S("RDAP", "u-rdap"),
+      }),
+    ]);
+    const ind = computeIndicator("x.com", r, unsourcedPivot, NOW);
+
+    expect(ind.state).toBe("amber");
+    expect(ind.reasons).toHaveLength(1);
+    expect(ind.reasons[0].text).toMatch(/SPF or DMARC/);
+    expect(ind.reasons.every((x) => x.source != null)).toBe(true);
+  });
+
   it("3) two sourced concern points (pivot + missing SPF/DMARC) → RED, enumerated", () => {
     const r = results([
       sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }),
