@@ -267,7 +267,7 @@ describe("collectDomainIdentity", () => {
 });
 
 describe("signalsToHistory (pure)", () => {
-  it("maps key→signal_type, text/num, and drops sources + all-null signals", () => {
+  it("maps key→signal_type, drops sources, and records EVERY signal with its status", () => {
     const signals: Signal[] = [
       {
         key: "domain_registration_date",
@@ -278,26 +278,36 @@ describe("signalsToHistory (pure)", () => {
         status: "ok",
       },
       { key: "domain_age_days", label: "Domain age (days)", valueText: null, valueNum: 9605, source: null, status: "ok" },
-      { key: "registrar", label: "Registrar", valueText: null, valueNum: null, source: null, status: "ok" }, // dropped
+      // CHECKED and found nothing — a finding. Previously dropped.
+      { key: "registrar", label: "Registrar", valueText: null, valueNum: null, source: null, status: "ok" },
+      // The check did NOT run — recorded so a later diff cannot read it as a
+      // value that disappeared (Story 18.3 §1.1).
+      { key: "dns_dmarc", label: "DMARC record", valueText: null, valueNum: null, source: null, status: "failed" },
     ];
 
     const rows = signalsToHistory("example.com", signals, 1700000000);
 
+    expect(rows).toHaveLength(4); // nothing is dropped
     expect(rows).toEqual([
-      {
-        domain: "example.com",
-        capturedAt: 1700000000,
-        signalType: "domain_registration_date",
-        valueText: "1997-09-15T04:00:00Z",
-        valueNum: 874296000,
-      },
-      {
-        domain: "example.com",
-        capturedAt: 1700000000,
-        signalType: "domain_age_days",
-        valueText: null,
-        valueNum: 9605,
-      },
+      { domain: "example.com", capturedAt: 1700000000, signalType: "domain_registration_date", valueText: "1997-09-15T04:00:00Z", valueNum: 874296000, status: "ok" },
+      { domain: "example.com", capturedAt: 1700000000, signalType: "domain_age_days", valueText: null, valueNum: 9605, status: "ok" },
+      { domain: "example.com", capturedAt: 1700000000, signalType: "registrar", valueText: null, valueNum: null, status: "ok" },
+      { domain: "example.com", capturedAt: 1700000000, signalType: "dns_dmarc", valueText: null, valueNum: null, status: "failed" },
     ]);
+  });
+
+  it("keeps checked-empty distinguishable from not-checked (the Phase-2 diff bug)", () => {
+    const rows = signalsToHistory(
+      "example.com",
+      [
+        { key: "dns_dmarc", label: "DMARC", valueText: null, valueNum: null, source: null, status: "ok" },
+        { key: "dns_spf", label: "SPF", valueText: null, valueNum: null, source: null, status: "failed" },
+      ],
+      1700000000,
+    );
+    // Same null value, different fact — a diff must be able to tell them apart.
+    expect(rows[0].status).toBe("ok");
+    expect(rows[1].status).toBe("failed");
+    expect(rows[0].valueText).toBe(rows[1].valueText);
   });
 });

@@ -65,20 +65,32 @@ export type Collector<D = unknown> = (
 /**
  * PURE: map collected Signals to append-only signal_history rows. Sources live
  * in the report JSON (the schema has no source column), so they're dropped here.
- * Signals with no value at all (both null) carry no information and are skipped.
+ *
+ * EVERY signal is recorded, including valueless ones (Story 18.3 §1.1). The old
+ * filter — "no value carries no information, skip it" — was wrong twice over:
+ *
+ *   - A check that RAN and found nothing is a finding ("DMARC absent on this
+ *     date"). Dropping it made absence unrecordable.
+ *   - A check that FAILED became indistinguishable from a value that
+ *     DISAPPEARED. The Phase-2 "what changed" digest would read a DNS timeout
+ *     as "DMARC was removed" — a false change event manufactured by a network
+ *     hiccup.
+ *
+ * History records what was true when, and "we didn't look" is part of what was
+ * true. `status` is what makes the three cases distinguishable, so it travels
+ * with every row.
  */
 export function signalsToHistory(
   domain: string,
   signals: Signal[],
   capturedAt: number,
 ): NewSignalHistoryRow[] {
-  return signals
-    .filter((s) => s.valueText != null || s.valueNum != null)
-    .map((s) => ({
-      domain,
-      capturedAt,
-      signalType: s.key,
-      valueText: s.valueText,
-      valueNum: s.valueNum,
-    }));
+  return signals.map((s) => ({
+    domain,
+    capturedAt,
+    signalType: s.key,
+    valueText: s.valueText,
+    valueNum: s.valueNum,
+    status: s.status,
+  }));
 }
