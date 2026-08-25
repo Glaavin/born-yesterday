@@ -95,6 +95,16 @@ export function computeIndicator(
   // Caveats are collected here and appended at whichever state fires. Building
   // them SEPARATELY from the branch logic is what makes "caveats never alter the
   // verdict" (Story 18 §3.5) structural rather than a promise.
+  //
+  // ONE CHANNEL, TWO COPY DISCIPLINES (18.3, Stage 2):
+  //   DISCLOSURE  — a check we could not complete. Copy describes OUR limits,
+  //                 never the domain. ("… was not reachable at check time.")
+  //   OBSERVATION — a check that completed and found something worth noting but
+  //                 not a concern. Copy describes the finding, neutrally, and
+  //                 carries its source. (e.g. no DMARC record.)
+  // `kind: "caveat"` is a ROUTING label (→ report summary), not a semantic one.
+  // A `subkind` field would make the distinction enforceable rather than
+  // conventional; proposed, deliberately not built here.
   const caveats: Reason[] = [];
   const verdict = (state: IndicatorState, reasons: Reason[]): Indicator => ({
     state,
@@ -107,7 +117,6 @@ export function computeIndicator(
   const snapshots = num(byKey.get("wayback_snapshot_count"));
   const archiveChecked = checked("wayback_snapshot_count");
   const reputationChecked = checked("trustpilot");
-  const hasReputation = byKey.get("trustpilot")?.valueText != null;
   const spfChecked = checked("dns_spf");
   const dmarcChecked = checked("dns_dmarc");
   const spf = byKey.get("dns_spf")?.valueText != null;
@@ -145,6 +154,7 @@ export function computeIndicator(
     });
   }
   if (!reputationChecked) {
+    // DISCLOSURE. Still published — it just no longer gates a verdict.
     caveats.push({
       text: "Public review presence was not checked, so it is not established either way.",
       source: null,
@@ -154,6 +164,15 @@ export function computeIndicator(
   if (!ageChecked) {
     caveats.push({
       text: "A registration lookup did not complete, so the domain's age is not established.",
+      source: null,
+      kind: "caveat",
+    });
+  }
+  if (!spfChecked) {
+    // DISCLOSURE — and load-bearing: an incomplete lookup blocks Green (§3.5),
+    // so the reader is told why rather than left with an unexplained verdict.
+    caveats.push({
+      text: "An email-authentication lookup did not complete, so SPF is not established either way.",
       source: null,
       kind: "caveat",
     });
@@ -193,10 +212,18 @@ export function computeIndicator(
   // ---- 2) Footprint THIN → BLUE ("too new to tell"). ----
   // Blue is a CONJUNCTION OF ABSENCES (Story 18 §3.1), so each absence must have
   // been established. A check that did not complete cannot supply one.
+  //
+  // Reputation was REMOVED from this conjunction (Stage 2). Trustpilot presence
+  // is the weakest available evidence of footprint — most legitimate businesses
+  // have no Trustpilot page, so its absence says almost nothing about whether a
+  // domain is established — and it is the least reliable check we run, since
+  // Trustpilot routinely blocks scrapers. Gating Blue on it made the modal
+  // verdict for the modal query unreachable whenever that block occurred: a
+  // correct rule turned into an outage. Blue's evidence is domain age and
+  // archive depth. The check still runs and still publishes; it no longer gates.
   const young = ageChecked && ageDays != null && ageDays < YOUNG_DOMAIN_DAYS;
   const thinArchive = archiveChecked && snapshots != null && snapshots < THIN_SNAPSHOT_COUNT;
-  const noReputation = reputationChecked && !hasReputation;
-  if (young && thinArchive && noReputation) {
+  if (young && thinArchive) {
     const blueReasons: Reason[] = [
       {
         text: `Too little public footprint to assess yet: registered ~${humanAge(ageDays!)} ago.`,
@@ -244,11 +271,17 @@ export function computeIndicator(
   // Q6 (18.3 §3.3): Green requires SPF. A MISSING DMARC no longer blocks Green —
   // finding F2 measured ~24% of established organisations without one, so the old
   // both-required gate denied Green for adoption lag rather than risk. DMARC
-  // absence is disclosed as a caveat below.
-  // The gate is reachable only when the check COMPLETED: a parse failure or
-  // timeout must not deny Green (18.3 §3.2).
-  const emailAuthDeniesGreen = spfChecked && !spf;
-  const clean = !emailAuthDeniesGreen && concerns.length === 0;
+  // absence is disclosed as an OBSERVATION caveat below.
+  //
+  // A check that did NOT complete also fails this condition, per Story 18 §3.5:
+  // Green requires positive evidence, and a check that produced no evidence
+  // cannot contribute to a conjunction that requires it. That is not the gap
+  // pushing toward concern (it raises none) — it is the gap failing to push
+  // toward Green. An earlier draft of this stage had a failed lookup NOT deny
+  // Green, which conflated "missing data must not create a concern" (true) with
+  // "missing data must not block Green" (inverts the rule).
+  const spfEstablished = spfChecked && spf;
+  const clean = spfEstablished && concerns.length === 0;
   if (established && clean) {
     const reasons: Reason[] = [];
     if (establishedByAge) {
@@ -264,7 +297,8 @@ export function computeIndicator(
     if (spf) {
       reasons.push({ text: "Email authentication configured (SPF present).", source: byKey.get("dns_spf")?.source ?? null });
     }
-    // Disclosed, not flagged: a completed check that found no DMARC.
+    // OBSERVATION caveat: the check completed and found no DMARC. Disclosed
+    // neutrally with its source, never flagged as a concern.
     if (dmarcChecked && !dmarc) {
       caveats.push({
         text: `No DMARC record was found at _dmarc.${domain}.`,

@@ -17,14 +17,19 @@ Reconstructed from the 18.2 observations, not a live re-run — a controlled dif
 | | green | amber | blue | red |
 |---|---|---|---|---|
 | before | 28 | 15 | 6 | 0 |
-| after (corpus as recorded) | 32 | 17 | 0 | 0 |
-| **after (all checks completing)** | **32** | **11** | **6** | **0** |
+| **after** | **32** | **11** | **6** | **0** |
 
-**With every check completing, only four domains move — exactly the F2 cases Q6 targets:** masshist.org, slackware.com, suckless.org, xfce.org, all `amber → green`. **Parts 3 and 4 move nothing.** Red is 0 before and after: accumulation outcomes unchanged, as required.
+**Exactly four domains move**, all `amber → green`, all the F2 cases Q6 targets: masshist.org, slackware.com, suckless.org, xfce.org. **Parts 3 and 4 move nothing.** Red is 0 before and after — accumulation outcomes unchanged, as required.
 
-The `blue → amber` movement in the middle row is **entirely** attributable to `trustpilot` being `not_attempted` in the corpus — 18.2 never ran the reputation collector. It is a corpus gap, not a logic defect, and it is measured rather than asserted: setting that one check to "completed" restores all six Blues and leaves the delta at four.
+The as-recorded run and the run with every check completing are now **identical — zero domains differ**, and Blue is the same six either way. That is the check that reputation no longer gates anything.
 
-**But it exposes a real production fragility.** Blue's conjunction includes `noReputation`, which now requires the Trustpilot check to have completed. Trustpilot commonly blocks scrapers (the collector records `failed` on a 403), so **a Trustpilot block makes Blue unreachable** — non-deterministic verdicts for the modal query, which is §1.3's concern in a new place. Recommendation, not applied: reputation is the least reliable check and the weakest evidence of "footprint"; consider whether it belongs in Blue's conjunction at all.
+### What an earlier draft of this stage got wrong, and how it surfaced
+Two rules were wrong in the first pass, and the corpus delta caught one of them:
+
+1. **Blue gated on the reputation check completing.** Blue collapsed to zero in the as-recorded run. Chasing it found a corpus gap (18.2 never ran the reputation collector) and then a worse production problem behind it: Trustpilot routinely blocks scrapers, so the check fails by design, so **Blue — the modal verdict for the modal query — would have been unreachable whenever it did.** Fixing §1.3's determinism problem had introduced it somewhere else. Reputation was removed from the conjunction.
+2. **A failed SPF check did not block Green.** This conflated "missing data must not create a concern" (true) with "missing data must not block Green" (inverts Story 18 §3.5). Corrected: a check that produced no evidence cannot satisfy a conjunction that requires evidence.
+
+**The corpus could not catch the second one** — no corpus domain has a failed DNS lookup, so both versions produce identical verdicts. It would have shipped and surfaced on the first DoH hiccup. A green corpus delta is not proof of correctness for paths the corpus does not exercise.
 
 ## Caveats now emitted on every state (Part 2)
 Built into a separate array and appended at whichever state returns, so "caveats never alter the verdict" is structural rather than a promise. Across the corpus: 49 domains gain the threat-feed disclosure, 49 the reputation disclosure, 12 a DMARC-absent disclosure, 2 a registration-lookup gap, 2 an archive gap.
