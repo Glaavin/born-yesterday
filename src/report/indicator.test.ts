@@ -16,6 +16,24 @@ const sig = (key: string, o: Partial<Signal> = {}): Signal => ({
   ...o,
 });
 const results = (signals: Signal[]): CollectorResult[] => [{ collector: "t", signals, ok: true }];
+
+/**
+ * A full complement of COMPLETED checks (status "ok") with no values found —
+ * i.e. "we looked everywhere and found nothing". Story 19 Stage 2 gates every
+ * condition on the check having completed, so fixtures must now say what was
+ * checked; an omitted signal means NOT CHECKED and can no longer satisfy
+ * anything. Overrides replace by key.
+ */
+const CHECKED_KEYS = [
+  "domain_registration_date", "domain_age_days", "registrar",
+  "dns_spf", "dns_dmarc", "dns_a", "dns_mx", "hosting_provider",
+  "wayback_snapshot_count", "trustpilot", "phishtank_listed", "urlhaus_listed",
+];
+const checkedBaseline = (...overrides: Signal[]): CollectorResult[] => {
+  const by = new Map(overrides.map((o) => [o.key, o]));
+  const base = CHECKED_KEYS.filter((k) => !by.has(k)).map((k) => sig(k));
+  return results([...base, ...overrides]);
+};
 const noPivot: Derivations = { pivot: null };
 
 describe("derive (pivot)", () => {
@@ -46,11 +64,11 @@ describe("computeIndicator (the locked rubric, in order)", () => {
   });
 
   it("2) thin footprint → BLUE", () => {
-    const r = results([
+    const r = checkedBaseline(
       sig("domain_age_days", { valueNum: 30 }),
       sig("wayback_snapshot_count", { valueNum: 1, source: S("Wayback CDX", "u-cdx") }),
       sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
-    ]);
+    );
     const ind = computeIndicator("x.com", r, noPivot, NOW);
     expect(ind.state).toBe("blue");
     expect(ind.reasons[0].source).toEqual(S("RDAP", "u-rdap"));
@@ -58,15 +76,17 @@ describe("computeIndicator (the locked rubric, in order)", () => {
 
   // ---- Hotfix regression tests: stop publishing claims the sources don't support ----
 
-  it("BLUE with an UNCHECKED archive never publishes a capture count; it discloses the gap", () => {
-    // No wayback_snapshot_count signal at all = the CDX query did not complete.
-    const r = results([
+  it("an UNCHECKED archive cannot establish BLUE, and the gap is disclosed", () => {
+    // Blue is a conjunction of ABSENCES; a check that did not complete cannot
+    // supply one (Q4). Previously `snapshots == null` satisfied "thin".
+    const r = checkedBaseline(
       sig("domain_age_days", { valueNum: 30 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
-    ]);
+      sig("wayback_snapshot_count", { status: "failed" }),
+    );
     const ind = computeIndicator("x.com", r, noPivot, NOW);
 
-    expect(ind.state).toBe("blue");
+    expect(ind.state).not.toBe("blue");
     const all = ind.reasons.map((x) => x.text).join(" ");
     expect(all).not.toMatch(/0 archived captures/); // the false stated fact
     expect(all).not.toMatch(/\b0\b/); // no fabricated count of any kind
@@ -77,11 +97,11 @@ describe("computeIndicator (the locked rubric, in order)", () => {
   });
 
   it("BLUE with a CHECKED-ZERO archive states 0 captures AS A SOURCED FACT", () => {
-    const r = results([
+    const r = checkedBaseline(
       sig("domain_age_days", { valueNum: 30 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
       sig("wayback_snapshot_count", { valueNum: 0, valueText: "0", source: S("Wayback CDX", "u-cdx") }),
-    ]);
+    );
     const ind = computeIndicator("x.com", r, noPivot, NOW);
 
     expect(ind.state).toBe("blue");
@@ -92,12 +112,13 @@ describe("computeIndicator (the locked rubric, in order)", () => {
   });
 
   it("BLUE never claims anything about reviews (only Trustpilot is checked, and null is ambiguous)", () => {
-    const r = results([
+    const r = checkedBaseline(
       sig("domain_age_days", { valueNum: 30 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
-    ]);
+      sig("wayback_snapshot_count", { valueNum: 1, source: S("Wayback CDX", "u-cdx") }),
+    );
     const ind = computeIndicator("x.com", r, noPivot, NOW);
-    expect(ind.reasons.map((x) => x.text).join(" ")).not.toMatch(/review/i);
+    expect(ind.reasons.filter((x) => x.kind !== "caveat").map((x) => x.text).join(" ")).not.toMatch(/review/i);
   });
 
   it("an UNSOURCED concern neither publishes NOR counts toward the verdict", () => {
@@ -111,56 +132,64 @@ describe("computeIndicator (the locked rubric, in order)", () => {
         aiOnsetAgoDays: 10,
       },
     };
-    const r = results([
+    const r = checkedBaseline(
       sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }),
       sig("domain_age_days", { valueNum: ESTABLISHED_DOMAIN_DAYS + 1 }),
       sig("domain_registration_date", {
         valueNum: daysAgoSec(ESTABLISHED_DOMAIN_DAYS + 1),
         source: S("RDAP", "u-rdap"),
       }),
-    ]);
+      sig("ai_language_first_seen", { valueText: "2025-01-01", source: S("Wayback snapshot", "u-snap") }),
+    );
     const ind = computeIndicator("x.com", r, unsourcedPivot, NOW);
 
     expect(ind.state).toBe("amber");
-    expect(ind.reasons).toHaveLength(1);
-    expect(ind.reasons[0].text).toMatch(/SPF or DMARC/);
-    expect(ind.reasons.every((x) => x.source != null)).toBe(true);
+    const main = ind.reasons.filter((x) => x.kind !== "caveat");
+    expect(main).toHaveLength(1);
+    expect(main[0].text).toMatch(/SPF or DMARC/);
+    expect(main.every((x) => x.source != null)).toBe(true);
   });
 
   it("3) two sourced concern points (pivot + missing SPF/DMARC) → RED, enumerated", () => {
-    const r = results([
+    const r = checkedBaseline(
       sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }),
       sig("domain_age_days", { valueNum: 4000 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(4000), source: S("RDAP", "u-rdap") }),
-    ]);
+      sig("ai_language_first_seen", { valueText: "2025-01-01", source: S("Wayback snapshot", "u-snap") }),
+    );
     const pivot: Derivations = {
       pivot: { text: "PIVOT (approximate)", sources: [S("RDAP", "u-rdap")], domainAgeDays: 4000, aiOnsetAgoDays: 200 },
     };
     const ind = computeIndicator("x.com", r, pivot, NOW);
     expect(ind.state).toBe("red");
-    expect(ind.reasons).toHaveLength(2);
-    expect(ind.reasons.every((x) => x.source != null)).toBe(true);
+    // Two sourced concerns, plus the accumulation sentence stating the ratio.
+    const main = ind.reasons.filter((x) => x.kind !== "caveat");
+    expect(main).toHaveLength(2);
+    expect(main.every((x) => x.source != null)).toBe(true);
+    expect(ind.reasons.some((x) => /checks we completed returned findings/.test(x.text))).toBe(true);
   });
 
   it("3b) ONE concern point → AMBER", () => {
-    const r = results([
+    const r = checkedBaseline(
       sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }), // resolved, no SPF/DMARC
       sig("domain_age_days", { valueNum: 4000 }),
-    ]);
+    );
     const ind = computeIndicator("x.com", r, noPivot, NOW);
     expect(ind.state).toBe("amber");
-    expect(ind.reasons).toHaveLength(1);
-    expect(ind.reasons[0].source).not.toBeNull();
+    const main = ind.reasons.filter((x) => x.kind !== "caveat");
+    expect(main).toHaveLength(1);
+    expect(main[0].source).not.toBeNull();
   });
 
   const established = (extra: Signal[] = []) =>
-    results([
+    checkedBaseline(
       sig("domain_age_days", { valueNum: 4015 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(4015), source: S("RDAP", "u-rdap") }),
       sig("dns_spf", { valueText: "v=spf1 ~all", source: S("DNS over HTTPS", "u-spf") }),
       sig("dns_dmarc", { valueText: "v=DMARC1; p=reject", source: S("DNS over HTTPS", "u-dmarc") }),
+      sig("wayback_snapshot_count", { valueNum: 900, source: S("Wayback CDX", "u-cdx") }),
       ...extra,
-    ]);
+    );
 
   it("4) established AND clean (both feeds checked-clear) → GREEN, no disclosure", () => {
     const r = established([
@@ -169,14 +198,23 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     ]);
     const ind = computeIndicator("x.com", r, noPivot, NOW);
     expect(ind.state).toBe("green");
-    expect(ind.reasons.length).toBeGreaterThanOrEqual(2);
-    expect(ind.reasons.every((x) => x.source != null)).toBe(true);
+    const main = ind.reasons.filter((x) => x.kind !== "caveat");
+    expect(main.length).toBeGreaterThanOrEqual(2);
+    expect(main.every((x) => x.source != null)).toBe(true);
     expect(ind.reasons.some((x) => /not reachable/i.test(x.text))).toBe(false);
   });
 
   it("GREEN with a threat feed NOT checked → still green, reasons DISCLOSE the gap as a caveat", () => {
-    // No threat signals at all (feeds unreachable / no key).
-    const ind = computeIndicator("x.com", established(), noPivot, NOW);
+    // Both feeds unreachable / key-gated — the checks did NOT complete.
+    const ind = computeIndicator(
+      "x.com",
+      established([
+        sig("phishtank_listed", { status: "not_attempted" }),
+        sig("urlhaus_listed", { status: "failed" }),
+      ]),
+      noPivot,
+      NOW,
+    );
     expect(ind.state).toBe("green");
     const disclosure = ind.reasons.find((x) => /not reachable/i.test(x.text));
     expect(disclosure).toBeDefined();

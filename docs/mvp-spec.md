@@ -135,6 +135,14 @@ The four states are **three rule shapes plus a residual**, not a severity ladder
 
 Two cross-cutting rules: **caveats are orthogonal to state** — a `kind: "caveat"` note (e.g. "threat feed unreachable at check time") qualifies but never changes the verdict; and a **degraded/unperformed signal blocks Green without forcing Amber** — an unperformed check is not a finding, so the domain falls through to Blue/Amber on the strength of everything else, with a caveat disclosing the gap.
 
+**Green's conditions, stated (Story 19 Stage 2).** Recorded because Story 18.3 §3.3 found this gate lived only in code — a rubric that is not written down is not publishable. Green requires **all** of:
+
+1. **Positive establishment** — at least one of: registration age ≥ the established threshold; archive depth ≥ the established capture count; first certificate older than the established cert threshold. (Each is a *separate* named threshold as of Stage 2; one constant previously served three roles.)
+2. **SPF present.** A completed DNS check that finds no SPF record blocks Green. **DMARC absence does NOT block Green** — finding F2 measured ~24% of established organisations without DMARC, so requiring it measured adoption lag rather than risk. A completed check that finds no DMARC is **disclosed as a caveat**, not flagged as a concern.
+3. **No concern points.**
+
+A check that did **not complete** can never satisfy any of these — and, per Story 18.3 §3.2, must not deny Green either; the gap is disclosed as a caveat instead.
+
 **No thresholds here, no weights.** Every number — domain-age bands, the pivot window, archive-depth floors, the accumulation threshold *and its denominator* — is a **Story 19 calibration output**, deliberately not specified in this spec. No weights are specified because the model is not weighted. See the decision doc §5.
 
 ### Section F — Disclaimer (every report, fixed copy)
