@@ -131,9 +131,19 @@ The four states are **three rule shapes plus a residual**, not a severity ladder
 - **Green — "Checks out"** — **conjunctive**, requires *positive* establishment evidence, never merely the absence of red flags.
 - **Amber — "Some concerns"** — the **residual**: some findings, none individually damning; the default when no other state claims the domain.
 
+**Blue's conditions (Story 19 Stage 2).** Blue's evidence is **domain age and archive depth**, both from checks that completed. Reputation presence was **removed** from the conjunction: most legitimate businesses have no Trustpilot page, so its absence is near-zero evidence of footprint, and the check is the least reliable one we run — gating the modal verdict on it made Blue unreachable whenever Trustpilot blocked us. The check still runs and still publishes; it no longer gates.
+
 **Precedence: Red → Blue → Green → Amber**, in that order, Amber as catch-all. Material concern survives establishment evidence (Red beats Green — a live listing is not laundered by age); a clean bill cannot be certified on a thin footprint (Blue before Green). On a domain that is both thin *and* mildly flagged, **Blue wins** — soft flags on a thin evidence base do not carry Amber's weight.
 
 Two cross-cutting rules: **caveats are orthogonal to state** — a `kind: "caveat"` note (e.g. "threat feed unreachable at check time") qualifies but never changes the verdict; and a **degraded/unperformed signal blocks Green without forcing Amber** — an unperformed check is not a finding, so the domain falls through to Blue/Amber on the strength of everything else, with a caveat disclosing the gap.
+
+**Green's conditions, stated (Story 19 Stage 2).** Recorded because Story 18.3 §3.3 found this gate lived only in code — a rubric that is not written down is not publishable. Green requires **all** of:
+
+1. **Positive establishment** — at least one of: registration age ≥ the established threshold; archive depth ≥ the established capture count; first certificate older than the established cert threshold. (Each is a *separate* named threshold as of Stage 2; one constant previously served three roles.)
+2. **SPF present.** A completed DNS check that finds no SPF record blocks Green. **DMARC absence does NOT block Green** — finding F2 measured ~24% of established organisations without DMARC, so requiring it measured adoption lag rather than risk. A completed check that finds no DMARC is **disclosed as a caveat**, not flagged as a concern.
+3. **No concern points.**
+
+A check that did **not complete** can never satisfy any of these. Per Story 18 §3.5 it therefore **blocks** Green — not because the gap is a concern (it raises none), but because Green requires positive evidence and a check that produced none cannot supply it. The gap is disclosed as a caveat.
 
 **No thresholds here, no weights.** Every number — domain-age bands, the pivot window, archive-depth floors, the accumulation threshold *and its denominator* — is a **Story 19 calibration output**, deliberately not specified in this spec. No weights are specified because the model is not weighted. See the decision doc §5.
 
