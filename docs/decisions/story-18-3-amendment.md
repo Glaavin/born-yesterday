@@ -326,9 +326,11 @@ So `establishedByArchive = snapshots >= 50` currently means *"this site is linke
 
 > **Open item resolved (verified against the code, 2026-08-25).** The collector **does** daily-collapse. `cdxUrl` issues `collapse=timestamp:8` — the first eight characters of a Wayback timestamp are `YYYYMMDD` — with `filter=statuscode:200`, and `parseCdx` counts the returned rows. So a "capture count" is **the number of distinct days on which the archive recorded a successful capture**, not a raw crawl count.
 >
-> This changes the magnitude, as anticipated, and in one specific way: because the metric is bounded by the calendar, a count of 50 **cannot** be accumulated in fewer than 50 days, and cannot exceed ~365 per year. `ESTABLISHED_SNAPSHOT_COUNT = 50` therefore carries an implicit floor of ~50 days of existence — a real but very weak time signal.
+> This changes the magnitude, as anticipated, and in one specific way: because the metric is bounded by the calendar, a count of 50 **cannot** be accumulated in fewer than 50 days, and cannot exceed ~365 per year.
 >
-> **It does not rescue the route.** The floor is weak (fifty days is not establishment) and the driver is unchanged: within that bound, the count still measures how often the archive chose to crawl. `bolt.new` — ~2 years old, captured on 449 distinct days — clears a 50-day threshold nine times over. The fairness defect above stands as written.
+> **`ESTABLISHED_SNAPSHOT_COUNT = 50` therefore carries an implicit floor of ~50 days of existence — a genuine time signal hiding inside a popularity metric.** That is worth stating plainly, because it explains why the constant has never obviously misbehaved: **it has been doing a small amount of correct work by accident.** The route is broken, but it is **less arbitrary than this correction first described** — it is not purely a popularity measure, it is a popularity measure with a weak duration floor underneath it.
+>
+> **It does not rescue the route.** Fifty days is not establishment, and above that floor the **binding constraint is still attention**: `bolt.new` — ~2 years old, captured on 449 distinct days — clears the floor **ninefold**. The fairness defect above stands as written.
 
 #### 3.4.4 Certificate history is bounded by the instrument
 
@@ -336,11 +338,15 @@ Better than the other two: obtaining a certificate implies serving traffic, and 
 
 But **Certificate Transparency only became comprehensive in 2018**. In 2026 the CT record reliably reaches back roughly eight years. A genuinely old site can show a first-cert date reflecting when CT logging started, not when it launched.
 
-> **Dates verified (2026-08-25).** Chrome required all TLS server certificates **issued after 30 April 2018** to comply with the Chromium CT Policy, with browser enforcement landing in **Chrome 68 (24 July 2018)**. Certificates issued *before* April 2018 were **grandfathered** and never required to be logged — so pre-2018 CT coverage is *partial*, not absent, and its gaps are not uniform. The spec's "roughly eight years as of 2026" is confirmed. Sources: [Chromium ct-policy announcement](https://groups.google.com/a/chromium.org/g/ct-policy/c/wHILiYf31DE/m/iMFmpMEkAQAJ), [Chromium CT enforcement-date change](https://groups.google.com/a/chromium.org/g/ct-policy/c/sz_3W_xKBNY/m/6jq2ghJXBAAJ), [Certificate Transparency in Chrome](https://googlechrome.github.io/CertificateTransparency/).
+> **Dates verified (2026-08-25).** Chrome required all TLS server certificates **issued after 30 April 2018** to comply with the Chromium CT Policy, with browser enforcement landing in **Chrome 68 (24 July 2018)**. Certificates issued *before* April 2018 were **grandfathered** and never required to be logged. The spec's "roughly eight years as of 2026" is confirmed. Sources: [Chromium ct-policy announcement](https://groups.google.com/a/chromium.org/g/ct-policy/c/wHILiYf31DE/m/iMFmpMEkAQAJ), [Chromium CT enforcement-date change](https://groups.google.com/a/chromium.org/g/ct-policy/c/sz_3W_xKBNY/m/6jq2ghJXBAAJ), [Certificate Transparency in Chrome](https://googlechrome.github.io/CertificateTransparency/).
+
+> **STRENGTHENED POST-STAGE-2 — grandfathering is worse than "partial coverage."** Because pre-April-2018 certificates were never *required* to be logged, and voluntary logging was non-uniform, **a pre-2018 first-cert date is not interpretable at all.** We cannot distinguish *"the first certificate was issued in 2012"* from *"the first **logged** certificate was 2012, and earlier ones were never logged."* Those are different facts and the record cannot tell them apart.
+>
+> So the cap is **not only about precision**. A cert-derived age older than 2018 is **not a measurement** — it is an artifact of when logging happened to begin for that certificate. Capping it at "over 10 years" is not rounding a known number; it is declining to report a number we do not have.
 
 It is also F1-vulnerable: a recycled domain inherits its predecessor's certificate history.
 
-**Principle: do not assert precision beyond what the record supports.** Any cert-derived age beyond roughly a decade is an inference from partial data, not a record. Cert-derived age claims are **capped** — expressed as "over 10 years" rather than a specific figure beyond the instrument's reach.
+**Principle: do not assert precision beyond what the record supports** — and, where the record cannot support a claim at all, do not make one. Any cert-derived age reaching past CT's 2018 threshold is uninterpretable rather than merely imprecise. Cert-derived age claims are **capped** — expressed as "over 10 years" rather than a specific figure beyond the instrument's reach.
 
 #### 3.4.5 The live defect
 
@@ -349,6 +355,11 @@ A `cursor.com`-shaped domain reaches Green today, and the report publishes *"Reg
 The verdict may be correct by accident — Cursor is a legitimate company. **The rationale is false.** A true fact is presented in support of a claim it does not support, telling the reader a four-year-old company has thirty years of history.
 
 Structurally the same defect as §6.1 and §6.2, pointed the other way: not adverse, but **over-vouching**. True fact, misleading implication, published as our reasoning. **Reasoning must be sound even when the conclusion happens to be right** — the disclosed-facts defense rests on the disclosed facts actually supporting the verdict.
+
+> **Copy preserved for Story 20 (methodology page).** Two lines from the Stage-2 plain-terms summary say this better than the decision docs do, and should survive into the published methodology:
+>
+> - **"The verdict may be right; the reason we give is false."** — the disclosed-facts principle in eight words.
+> - **"A two-month-old hyped startup passes; a twenty-year-old plumbing firm fails. That's backwards for a scepticism tool."** — the stakes of §3.4.3, without jargon.
 
 Capping (§3.4.4) reduces the assertion but does not fix it. Capped, the claim becomes *"registered over 10 years ago"* — a smaller false claim rather than a true one, because the registration belongs to a different operator. **Capping bounds what we assert; continuity ensures we assert it about the right operator. Both are needed; neither substitutes.**
 
