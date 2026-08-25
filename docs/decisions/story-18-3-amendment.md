@@ -145,6 +145,8 @@ This is finding F1 applied to the pivot rather than to Green.
 
 Not scoped in this amendment. Flagged so the substantiation story does not discover it. It may need its own decision: detecting ownership change from archive data has a real false-positive surface, since rebrands look like handovers.
 
+> **CORRECTED POST-STAGE-2 — this is no longer a pivot-only concern.** Operator continuity is now **also required by Green's establishment routes** (§3.4.6), which are replaced by span-plus-continuity for the same reason the pivot needed it. The decision therefore **blocks two rules, not one**, and the machinery built for either serves both (§3.4.7). It also moves earlier in the sequence — see §8.
+
 ### 2.5 The narrative block
 
 The pivot's **narrative presence expands** into a non-scoring block: dates, before-and-after homepage text, Wayback links, substantiation evidence — a sourced factual timeline with no verdict attached.
@@ -284,6 +286,99 @@ This resolves the named harm: `masshist.org` — thirty years old, SPF present, 
 
 The both-missing concern point is unchanged.
 
+### 3.4 Green's establishment routes are unsound — ADDED POST-STAGE-2
+
+> **RULE CHANGE.** Stage 3 planning asked a question that should have come earlier: **does each constant measure what its rule claims it measures?** The earlier test — *"can the corpus produce a number for this?"* — passes for constants that are precisely wrong. Applying the better test found **all three of Green's establishment routes unsound**, and one producing a **false rationale in production today**.
+
+`established = establishedByAge || establishedByArchive || establishedByCert`
+
+Each disjunct measures something other than establishment.
+
+#### 3.4.1 The governing asymmetry
+
+**Registration age is a valid upper bound on operating history, and an invalid lower bound.**
+
+If a domain was registered 60 days ago, the operator *cannot* have been running a site there for longer than 60 days. Sound inference.
+
+If a domain was registered 30 years ago, that says nothing about how long the *current operator* has run it. `cursor.com` is the corpus proof: registered in the 1990s, company founded 2022, 777 captures belonging to prior owners.
+
+Same fact, sound in one direction, unsound in the other.
+
+**Consequence:** every constant using registration age to establish *youth* is sound. Every one using it to establish *age* is broken. This is finding F1 (Story 18.2) stated as a principle rather than an observation.
+
+#### 3.4.2 Route-by-route
+
+| Route | Claims to measure | Actually measures | Verdict |
+|---|---|---|---|
+| `establishedByAge` | Establishment | Registration age — invalid lower bound (§3.4.1) | **Broken** |
+| `establishedByArchive` | Establishment | **Crawler attention** — see §3.4.3 | **Broken** |
+| `establishedByCert` | Establishment | First cert in CT logs | **Partly broken** — see §3.4.4 |
+
+#### 3.4.3 Capture count measures popularity, not durability
+
+Wayback capture frequency is not a schedule. It is driven by crawler attention, which is driven by inbound links, popularity, crawl-seed inclusion, Archive-It partnerships, and manual save requests.
+
+A heavily-linked startup can reach 50 captures in months; an obscure but continuously-operating regional business might take a decade or never get there. The corpus shows it: `bolt.new`, roughly two years old, carries 449 captures.
+
+So `establishedByArchive = snapshots >= 50` currently means *"this site is linked-to enough that the Internet Archive crawls it often"* — and that route confers Green.
+
+**This is a fairness defect in the worst direction for the brand.** It hands our favorable verdict to the visible and withholds it from the durable. A twenty-year-old plumbing company fails; a two-month-old hyped AI startup passes. That is close to the opposite of what a skeptic's tool should do.
+
+> **Open item resolved (verified against the code, 2026-08-25).** The collector **does** daily-collapse. `cdxUrl` issues `collapse=timestamp:8` — the first eight characters of a Wayback timestamp are `YYYYMMDD` — with `filter=statuscode:200`, and `parseCdx` counts the returned rows. So a "capture count" is **the number of distinct days on which the archive recorded a successful capture**, not a raw crawl count.
+>
+> This changes the magnitude, as anticipated, and in one specific way: because the metric is bounded by the calendar, a count of 50 **cannot** be accumulated in fewer than 50 days, and cannot exceed ~365 per year. `ESTABLISHED_SNAPSHOT_COUNT = 50` therefore carries an implicit floor of ~50 days of existence — a real but very weak time signal.
+>
+> **It does not rescue the route.** The floor is weak (fifty days is not establishment) and the driver is unchanged: within that bound, the count still measures how often the archive chose to crawl. `bolt.new` — ~2 years old, captured on 449 distinct days — clears a 50-day threshold nine times over. The fairness defect above stands as written.
+
+#### 3.4.4 Certificate history is bounded by the instrument
+
+Better than the other two: obtaining a certificate implies serving traffic, and parked domains generally do not have them.
+
+But **Certificate Transparency only became comprehensive in 2018**. In 2026 the CT record reliably reaches back roughly eight years. A genuinely old site can show a first-cert date reflecting when CT logging started, not when it launched.
+
+> **Dates verified (2026-08-25).** Chrome required all TLS server certificates **issued after 30 April 2018** to comply with the Chromium CT Policy, with browser enforcement landing in **Chrome 68 (24 July 2018)**. Certificates issued *before* April 2018 were **grandfathered** and never required to be logged — so pre-2018 CT coverage is *partial*, not absent, and its gaps are not uniform. The spec's "roughly eight years as of 2026" is confirmed. Sources: [Chromium ct-policy announcement](https://groups.google.com/a/chromium.org/g/ct-policy/c/wHILiYf31DE/m/iMFmpMEkAQAJ), [Chromium CT enforcement-date change](https://groups.google.com/a/chromium.org/g/ct-policy/c/sz_3W_xKBNY/m/6jq2ghJXBAAJ), [Certificate Transparency in Chrome](https://googlechrome.github.io/CertificateTransparency/).
+
+It is also F1-vulnerable: a recycled domain inherits its predecessor's certificate history.
+
+**Principle: do not assert precision beyond what the record supports.** Any cert-derived age beyond roughly a decade is an inference from partial data, not a record. Cert-derived age claims are **capped** — expressed as "over 10 years" rather than a specific figure beyond the instrument's reach.
+
+#### 3.4.5 The live defect
+
+A `cursor.com`-shaped domain reaches Green today, and the report publishes *"Registered ~30 years ago"* as positive evidence of establishment for a company founded in 2022.
+
+The verdict may be correct by accident — Cursor is a legitimate company. **The rationale is false.** A true fact is presented in support of a claim it does not support, telling the reader a four-year-old company has thirty years of history.
+
+Structurally the same defect as §6.1 and §6.2, pointed the other way: not adverse, but **over-vouching**. True fact, misleading implication, published as our reasoning. **Reasoning must be sound even when the conclusion happens to be right** — the disclosed-facts defense rests on the disclosed facts actually supporting the verdict.
+
+Capping (§3.4.4) reduces the assertion but does not fix it. Capped, the claim becomes *"registered over 10 years ago"* — a smaller false claim rather than a true one, because the registration belongs to a different operator. **Capping bounds what we assert; continuity ensures we assert it about the right operator. Both are needed; neither substitutes.**
+
+#### 3.4.6 The replacement: span and continuity, operator-guarded
+
+What actually measures establishment: **continuous archive presence across a span, under the same operator.**
+
+*"Continuous presence since 2009, under the same operator"* is a claim about operating history that depends on neither popularity nor on who held the domain previously.
+
+**Instrument: Wayback, not certificates.** Wayback reaches to 1996 and directly records the site being *published*. CT cannot span the window (§3.4.4). Certificates become **corroborating** evidence — better proof of serving traffic, capped at CT's reach — rather than a primary route.
+
+**Registration age is demoted** to what it validly supports: an upper bound on operating history (§3.4.1). It remains sound for `YOUNG_DOMAIN_DAYS` and unsound as an establishment route.
+
+**The decade rule (owner, 2026-08-25).** A decade of continuity is categorically sufficient for establishment. Beyond that span, further precision adds nothing — the domain has demonstrably been operating a long time.
+
+This satisfies Green's establishment conjunct without touching precedence. A ten-year-old domain on a threat feed is still Red, per Red → Blue → Green → Amber. Establishment is necessary for Green, never sufficient.
+
+**What "continuity" requires is the open calibration question**, and it is harder than the span threshold. Captures in 2016 and 2026 with nothing between is two data points a decade apart, not ten years of operation. Captures in most intervening years is.
+
+The test must tolerate gaps, because of §3.4.3: an obscure but continuously-operating site may have no captures in some years purely because nobody linked to it. **Too strict reproduces the same fairness failure as capture count.** Too loose lets two captures a decade apart pass.
+
+Both the tolerance and the definition of "most years" are Stage 3 calibration — but they cannot be calibrated until the mechanism exists.
+
+#### 3.4.7 Convergence with pivot substantiation
+
+The machinery §2.4 specifies for pivot substantiation — archive continuity plus operator continuity — **is the same machinery Green's establishment now requires.**
+
+One piece of work serves both rules. This is a stronger argument for building it than the pivot alone made, and it means the operator-continuity decision flagged in §2.4 is now blocking **two** rules rather than one.
+
+
 > **CORRECTED POST-STAGE-2 — RULE CHANGE, correcting a PM error made in the Stage 2 brief.**
 >
 > The Stage 2 implementation brief instructed that *"a parse failure or timeout must not deny Green."* That is wrong, and it contradicts Story 18 §3.5 (*"degraded signal blocks Green"*). **§3.5 is right.**
@@ -304,7 +399,7 @@ The both-missing concern point is unchanged.
 |---|---|
 | **§3.4** | The classic pivot is **no longer a standalone Red trigger**. Severity is conditioned on substantiation (§2.4). Red's disjuncts: threat-feed listing; unsubstantiated pivot; accumulation (defined §3.1). |
 | **§3.5** | *"An unperformed check is not a finding"* stands, extended by §1.1: **a completed check that found nothing IS a finding**, validated and sourced like any other. Caveat scoping must extend from Green-only to all states (§3.2). **§3.5's "degraded signal blocks Green" also stands** and was reaffirmed post-Stage-2 against a contrary instruction in the implementation brief (§3.3). |
-| **§5** | `PIVOT_RECENT_DAYS` no longer load-bearing for false-Red risk. Added to deferred: substantiation time budget (§2.6); accumulation **ratio, checks-floor and findings-floor** (§3.1, all three — post-Stage-2); the no-verdict count threshold (§3.2); the residual SPF gate question (§3.3). |
+| **§5** | `PIVOT_RECENT_DAYS` no longer load-bearing for false-Red risk. Added to deferred: substantiation time budget (§2.6); accumulation **ratio, checks-floor and findings-floor** (§3.1, all three — post-Stage-2); the no-verdict count threshold (§3.2); the residual SPF gate question (§3.3). **Post-Stage-2:** Green's three establishment constants are **not** on this list — they are *replaced, not calibrated* (§3.4.6, §5.2). |
 | **§9** | Decision 18.5 stands. Decision 18.6 (accumulation as peer trigger) stands, now defined. |
 | **§0** | Precedence rule holds and is vindicated. |
 
@@ -329,6 +424,41 @@ The calibration corpus was built to span **verdicts** — every branch of the ru
 This is structural, not an oversight. A domain whose DNS reliably fails is not something you can source. The eventual answer is **synthetic fixtures for failure paths**, following the Story 18.2 precedent where synthetic fixtures covered accumulation because real 4+ flag domains did not exist.
 
 **Story 19 Stage 3 must not read a clean corpus delta as a pass.**
+
+> **EXTENDED POST-STAGE-2 — the stronger version of the same lesson.**
+>
+> **A constant that measures the wrong thing can be calibrated precisely.**
+>
+> The corpus produces clean distributions for `ESTABLISHED_SNAPSHOT_COUNT`, and a threshold fitted to them would separate the corpus well. It would also be measuring crawler attention rather than establishment (§3.4.3).
+>
+> Before calibrating any constant, ask whether it **measures what its rule claims it measures**. *"Can the corpus produce a number for this?"* is the wrong test — it passes for constants that are precisely wrong.
+
+### 5.2 Stage 3 constant classification — ADDED POST-STAGE-2
+
+Recorded here so Stage 3 has a **written source** rather than a restated one. Each constant is classified by whether it is sound, and if so, on what basis its value rests.
+
+**Sound — calibrate in Part A**
+
+| Constant | Basis | Note |
+|---|---|---|
+| `YOUNG_DOMAIN_DAYS` | **Definitional** | Encodes how much evidence we require before assessing. Fitting it to a 50-domain sample would let the sample determine our caution. Chosen, not measured. |
+| `THIN_SNAPSHOT_COUNT` | **Measured, in context** | Capture count is a popularity proxy (§3.4.3), but it is conjoined with `young`. Young + few captures genuinely is thin, because a young domain has had no time to accumulate captures regardless of popularity. Sound **only** in that conjunction. |
+| `PIVOT_RECENT_DAYS` | **Reasoned** | The corpus shows *when* companies pivoted (median 2.4 years), not *when a pivot becomes notable*. Different questions; the first does not imply the second. More data will not settle it. |
+| Accumulation ratio + both floors | **Reasoned, synthetic-only** | Zero real triggering cases. Set against synthetic fixtures, following the Story 18.2 precedent. |
+
+**Unsound — do not calibrate, replace**
+
+| Constant | Disposition |
+|---|---|
+| `ESTABLISHED_DOMAIN_DAYS` | Replaced by span + continuity (§3.4.6). Demoted to upper-bound use only. |
+| `ESTABLISHED_SNAPSHOT_COUNT` | Replaced. Measures crawler attention (§3.4.3). |
+| `ESTABLISHED_CERT_DAYS` | Demoted to corroborating evidence, capped (§3.4.4). |
+
+**The reporting requirement.** **Stage 3 must report each constant's basis — measured, reasoned, or definitional — and never present a reasoned or definitional choice as calibrated.**
+
+The methodology page publishes these numbers. If it claims thresholds are *"calibrated against a reference corpus"* when several are judgment calls, that is **L-01 applied to our own method**: asserting more than we checked, about ourselves. It is also discoverable — the corpus is in the repo, and anyone can check whether it supports a given number.
+
+The distinction also determines **who may change what**. A measured constant is accountable to data and updates mechanically as the dataset grows. A definitional one changes only when someone decides it should. Unlabeled, a future calibration run silently shifts a judgment about our own caution because the pipeline treated it as a number to fit.
 
 ---
 
@@ -361,6 +491,8 @@ Relabelled: badge *"Couldn't establish"*, heading *"What we couldn't establish"*
 
 No verdict changed — nothing consumes `status` yet (§1.4).
 
+> **CORRECTED POST-STAGE-2 — a second category the plumbing did not resolve.** §1.4 already corrected v1's claim that Q4 would *dissolve* once the plumbing landed. §3.4 adds a category the plumbing was never going to reach: **Green's establishment routes are unsound in what they measure, not in whether they can see missing data.** `status` makes *"we did not check"* expressible; it does nothing about a check that completed and measured the wrong thing. Those routes are replaced, not repaired (§3.4.6).
+
 ### 7.2 `signal_history` status column
 Migration 0003 adds `status` with a CHECK constraint. `signalsToHistory` now records **every** signal including failed and not-attempted.
 
@@ -377,11 +509,15 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
 
 ## 8. Sequencing
 
-1. **Implement §3** — Q3, Q4, Q6. These are the first consumers of `status`; whichever lands first sets the pattern for how the indicator reads it.
-2. **Extend caveats to all states** (§3.2) — currently Green-only.
-3. **Story 19 Stage 2** — calibrate against the corpus.
-4. **Pivot substantiation** (§2.4, §2.6) — including the operator-continuity decision.
-5. **Narrative timeline UI** (§2.5) — after 4 is live.
+> **CORRECTED POST-STAGE-2 — two corrections.** (1) **Stage numbering:** the old item 3 read *"Story 19 Stage 2 — calibrate against the corpus."* Stage 2 was **implementation**; **Stage 3** is calibration. A document committed to guide Stage 3 pointed at the wrong stage. (2) **Reorder:** substantiation previously sat *after* calibration. It now **blocks half of calibration**, because Green's establishment routes cannot be calibrated until they are replaced (§3.4.6).
+
+1. **Implement §3** — Q3, Q4, Q6. First consumers of `status`. **Done (Story 19 Stage 2).**
+2. **Extend caveats to all states** (§3.2). **Done (Story 19 Stage 2).**
+3. **Pivot substantiation + operator continuity** (§2.4, §2.6, §3.4) — **now blocking.** Serves both the pivot rule and Green's establishment (§3.4.7).
+4. **Story 19 Stage 3 — calibration**, in two parts:
+   - **Part A** — constants that are sound now (§5.2)
+   - **Part B** — Green's establishment constants, **after step 3**
+5. **Narrative timeline UI** (§2.5) — after step 3 is live.
 
 ---
 
@@ -406,6 +542,14 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
 | 18.3.13 | Two caveat disciplines share one channel: DISCLOSURE (our limits, no source) and OBSERVATION (the finding, sourced). `kind: "caveat"` is a routing label | Decided — *convention, post-Stage-2* |
 | 18.3.14 | A `subkind` field making the source invariant testable | **PROPOSED, NOT DECIDED** — deferred to the no-verdict story, which decides it |
 | 18.3.15 | A clean corpus delta is not proof for paths the corpus does not exercise; the corpus spans verdicts, not failure modes | Decided — *constraint on Stage 3 (§5.1)* |
+| 18.3.16 | Registration age is a valid upper bound on operating history and an invalid lower bound | **PRINCIPLE** (F1 generalized) — post-Stage-2 |
+| 18.3.17 | All three Green establishment routes are unsound and are **replaced, not calibrated** | **RULE CHANGE** — post-Stage-2 |
+| 18.3.18 | Establishment = archive span + continuity, operator-guarded; Wayback primary, certificates corroborating | **RULE CHANGE** — post-Stage-2 |
+| 18.3.19 | A decade of continuity is categorically sufficient for establishment; Red still overrides | **RULE CHANGE** (owner, 2026-08-25) |
+| 18.3.20 | Cert-derived age claims are capped at what CT supports; do not assert precision beyond the record | **PRINCIPLE** — post-Stage-2 |
+| 18.3.21 | Publishing prior-owner registration age as establishment evidence is a **live over-vouching defect** | **DEFECT** — see §3.4.5 |
+| 18.3.22 | Substantiation precedes Green calibration; §8 reordered | **SEQUENCING** — post-Stage-2 |
+| 18.3.23 | Continuity tolerance and the "most years" definition | **DEFERRED** to Stage 3 Part B |
 
 ---
 
