@@ -97,7 +97,13 @@ It fails §3.4.6 twice over:
 1. **No continuity.** *"Captures in 2016 and 2026 with nothing between is two data points a decade apart, not ten years of operation."* Two captures is that case exactly.
 2. **The span start precedes the registration date.** Registration is a valid *upper* bound on operating history (§3.4.1) — registered 2023 means the current operator cannot have run the site for more than ~2.8 years. The span says 13. **The sound bound and the published claim disagree, and we publish the unsound one.**
 
-Part 4's disclosure covers it in the copy, which is what this story was scoped to do. But the arithmetic fix is cheap and does **not** require operator continuity: clamp the published span to the registration date where both are known. That is §3.4.1 applied, not a new rule. **Flagged for the owner; not built, because it is a rule change.**
+Part 4's disclosure covers it in the copy, which is what this story was scoped to do.
+
+**DECIDED (owner, 2026-08-26): leave it; the warning text carries it.**
+
+The alternative was on the table and was declined: clamping the published span to the registration date where both are known is cheap arithmetic, is §3.4.1 applied rather than a new rule, and does **not** require operator continuity. It is **not** to be implemented as a stopgap. `secondlibrary.com` stays Green on a 12.6-year span with a 2023 registration, and the disclosure — *"we don't yet check whether the site has changed hands"* — is the whole of our answer until operator continuity exists.
+
+The consequence, stated plainly so it is not rediscovered as a surprise: **the report will over-vouch for re-registered domains, and we know it does.** That is a deliberate, disclosed limit, not an oversight. It belongs to the post-MVP operator-continuity work (§3.4.6 / §3.4.7), which is the fix — not the clamp.
 
 ### Not exercised by the corpus
 
@@ -108,7 +114,8 @@ Part 4's disclosure covers it in the copy, which is what this story was scoped t
 1. **§3.4.6 specifies the mechanism but not the bar.** "A decade of continuity is categorically sufficient" is a *sufficiency* statement; the span threshold is a *necessity* statement, and the amendment gives no value or basis for it. The draft here is a deliberate placeholder, not a reading of §3.4.6.
 2. **§3.4.1's upper bound is stated as a principle and then not applied.** The demotion is specified as *removal* from Green's disjunction; nothing in §3.4 says what to do when the sound upper bound contradicts the span. `secondlibrary.com` is the case, and it appeared the moment span shipped.
 3. **§3.4.4's cap is not expressible as written.** *"Expressed as 'over 10 years'"* is unsound for a first-cert date between 2016 and April 2018 — the true age may be under ten. Implemented as `min(floor(actual years), 10)`, which is a lower bound in every case; the amendment's flat phrasing is not.
-4. **§3.4 does not say what an unestablished-because-unchecked domain should publish.** §3.2 answers it (no verdict), but that story is not built, so this degrades to Amber with the gap disclosed and **no main reason at all** — an unsourced reason would break the symmetry rule. `github.com` and `kexp.org` land there. It is honest but thin, and §3.2's no-verdict story is the real fix.
+4. **§3.4.1's principle now has an owner ruling attached.** Defect 2 above is real and stays recorded, but the *response* to it is settled: the sound upper bound is not applied to the span, by decision. Anyone reading §3.4.1 and reaching for the clamp should read the `secondlibrary.com` section first.
+5. **§3.4 does not say what an unestablished-because-unchecked domain should publish.** §3.2 answers it (no verdict), but that story is not built, so this degrades to Amber with the gap disclosed and **no main reason at all** — an unsourced reason would break the symmetry rule. `github.com` and `kexp.org` land there. It is honest but thin, and §3.2's no-verdict story is the real fix.
 
 ## Known, not fixed (pre-existing)
 
