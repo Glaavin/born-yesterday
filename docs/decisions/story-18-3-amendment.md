@@ -348,6 +348,18 @@ It is also F1-vulnerable: a recycled domain inherits its predecessor's certifica
 
 **Principle: do not assert precision beyond what the record supports** — and, where the record cannot support a claim at all, do not make one. Any cert-derived age reaching past CT's 2018 threshold is uninterpretable rather than merely imprecise. Cert-derived age claims are **capped** — expressed as "over 10 years" rather than a specific figure beyond the instrument's reach.
 
+> **CORRECTED POST-STAGE-3A — the cap phrasing above is unsound as written.**
+>
+> *"Expressed as 'over 10 years'"* is **false for a first-cert date between 2016 and April 2018.** CT logging was voluntary in that window, so a certificate first logged in 2017 may be nine years old. Publishing *"over 10 years"* would assert a floor the instrument cannot support — **L-01, in the document that publishes our method.**
+>
+> **The rule is a lower bound, never an upper one:** `min(floor(actual years), CERT_AGE_CAP_YEARS)`.
+>
+> Below the cap this is the observed age floored to whole years. At or above the cap it is the cap. In both cases the published figure is a number the domain has **at least** reached, which is sound regardless of what CT did or did not log before April 2018.
+>
+> **The phrasing "over 10 years" is not safe as a general cap.** Any copy derived from this must express a floor. *"At least N years"* is sound. *"Over N years"* is sound only where N is genuinely exceeded, which is what the `min()` guarantees.
+>
+> **Scope — added when this correction was applied (2026-08-26).** The lower-bound rule governs the **capped branch only**: dates predating CT's mandate. A first-cert date *after* 30 April 2018 is interpretable, and ships as a marked approximation (*"~N years"*, rounded), not a floor. Stated without that scope, this correction would make §3.4.4 wrong in the opposite direction — asserting a property of the output that the interpretable branch does not have. That is the same class of error the correction exists to prevent, so the scope is part of the rule.
+
 #### 3.4.5 The live defect
 
 A `cursor.com`-shaped domain reaches Green today, and the report publishes *"Registered ~30 years ago"* as positive evidence of establishment for a company founded in 2022.
@@ -383,11 +395,54 @@ The test must tolerate gaps, because of §3.4.3: an obscure but continuously-ope
 
 Both the tolerance and the definition of "most years" are Stage 3 calibration — but they cannot be calibrated until the mechanism exists.
 
+> **CORRECTED POST-STAGE-3A — sufficiency and necessity are two different claims.**
+>
+> This subsection records the decade rule and then leaves the span threshold undefined, treating them as one question. They are not.
+>
+> - **The decade rule is a SUFFICIENCY claim:** ten years of span is categorically enough for establishment.
+> - **The span threshold is a NECESSITY claim:** how little span is too little to establish anything.
+>
+> §3.4 specified the first and left the second with no value and no basis. `ESTABLISHED_ARCHIVE_SPAN_DAYS` (necessity — the floor) and `CERT_AGE_CAP_YEARS` (sufficiency — the decade rule) answer different questions and are **calibrated independently. Setting one says nothing about the other.**
+>
+> `ESTABLISHED_ARCHIVE_SPAN_DAYS` ships drafted at `365 * 3` — **deliberately the retired `ESTABLISHED_DOMAIN_DAYS` value, not a reading of the decade rule.** Stage 3 sets the real value.
+>
+> **The practice, recorded because it generalises: when replacing a mechanism, hold the threshold and change only the measure.** The delta then tells you about the measure. Changing both at once makes the result uninterpretable — you cannot tell a better instrument from a moved goalpost.
+
 #### 3.4.7 Convergence with pivot substantiation
 
 The machinery §2.4 specifies for pivot substantiation — archive continuity plus operator continuity — **is the same machinery Green's establishment now requires.**
 
 One piece of work serves both rules. This is a stronger argument for building it than the pivot alone made, and it means the operator-continuity decision flagged in §2.4 is now blocking **two** rules rather than one.
+
+#### 3.4.8 When the upper bound contradicts the span — ADDED POST-STAGE-3A
+
+§3.4.1 establishes that registration age is a **sound upper bound** on operating history. §3.4 then specifies the demotion only as *removal from the disjunction*, and says nothing about what to do when that upper bound contradicts the span. Stage 3a surfaced the case the day span shipped.
+
+`secondlibrary.com`: **registered 2023-10-29, first capture 2014-01-03, two captures eleven years apart.** Amber before span; Green after.
+
+It fails §3.4.6 twice — no continuity, and **the span start precedes registration.** Per §3.4.1 registration is the sound upper bound: the current operator has roughly 2.8 years of history. The report publishes 13.
+
+**This is F1 pointing the opposite way from `cursor.com`, and span created it.** The fix for one over-vouching case introduced a second in the same class.
+
+**A registration-date clamp** — never publish a span start earlier than the registration date — would resolve it. It requires **no operator continuity**: it is §3.4.1 applied to two facts already collected, not a new rule.
+
+> **Owner ruling, 2026-08-26: declined. Leave it; the warning text carries it.**
+
+Recorded as a **decision, not an open flag**, with the consequence stated: **the report will over-vouch for re-registered domains, and we know that it does.**
+
+**Do not brief the clamp as a stopgap.** Operator continuity is the fix.
+
+*Preserved for the record, in case the ruling is ever revisited — it is not being revisited now: this is the only known case where we hold a collected fact that directly contradicts what the report publishes. `cursor.com` is **undetectable** without operator continuity; `secondlibrary.com` is **detectable and we are choosing not to act.** That distinction is the whole of the difference between a limit and a decision.*
+
+#### 3.4.9 When establishment cannot be evaluated at all — ADDED POST-STAGE-3A
+
+§3.4 does not say what a domain publishes when the archive check itself did not complete. §3.2 answers it — **no verdict** — but that story is unbuilt, so behaviour degrades.
+
+> Where establishment cannot be evaluated because the archive check did not complete, the domain currently falls through to **Amber carrying no main reason at all** — an unsourced reason would break the §6.2 symmetry rule, so none is manufactured. This is honest but thin: **the state implies concern and the rationale is empty.**
+>
+> §3.2's no-verdict outcome is the intended resolution. Until it ships, this shape is a **known interim state, not a defect in the establishment rules.**
+
+**It now has a constituency**, which strengthens the case for building it: `github.com` and `kexp.org` both land here in the corpus — precisely the Amber-with-nothing-flagged shape §3.2 exists to replace. The no-verdict outcome was previously argued from principle; it now has named cases.
 
 
 > **CORRECTED POST-STAGE-2 — RULE CHANGE, correcting a PM error made in the Stage 2 brief.**
@@ -471,6 +526,18 @@ The methodology page publishes these numbers. If it claims thresholds are *"cali
 
 The distinction also determines **who may change what**. A measured constant is accountable to data and updates mechanically as the dataset grows. A definitional one changes only when someone decides it should. Unlabeled, a future calibration run silently shifts a judgment about our own caution because the pipeline treated it as a number to fit.
 
+### 5.3 No corpus domain carries certificate data — ADDED POST-STAGE-3A
+
+**Zero of 49.** crt.sh returned 5xx throughout Story 18.2, so `first_cert_date` is `failed` across the entire corpus.
+
+**Consequence:** §3.4's certificate work — the cap, the floor labelling, the corroboration branch — is covered by **unit tests only and has never run against a real certificate.** The §3.4.4 correction above is likewise unit-tested only.
+
+Per `docs/conventions.md`: *a clean corpus delta is not proof for paths the corpus does not exercise.* **This is that convention firing on itself** — the review gate reported clean for a part of the story it structurally could not see.
+
+> **Requirement: any story briefing certificate behaviour must either re-collect crt.sh first, or state explicitly in its brief that it is specifying against unexercised code.** The second is acceptable. Silently assuming coverage is not.
+
+**§5.1's lesson now has a second instance.** The first was that the corpus spans *verdicts*, not *failure modes*. The second is narrower and easier to miss: **a source being down during corpus construction silently removes a whole signal from every subsequent delta — and nothing in the delta reports it.** A delta that covers 49 domains and 0 certificates looks exactly like a delta that covers 49 domains.
+
 ---
 
 ## 6. Production hotfixes shipped during this pass
@@ -530,6 +597,15 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
    - **Part B** — Green's establishment constants, **after step 3**
 5. **Narrative timeline UI** (§2.5) — after step 3 is live.
 
+> **UPDATED POST-STAGE-3A.** **Stage 3a is complete** (PR #54). Green's establishment route is **replaced**: archive span, status-guarded, with registration age demoted and certificates corroborating under a cap. `ESTABLISHED_ARCHIVE_SPAN_DAYS` now exists and can be calibrated **against a measure that measures the right thing** — which is what step 3 was blocking for Part B's span constant specifically.
+>
+> **Still blocked and unchanged:** *continuity* and *operator continuity*, both post-MVP, both waiting on the operator-continuity decision — which per §3.4.7 blocks **two** rules, not one. Span alone is the available fix, not the correct one (§3.4.8).
+>
+> **Recorded for the Story 20 presentation pass** — flagged by Stage 3a as pre-existing and outside its scope, noted so they are not rediscovered as new:
+>
+> - **Green's `positive[]` names the archive span twice** — once as the indicator's establishing reason, once as the assembler's fact line. The same duplication already existed for registration age and still exists for SPF. Presentation only.
+> - **The Amber generous-default reason renders under a "Flagged" badge** — the same class of error as the Blue relabel (§6.4), one state over.
+
 ---
 
 ## 9. Decision record
@@ -561,6 +637,12 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
 | 18.3.21 | Publishing prior-owner registration age as establishment evidence is a **live over-vouching defect** | **DEFECT** — see §3.4.5 |
 | 18.3.22 | Substantiation precedes Green calibration; §8 reordered | **SEQUENCING** — post-Stage-2 |
 | 18.3.23 | Continuity tolerance and the "most years" definition | **DEFERRED** to Stage 3 Part B |
+| 18.3.24 | Cert-derived age is a **lower bound**: `min(floor(years), CAP)`. *"Over N years"* is unsound as a general cap | **CORRECTION** — §3.4.4 was false as written, post-Stage-3a |
+| 18.3.25 | Span threshold (necessity) and the decade rule (sufficiency) are separate claims, calibrated independently | **CLARIFICATION** — post-Stage-3a |
+| 18.3.26 | When replacing a mechanism, hold the threshold and change only the measure, so the delta is attributable | **PRACTICE** — post-Stage-3a |
+| 18.3.27 | Registration-date clamp **declined**; the report will over-vouch for re-registered domains, knowingly | **OWNER RULING** (2026-08-26) — §3.4.8 |
+| 18.3.28 | Unestablished-because-unchecked degrades to Amber with no main reason until §3.2 ships | **INTERIM STATE** — §3.4.9 |
+| 18.3.29 | No corpus domain carries certificate data; §3.4's certificate work is unexercised | **COVERAGE GAP** — §5.3 |
 
 ---
 
