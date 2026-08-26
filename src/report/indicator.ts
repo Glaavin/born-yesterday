@@ -319,7 +319,7 @@ export function computeIndicator(
       source: dnsSource(`_dmarc.${domain}`),
     });
   }
-  // SYMMETRY RULE: an unsourced reason neither publishes NOR counts (18.3 §7.2).
+  // SYMMETRY RULE: an unsourced reason neither publishes NOR counts (18.3 §6.2).
   const concerns = candidateConcerns.filter((c) => c.source != null);
 
   // ---- 2) Footprint THIN → BLUE ("too new to tell"). ----
