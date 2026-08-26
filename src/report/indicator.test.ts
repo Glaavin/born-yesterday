@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { CollectorResult, Signal, SignalSource } from "../signals/types";
 import { derive, type Derivations } from "./derive";
-import { computeIndicator, ESTABLISHED_DOMAIN_DAYS } from "./indicator";
+import { computeIndicator, PIVOT_ESTABLISHED_DAYS, ESTABLISHED_ARCHIVE_SPAN_DAYS } from "./indicator";
 
 const NOW = Math.floor(Date.parse("2026-06-26T00:00:00Z") / 1000);
 const daysAgoSec = (d: number) => NOW - d * 86400;
@@ -27,7 +27,7 @@ const results = (signals: Signal[]): CollectorResult[] => [{ collector: "t", sig
 const CHECKED_KEYS = [
   "domain_registration_date", "domain_age_days", "registrar",
   "dns_spf", "dns_dmarc", "dns_a", "dns_mx", "hosting_provider",
-  "wayback_snapshot_count", "trustpilot", "phishtank_listed", "urlhaus_listed",
+  "wayback_snapshot_count", "wayback_first", "trustpilot", "phishtank_listed", "urlhaus_listed",
 ];
 const checkedBaseline = (...overrides: Signal[]): CollectorResult[] => {
   const by = new Map(overrides.map((o) => [o.key, o]));
@@ -44,7 +44,7 @@ describe("derive (pivot)", () => {
     ]);
     const d = derive(r, NOW);
     expect(d.pivot).not.toBeNull();
-    expect(d.pivot!.domainAgeDays).toBeGreaterThan(ESTABLISHED_DOMAIN_DAYS);
+    expect(d.pivot!.domainAgeDays).toBeGreaterThan(PIVOT_ESTABLISHED_DAYS);
     expect(d.pivot!.text).toMatch(/approximate/i);
     expect(d.pivot!.sources).toHaveLength(2);
   });
@@ -128,15 +128,15 @@ describe("computeIndicator (the locked rubric, in order)", () => {
       pivot: {
         text: "unsourced pivot",
         sources: [],
-        domainAgeDays: ESTABLISHED_DOMAIN_DAYS + 1,
+        domainAgeDays: PIVOT_ESTABLISHED_DAYS + 1,
         aiOnsetAgoDays: 10,
       },
     };
     const r = checkedBaseline(
       sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }),
-      sig("domain_age_days", { valueNum: ESTABLISHED_DOMAIN_DAYS + 1 }),
+      sig("domain_age_days", { valueNum: PIVOT_ESTABLISHED_DAYS + 1 }),
       sig("domain_registration_date", {
-        valueNum: daysAgoSec(ESTABLISHED_DOMAIN_DAYS + 1),
+        valueNum: daysAgoSec(PIVOT_ESTABLISHED_DAYS + 1),
         source: S("RDAP", "u-rdap"),
       }),
       sig("ai_language_first_seen", { valueText: "2025-01-01", source: S("Wayback snapshot", "u-snap") }),
@@ -181,15 +181,28 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     expect(main[0].source).not.toBeNull();
   });
 
-  const established = (extra: Signal[] = []) =>
-    checkedBaseline(
+  // ESTABLISHMENT IS NOW A SPAN (18.3 §3.4): how far back the archive reaches,
+  // not how old the registration is and not how many captures exist. The
+  // fixture carries a deep capture count AND an old registration precisely so
+  // that removing `wayback_first` proves neither of them can establish Green.
+  const ARCHIVED_SINCE = new Date((NOW - (ESTABLISHED_ARCHIVE_SPAN_DAYS + 400) * 86400) * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const established = (extra: Signal[] = []) => {
+    // `signalsByKey` is first-wins, so an extra must REPLACE the fixture's own
+    // signal of the same key rather than sit behind it — otherwise a test that
+    // means "now take the span away" silently asserts nothing.
+    const overridden = new Set(extra.map((e) => e.key));
+    const base = [
       sig("domain_age_days", { valueNum: 4015 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(4015), source: S("RDAP", "u-rdap") }),
       sig("dns_spf", { valueText: "v=spf1 ~all", source: S("DNS over HTTPS", "u-spf") }),
       sig("dns_dmarc", { valueText: "v=DMARC1; p=reject", source: S("DNS over HTTPS", "u-dmarc") }),
       sig("wayback_snapshot_count", { valueNum: 900, source: S("Wayback CDX", "u-cdx") }),
-      ...extra,
-    );
+      sig("wayback_first", { valueText: ARCHIVED_SINCE, source: S("Wayback CDX", "u-cdx") }),
+    ].filter((b) => !overridden.has(b.key));
+    return checkedBaseline(...base, ...extra);
+  };
 
   it("4) established AND clean (both feeds checked-clear) → GREEN, no disclosure", () => {
     const r = established([
@@ -220,6 +233,113 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     expect(disclosure).toBeDefined();
     expect(disclosure!.kind).toBe("caveat");
     expect(disclosure!.text).toMatch(/PhishTank and URLhaus/); // names the actual feeds
+  });
+
+  // ---- 18.3 §3.4: establishment is a SPAN, operator-guarded only in the copy ----
+
+  it("a RECYCLED-DOMAIN shape — 30y registration, deep captures, SHORT archive span — cannot reach GREEN", () => {
+    // Registration age is an invalid lower bound on operating history (§3.4.1)
+    // and capture count measures crawler attention (§3.4.3). With the span short,
+    // neither may stand in for it.
+    const recent = new Date((NOW - 200 * 86400) * 1000).toISOString().slice(0, 10);
+    const ind = computeIndicator(
+      "x.com",
+      established([sig("wayback_first", { valueText: recent, source: S("Wayback CDX", "u-cdx") })]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.state).not.toBe("green");
+    expect(ind.reasons.map((r) => r.text).join(" ")).not.toMatch(/Established domain/);
+  });
+
+  it("an UNCHECKED first-capture date cannot establish GREEN (status guard, §3.2)", () => {
+    const ind = computeIndicator(
+      "x.com",
+      established([sig("wayback_first", { status: "failed", valueText: "2001-01-01" })]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.state).not.toBe("green");
+  });
+
+  it("GREEN cites the archive SPAN as a fact, never registration age as evidence", () => {
+    const ind = computeIndicator("x.com", established(), noPivot, NOW);
+    expect(ind.state).toBe("green");
+    const main = ind.reasons.filter((x) => x.kind !== "caveat");
+    expect(main[0].text).toMatch(/^Archived since \d{4}/);
+    expect(main[0].source).toEqual(S("Wayback CDX", "u-cdx"));
+    // the fact, not the inference (§3.4.5 / Part 4)
+    const allMain = main.map((x) => x.text).join(" ");
+    expect(allMain).not.toMatch(/registered/i);
+    expect(allMain).not.toMatch(/operat(ed|ing) since/i);
+  });
+
+  it("a long archive span DISCLOSES that operator continuity is unchecked", () => {
+    const ind = computeIndicator("x.com", established(), noPivot, NOW);
+    const c = ind.reasons.find((x) => x.kind === "caveat" && /changed hands/.test(x.text));
+    expect(c).toBeDefined();
+    expect(c!.source).toBeNull(); // DISCLOSURE: about our limits, carries no source
+  });
+
+  it("the registration date is still PUBLISHED — as a neutral dated fact that denies the inference", () => {
+    const ind = computeIndicator("x.com", established(), noPivot, NOW);
+    const c = ind.reasons.find((x) => x.kind === "caveat" && /^Domain registered \d{4}-\d{2}-\d{2}\./.test(x.text));
+    expect(c).toBeDefined();
+    expect(c!.text).toMatch(/not when its current operator began using it/);
+    expect(c!.source).toEqual(S("RDAP", "u-rdap")); // OBSERVATION caveats carry a source
+  });
+
+  it("a pre-2018 first certificate is CAPPED and labelled a floor, and corroborates only", () => {
+    const ind = computeIndicator(
+      "x.com",
+      established([
+        sig("first_cert_date", {
+          valueNum: Math.floor(Date.parse("2011-06-01T00:00:00Z") / 1000),
+          source: S("crt.sh", "u-crt"),
+        }),
+      ]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.state).toBe("green");
+    const cert = ind.reasons.find((x) => /TLS certificates/.test(x.text))!;
+    expect(cert.text).toMatch(/over 10 years/); // capped, not "~15 years"
+    expect(cert.text).toMatch(/floor, not a start date/);
+    expect(cert.text).not.toMatch(/~1[0-9] years/);
+  });
+
+  it("a POST-2018 first certificate is stated precisely — the cap binds only where CT cannot reach", () => {
+    const ind = computeIndicator(
+      "x.com",
+      established([
+        sig("first_cert_date", {
+          valueNum: Math.floor(Date.parse("2021-03-01T00:00:00Z") / 1000),
+          source: S("crt.sh", "u-crt"),
+        }),
+      ]),
+      noPivot,
+      NOW,
+    );
+    const cert = ind.reasons.find((x) => /TLS certificates/.test(x.text))!;
+    expect(cert.text).toMatch(/~5 years/);
+    expect(cert.text).not.toMatch(/floor/);
+    expect(cert.text).not.toMatch(/over \d/);
+  });
+
+  it("a certificate alone cannot establish GREEN — it is corroboration, not a route", () => {
+    const ind = computeIndicator(
+      "x.com",
+      established([
+        sig("wayback_first", { status: "failed" }),
+        sig("first_cert_date", {
+          valueNum: Math.floor(Date.parse("2011-06-01T00:00:00Z") / 1000),
+          source: S("crt.sh", "u-crt"),
+        }),
+      ]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.state).not.toBe("green");
   });
 
   it("a clean threat check does NOT force GREEN (not established → amber)", () => {

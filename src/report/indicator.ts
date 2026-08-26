@@ -33,15 +33,58 @@ export interface Indicator {
 // as a bare `2` inside an `if`.
 export const YOUNG_DOMAIN_DAYS = 180; // DRAFT: < ~6 months → "young"
 export const THIN_SNAPSHOT_COUNT = 5; // DRAFT: < this many archive captures → "thin"
-export const ESTABLISHED_SNAPSHOT_COUNT = 50; // DRAFT: ≥ this many captures → established-by-archive
 
 // Stage 1 Part B found ONE constant doing three unrelated jobs, so retuning it for
-// Green silently retuned pivot eligibility. Split; all three share the same DRAFT
+// Green silently retuned pivot eligibility. Split; the survivors keep the same DRAFT
 // value today, which is exactly why the coupling was invisible.
-export const ESTABLISHED_DOMAIN_DAYS = 365 * 3; // DRAFT: Green-by-registration-age
-export const ESTABLISHED_CERT_DAYS = 365 * 3; // DRAFT: Green-by-first-certificate age
 export const PIVOT_ESTABLISHED_DAYS = 365 * 3; // DRAFT: "established" precondition for the pivot
 export const PIVOT_RECENT_DAYS = 365; // DRAFT: AI language added within ~1y → "recent onset"
+
+// ---- ESTABLISHMENT (18.3 §3.4) — SPAN, not count, not registration age. ----
+/**
+ * How far back the archive record must reach for a domain to count as
+ * established. A SPAN is a time measure; the retired capture count was a measure
+ * of crawler attention (§3.4.3) — `bolt.new` is ~2 years old with 449 captures.
+ *
+ * DRAFT. Value chosen deliberately as the retired `ESTABLISHED_DOMAIN_DAYS`
+ * value (3 years) so this story changes WHICH CLOCK we read, not HOW HIGH the
+ * bar is — that keeps the verdict delta readable as one change rather than two.
+ * It is NOT the owner's decade rule (§3.4.6), which states that ten years is
+ * *sufficient* for establishment and says nothing about what is *necessary*.
+ * Stage 3 sets the real value.
+ */
+export const ESTABLISHED_ARCHIVE_SPAN_DAYS = 365 * 3; // DRAFT
+
+/**
+ * RETIRED in 18.3 §3.4 — recorded here so they are not reintroduced:
+ *   ESTABLISHED_DOMAIN_DAYS   Green-by-registration-age. Registration age is a
+ *                             valid UPPER bound on operating history and an
+ *                             invalid LOWER bound (§3.4.1). It survives only in
+ *                             YOUNG_DOMAIN_DAYS, which uses it in the sound
+ *                             direction.
+ *   ESTABLISHED_SNAPSHOT_COUNT Green-by-capture-count. Measures crawler
+ *                             attention (§3.4.3). Replaced by the span above.
+ *   ESTABLISHED_CERT_DAYS     Green-by-first-certificate. Demoted to
+ *                             corroborating evidence, capped (§3.4.4).
+ */
+
+// ---- Certificate Transparency: the instrument's reach (§3.4.4). ----
+/**
+ * Chrome required CT compliance for certificates ISSUED AFTER 30 April 2018
+ * (enforced from Chrome 68, 24 July 2018). Certificates issued before that date
+ * were grandfathered and never had to be logged, and voluntary logging was
+ * non-uniform — so a first-cert date earlier than this is NOT A MEASUREMENT. We
+ * cannot distinguish "the first certificate was 2012" from "the first *logged*
+ * certificate was 2012." Not a fact about calibration; a fact about the record.
+ */
+export const CT_INTERPRETABLE_FROM_ISO = "2018-04-30";
+const CT_INTERPRETABLE_FROM_SEC = Math.floor(Date.parse(`${CT_INTERPRETABLE_FROM_ISO}T00:00:00Z`) / 1000);
+/**
+ * Ceiling on any cert-derived age claim, in years. Sourced to the owner's decade
+ * rule (§3.4.6) — beyond a decade further precision adds nothing — NOT a draft
+ * calibration value.
+ */
+export const CERT_AGE_CAP_YEARS = 10;
 
 // ---- Q3: accumulation as a RATIO of findings to COMPLETED observations. ----
 // DRAFT value chosen ONLY to reproduce the retired `concerns.length >= 2` rule at
@@ -77,6 +120,35 @@ export const LINK_OUT_KEYS: readonly string[] = [
 const SECONDS_PER_DAY = 86400;
 const num = (s?: Signal): number | null => s?.valueNum ?? null;
 const listed = (s?: Signal): boolean => s?.valueText === THREAT_LISTED;
+/** "YYYY-MM-DD…" → epoch seconds, or null. Never throws. */
+const isoSec = (iso: string | null | undefined): number | null => {
+  if (!iso) return null;
+  const ms = Date.parse(iso);
+  return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
+};
+/** Epoch seconds → "YYYY-MM-DD". */
+const isoDay = (sec: number): string => new Date(sec * 1000).toISOString().slice(0, 10);
+
+/**
+ * A cert-derived age, expressed to the limit of what Certificate Transparency
+ * can support (§3.4.4). After CT became mandatory the date is interpretable, so
+ * we state it. Before that date it is only a LOWER BOUND — earlier certificates
+ * may exist and simply never have been logged — so we say "over N years" and cap
+ * N at CERT_AGE_CAP_YEARS. Capping is not rounding a known number; it is
+ * declining to report a number we do not have.
+ *
+ * Exported because `assemble.ts` publishes the same claim in `positive[]` and
+ * the cap has to hold in both places or it does not hold at all.
+ */
+export function certAgeClaim(firstCertSec: number, nowSec: number): string {
+  const days = Math.max(0, Math.floor((nowSec - firstCertSec) / SECONDS_PER_DAY));
+  if (firstCertSec >= CT_INTERPRETABLE_FROM_SEC) return `~${humanAge(days)}`;
+  const years = Math.min(Math.max(1, Math.floor(days / 365)), CERT_AGE_CAP_YEARS);
+  return `over ${years} year${years === 1 ? "" : "s"}`;
+}
+/** True when the cert date predates CT's mandate, i.e. is not interpretable as a start. */
+export const certAgeIsFloorOnly = (firstCertSec: number): boolean =>
+  firstCertSec < CT_INTERPRETABLE_FROM_SEC;
 
 export function computeIndicator(
   domain: string,
@@ -116,6 +188,16 @@ export function computeIndicator(
   const ageChecked = checked("domain_age_days");
   const snapshots = num(byKey.get("wayback_snapshot_count"));
   const archiveChecked = checked("wayback_snapshot_count");
+  // ---- Archive SPAN (18.3 §3.4.6). `wayback_first` has been collected since
+  // Helium and never consumed; the capture count it sat beside was consumed and
+  // measured the wrong thing. Guarded on status: a check that did not complete
+  // cannot establish a span, and "no first capture" is not "captured long ago".
+  const firstArchived = byKey.get("wayback_first");
+  const firstArchivedSec = checked("wayback_first") ? isoSec(firstArchived?.valueText) : null;
+  const archiveSpanDays =
+    firstArchivedSec != null ? Math.floor((nowSec - firstArchivedSec) / SECONDS_PER_DAY) : null;
+  const longArchiveSpan =
+    archiveSpanDays != null && archiveSpanDays >= ESTABLISHED_ARCHIVE_SPAN_DAYS;
   const reputationChecked = checked("trustpilot");
   const spfChecked = checked("dns_spf");
   const dmarcChecked = checked("dns_dmarc");
@@ -124,10 +206,6 @@ export function computeIndicator(
   const dnsResolved = byKey.get("dns_a")?.valueText != null || spf || dmarc;
   const firstCert = byKey.get("first_cert_date");
   const certChecked = checked("first_cert_date");
-  const firstCertAgeDays =
-    certChecked && firstCert?.valueNum != null
-      ? Math.floor((nowSec - firstCert.valueNum) / SECONDS_PER_DAY)
-      : null;
   const pt = byKey.get("phishtank_listed");
   const uh = byKey.get("urlhaus_listed");
   const dnsSource = (name: string) => ({
@@ -147,8 +225,11 @@ export function computeIndicator(
     });
   }
   if (!archiveChecked) {
+    // Copy follows the rule: since 18.3 §3.4 the load-bearing archive fact is how
+    // far the record REACHES BACK, not how many captures there are, so the
+    // disclosure names what we actually failed to establish.
     caveats.push({
-      text: "Archive history was not available at check time, so the capture count is not established.",
+      text: "Archive history was not available at check time, so how far this domain's record reaches back is not established.",
       source: null,
       kind: "caveat",
     });
@@ -174,6 +255,38 @@ export function computeIndicator(
     caveats.push({
       text: "An email-authentication lookup did not complete, so SPF is not established either way.",
       source: null,
+      kind: "caveat",
+    });
+  }
+  // DISCLOSURE — the F1 gap, stated rather than hidden (18.3 §3.4.6 / §3.4.7).
+  // Archive span is a property of the DOMAIN. Operator continuity is what would
+  // tie it to the current occupant, and it is deliberately not built (post-MVP),
+  // so a recycled domain still inherits its predecessor's history. Fired
+  // wherever a long span EXISTS, not only where it produces Green, because the
+  // report publishes the long-history fact in `positive[]` at every state.
+  if (longArchiveSpan) {
+    caveats.push({
+      text:
+        "Archive history describes the domain name, not whoever runs it now — we don't yet check " +
+        "whether the site has changed hands, so some of this history may belong to a previous owner.",
+      source: null,
+      kind: "caveat",
+    });
+  }
+  // OBSERVATION — the registration date is DEMOTED, not deleted (18.3 §3.4.1).
+  // It used to publish as a positive finding ("Registered ~30 years ago"), which
+  // offered a true fact as evidence for a claim it does not support: the live
+  // over-vouching defect of §3.4.5. It is still published — as a neutral, dated,
+  // sourced fact, in the channel that carries no favourable framing, with the
+  // inference it invites explicitly denied. Scoped to the same domains the old
+  // positive finding covered (a year or more), so no report gains a note it
+  // would not already have carried a claim on.
+  if (ageChecked && reg?.valueNum != null && ageDays != null && ageDays >= 365) {
+    caveats.push({
+      text:
+        `Domain registered ${isoDay(reg.valueNum)}. A registration date records when the domain name ` +
+        "was first registered, not when its current operator began using it.",
+      source: reg.source ?? null,
       kind: "caveat",
     });
   }
@@ -263,10 +376,16 @@ export function computeIndicator(
   }
 
   // ---- 4) ESTABLISHED and CLEAN → GREEN (positive evidence required). ----
-  const establishedByAge = ageChecked && ageDays != null && ageDays >= ESTABLISHED_DOMAIN_DAYS;
-  const establishedByArchive = archiveChecked && snapshots != null && snapshots >= ESTABLISHED_SNAPSHOT_COUNT;
-  const establishedByCert = firstCertAgeDays != null && firstCertAgeDays >= ESTABLISHED_CERT_DAYS;
-  const established = establishedByAge || establishedByArchive || establishedByCert;
+  // 18.3 §3.4 found all three former routes unsound and replaced them with ONE:
+  // how far back the archive record reaches. The two demoted routes are not
+  // disjuncts any more — registration age establishes nothing (§3.4.1) and the
+  // certificate record cannot span the window (§3.4.4).
+  //
+  // What is NOT built here, deliberately: CONTINUITY (captures across most of
+  // the intervening years) and OPERATOR continuity. Both are post-MVP; the gap
+  // they leave is disclosed in the caveat above rather than papered over. Span
+  // alone is the available fix, not the correct one.
+  const established = longArchiveSpan;
 
   // Q6 (18.3 §3.3): Green requires SPF. A MISSING DMARC no longer blocks Green —
   // finding F2 measured ~24% of established organisations without one, so the old
@@ -284,15 +403,28 @@ export function computeIndicator(
   const clean = spfEstablished && concerns.length === 0;
   if (established && clean) {
     const reasons: Reason[] = [];
-    if (establishedByAge) {
-      reasons.push({ text: `Established domain — registered ~${humanAge(ageDays!)} ago.`, source: reg?.source ?? null });
-    } else if (establishedByArchive) {
+    // THE FACT, NOT THE INFERENCE (§3.4.5 / Part 4). "Archived since 2009" is
+    // true of a recycled domain; "operating since 2009" is not, and we are not
+    // entitled to it until operator continuity exists. The copy states what the
+    // archive records and stops there.
+    reasons.push({
+      text:
+        `Archived since ${isoDay(firstArchivedSec!).slice(0, 4)} — the Wayback Machine's record for this ` +
+        `domain spans ~${humanAge(archiveSpanDays!)}.`,
+      source: firstArchived?.source ?? null,
+    });
+    // CORROBORATING, never a route of its own (§3.4.4). Capped: a pre-2018 first
+    // cert is a floor, not a start date, and the copy says which it is.
+    if (certChecked && firstCert?.valueNum != null) {
+      const floorOnly = certAgeIsFloorOnly(firstCert.valueNum);
       reasons.push({
-        text: `Long archive history — ${snapshots} captures on the Wayback Machine.`,
-        source: byKey.get("wayback_snapshot_count")?.source ?? null,
+        text:
+          `TLS certificates logged for this domain for ${certAgeClaim(firstCert.valueNum, nowSec)}` +
+          (floorOnly
+            ? ` (Certificate Transparency logging only became comprehensive in ${CT_INTERPRETABLE_FROM_ISO.slice(0, 4)}, so this is a floor, not a start date).`
+            : "."),
+        source: firstCert.source ?? null,
       });
-    } else if (establishedByCert) {
-      reasons.push({ text: `Long-lived TLS history — first certificate ~${humanAge(firstCertAgeDays!)} ago.`, source: firstCert?.source ?? null });
     }
     if (spf) {
       reasons.push({ text: "Email authentication configured (SPF present).", source: byKey.get("dns_spf")?.source ?? null });
@@ -318,12 +450,24 @@ export function computeIndicator(
     });
   }
   if (concerns.length) return verdict("amber", concerns);
-  return verdict("amber", [
-    {
-      text: established
-        ? "Established, but some expected signals (e.g. SPF) are missing."
-        : "Some positive signals, but not enough established history to fully vouch yet.",
-      source: reg?.source ?? null,
-    },
-  ]);
+  // The claim here is about ARCHIVED HISTORY, so it is cited to the archive —
+  // citing it to RDAP was the §3.4.5 defect in its quietest form: registration
+  // offered as the source for a statement about establishment. Three cases,
+  // because "the record doesn't reach far enough" and "we couldn't read the
+  // record" are different statements and only one of them is sourceable
+  // (docs/conventions.md). The third is the case 18.3 §3.2 says should become a
+  // no-verdict outcome; that story is not built, so it degrades to Amber with the
+  // gap disclosed rather than to a claim we cannot cite.
+  const archiveSource = firstArchived?.source ?? byKey.get("wayback_snapshot_count")?.source ?? null;
+  const fallbackText = established
+    ? "Established archive history, but some expected signals (e.g. SPF) are missing."
+    : "Some positive signals, but the archived record doesn't reach back far enough to fully vouch yet.";
+  // THIRD CASE — the archive check did not complete. There is nothing to cite,
+  // and the SYMMETRY RULE says an unsourced reason neither publishes nor counts,
+  // so no reason is manufactured: the "not available at check time" disclosure
+  // above already states the gap, in the channel built for it. This is the shape
+  // 18.3 §3.2 says should become a no-verdict outcome; until that story exists it
+  // degrades to Amber-with-a-disclosure rather than to an uncitable claim.
+  if (!checked("wayback_first") || archiveSource == null) return verdict("amber", []);
+  return verdict("amber", [{ text: fallbackText, source: archiveSource }]);
 }
