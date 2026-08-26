@@ -139,13 +139,27 @@ Two cross-cutting rules: **caveats are orthogonal to state** — a `kind: "cavea
 
 **Green's conditions, stated (Story 19 Stage 2).** Recorded because Story 18.3 §3.3 found this gate lived only in code — a rubric that is not written down is not publishable. Green requires **all** of:
 
-1. **Positive establishment** — ⚠️ **SUPERSEDED — all three routes below are unsound.** See [`docs/decisions/story-18-3-amendment.md`](decisions/story-18-3-amendment.md) §3.4. Registration age is a valid *upper* bound on operating history and an invalid *lower* one; archive capture count measures crawler attention rather than durability; certificate history is bounded by Certificate Transparency's 2018 start. They are **replaced, not recalibrated** — establishment becomes archive **span + continuity, operator-guarded** (§3.4.6), and that mechanism is a separate story. **Do not implement the routes below.** They are recorded only as what the code does today: at least one of — registration age ≥ the established threshold; archive depth ≥ the established capture count; first certificate older than the established cert threshold. (Each is a *separate* named threshold as of Stage 2; one constant previously served three roles.)
+1. **Positive establishment — archive SPAN.** *(Replaced the three former routes; see [`docs/decisions/story-18-3-amendment.md`](decisions/story-18-3-amendment.md) §3.4.)* The domain's Wayback record must reach back at least the established-span threshold. **Span, not count:** capture frequency is driven by crawler attention, so a count rewards popularity rather than durability — `bolt.new` is ~2 years old with 449 captures. The three retired routes and why:
+
+   | Retired route | Why |
+   |---|---|
+   | Registration age | A valid *upper* bound on operating history and an invalid *lower* one (§3.4.1). It survives only in the young-domain rule, which uses it in the sound direction. |
+   | Archive capture count | Measures crawler attention, not durability (§3.4.3). |
+   | First certificate | Certificate Transparency only became comprehensive in 2018, so it cannot span the window (§3.4.4). **Demoted to corroborating evidence, capped.** |
+
+   **What we assert, and what we do not.** We publish the fact — *"Archived since 2009"* — and never the inference *"this company has operated since 2009."* The first is true of a recycled domain; the second is not.
+
+   **Two known gaps, disclosed rather than hidden.** *Continuity* (captures across most of the intervening years, tolerant of gaps) and *operator continuity* (whether the site changed hands) are **not built** — both are post-MVP, and both are what would justify the inference above. Until they exist, every report carrying a long archive span also carries a caveat saying the history describes the domain name rather than whoever runs it now. **Span alone is the available fix, not the correct one.**
+
+   **Registration date is still published** — as a neutral, dated, sourced observation that states plainly what it does *not* mean. Demoted from evidence to fact, not deleted.
+
+   **Cert-derived ages are capped.** A first-certificate date earlier than **30 April 2018** — the date after which Chrome required CT logging; earlier certificates were grandfathered and logged only voluntarily — is not a measurement, because *"the first certificate was 2012"* and *"the first **logged** certificate was 2012"* are indistinguishable in the record. Such a date is published as a floor (*"over 10 years"*), labelled as one, and capped at a decade. Capping is not rounding a number we have; it is declining to report one we do not.
 2. **SPF present.** A completed DNS check that finds no SPF record blocks Green. **DMARC absence does NOT block Green** — finding F2 measured ~24% of established organisations without DMARC, so requiring it measured adoption lag rather than risk. A completed check that finds no DMARC is **disclosed as a caveat**, not flagged as a concern.
 3. **No concern points.**
 
 A check that did **not complete** can never satisfy any of these. Per Story 18 §3.5 it therefore **blocks** Green — not because the gap is a concern (it raises none), but because Green requires positive evidence and a check that produced none cannot supply it. The gap is disclosed as a caveat.
 
-**No thresholds here, no weights.** Every number — domain-age bands, the pivot window, archive-depth floors, the accumulation threshold *and its denominator* — is a **Story 19 calibration output**, deliberately not specified in this spec. No weights are specified because the model is not weighted. See the decision doc §5.
+**No thresholds here, no weights.** Every number — domain-age bands, the pivot window, the established-span threshold, the accumulation threshold *and its denominator* — is a **Story 19 calibration output**, deliberately not specified in this spec. No weights are specified because the model is not weighted. See the decision doc §5.
 
 ### Section F — Disclaimer (every report, fixed copy)
 
