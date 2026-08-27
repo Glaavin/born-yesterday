@@ -47,3 +47,22 @@ adding a collector, a parser, or any code that reads an external source.
 an external source are governed by this rule but have been **spot-checked, not swept**. Three of
 the four known instances were found while looking for something else, so absence of known
 violations is weak evidence.
+
+## The corpus delta gate diffs REASONS, not just states
+
+The before/after corpus delta (`scripts/corpus-verdicts.ts`) has been the review artifact for
+three stories. It must diff **published reasons as well as verdict states**, and the report must
+show reason changes even when no state moves.
+
+**A story about reasoning produces few state changes by design.** Story 19 Stage 3a changed
+Green's entire establishment route and moved four states out of 49 — while changing **37
+rationales**. Stage 3 moved a real threshold boundary and moved **zero** states; the only
+evidence it did anything was one domain's caveat list changing.
+
+A state-only diff would have reported *"nothing changed"* on a story that changed a boundary,
+and would have reported near-success on a story whose whole point was the reasoning. **Silence
+in a state diff is not evidence that nothing happened.**
+
+Related: `story-18-3-amendment.md` §5.1 — a clean delta is not proof for paths the corpus does
+not exercise. Same failure mode, one level up: this one is about what the gate *looks at*, that
+one is about what the corpus *contains*.

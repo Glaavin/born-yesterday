@@ -166,14 +166,17 @@ A check that did **not complete** can never satisfy any of these. Per Story 18 �
 | Basis | Means |
 |---|---|
 | **MEASURED** | The data can move it. More data gives a better answer. |
+| **BOUNDED** | The data constrains the value to a **range** but cannot locate it within that range. The bound is measured; the point inside it is chosen. More data buys a *narrower interval*, not a better point. |
 | **REASONED** | A judgment the data informs but cannot settle. |
 | **DEFINITIONAL** | A choice about the product's posture, not a measurement. |
+
+*Every measured threshold sits in a gap; what matters is the gap's width. A narrow gap means the point barely matters and MEASURED is honest. A wide one means the point is a judgment wearing a measurement's label — that is what BOUNDED names.*
 
 | Threshold | Value | Basis | Why this value |
 |---|---|---|---|
 | `YOUNG_DOMAIN_DAYS` | **180** (6 months) | DEFINITIONAL | The point at which we would rather say *"too new to tell"* than reach a verdict we would not stand behind. Never affects Green — it moves domains only between Blue and Amber. |
 | `THIN_SNAPSHOT_COUNT` | **5** | REASONED *(measured lower bound)* | Every young domain in the corpus has three captures or fewer, so the boundary lies at four or above; five leaves a capture of margin. Any value ≥ 4 gives identical verdicts, so the choice of five over forty is meaning, not measurement. |
-| `ESTABLISHED_ARCHIVE_SPAN_DAYS` | **913** (~2.5 years) | MEASURED *(interval)* | The corpus has one real gap — `bolt.new` at 717 days, then nothing until `v0.dev` at 1075. Every value in that gap gives identical output, so the data measures the **interval** and the point inside it is chosen: 913 is its centre. Cannot be read above ~6 years; the corpus holds nothing between 6 and 12.7 years. |
+| `ESTABLISHED_ARCHIVE_SPAN_DAYS` | **913** (~2.5 years) | **BOUNDED** | The corpus has one real gap — `bolt.new` at 717 days, then nothing until `v0.dev` at 1075. Every value in that gap gives identical output, so the data measures the **interval** and the point inside it is chosen: 913 is its centre. Cannot be read above ~6 years; the corpus holds nothing between 6 and 12.7 years. |
 | `PIVOT_ESTABLISHED_DAYS` | **1095** (3 years) | REASONED | Old enough that recent AI language is notable. An **upper-bound** use of registration age and therefore sound, unlike the retired establishment route that used the same field as a lower bound. Not calibrated in Stage 3. |
 | `PIVOT_RECENT_DAYS` | **365** (1 year) | REASONED | Recent enough to be worth remarking on for a domain that predates the AI era. **Known limit:** the scan matches any *mention* of AI, so editorial coverage reads like a pivot; no value of this threshold fixes that. |
 | `ACCUMULATION_RATIO` | **0.1** | REASONED *(synthetic only)* | Keeps the trigger **degradation-invariant** — two findings clear it at every denominator the corpus produces (8, 9, 11, 12), so a report that lost checks reaches the same verdict as a complete one. Above 2/12 that stops being true. |
