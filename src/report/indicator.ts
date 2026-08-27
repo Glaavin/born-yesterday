@@ -468,18 +468,71 @@ export function computeIndicator(
   if (listed(uh)) listings.push({ text: "Listed on URLhaus (abuse.ch malware feed).", source: uh!.source });
   if (listings.length) return verdict("red", listings);
 
-  // ---- Discrete, sourced concern points. ----
+  // ---- The AI pivot: an OBSERVATION, not a concern (owner ruling, 2026-08-26).
+  //
+  // RULE CHANGE, 18.3 §2.7. The pivot no longer contributes a concern point, no
+  // longer denies Green, and no longer publishes under an adverse heading. It is
+  // still collected in full and still published — the dates, the language change
+  // and the Wayback links all reach the reader. What stops is US ATTACHING A
+  // CONCLUSION. That is the disclosed-facts posture: hand over the facts, let the
+  // reader infer.
+  //
+  // WHY, and the durable argument is NOT the precision number. Corpus tier 1
+  // slot 6 — `sugarcrm.com` — was hand-picked as THE classic pivot exemplar:
+  // established domain, datable AI onset. Its onset is 1,945 days. It does not
+  // fire at 365 or at 1095, and making it fire needs a ~5.3-year window that
+  // flags ~14 of 49 domains — at which point SugarCRM, a twenty-year-old CRM
+  // that added AI features in 2021, is arguably a false positive too. THE
+  // CORPUS'S OWN DESIGNATED POSITIVE EXAMPLE IS AMBIGUOUS AT EVERY THRESHOLD.
+  // That is a statement about the instrument and does not rest on n=2.
+  //
+  // The underlying problem: this signal cannot separate "added AI features" —
+  // which nearly every software company did — from "pivoted to AI," a company
+  // repositioning around a capability it did not have. In Wayback text those are
+  // identical. Substantiation (§2.4) is what distinguishes them.
+  //
+  // NOT EVIDENCE, and do not re-derive it: "no true positive at any window."
+  // The corpus contains no true positives BY CONSTRUCTION — the Story 18.2 brief
+  // forbade adverse pre-labelling of real companies and forbade committing a
+  // URLhaus host. That absence measures our sampling rule, not this signal's
+  // recall.
+  //
+  // CONSISTENCY. In the same week we removed a rationale that was true-but-
+  // wrong-in-implication when it FLATTERED a company (`cursor.com`'s "registered
+  // ~30 years ago", §3.4.5). This is the same shape pointed the other way: a true
+  // fact, a wrong implication, published as our sole reason, about named real
+  // organisations. Removing it in one direction and keeping it in the other is
+  // not a defensible position.
+  //
+  // WHAT REVERSES THIS: SUBSTANTIATION SHIPPING (§2.4). NOT a better window
+  // value. Tightening reduces false positives by firing less, which looks like
+  // improvement and is the signal doing less. `PIVOT_RECENT_DAYS` stays at 365
+  // and stays REASONED; do not retune it while it drives no verdict — a value
+  // tuned against no active use will look calibrated and will not be.
+  //
+  // THE COST, accepted explicitly rather than slid into: this is a TEMPORARY
+  // DISABLEMENT OF THE PRODUCT'S HEADLINE FEATURE. It is a real narrowing of
+  // what Born Yesterday currently does, and we cannot measure what we lose
+  // because we have no true positives to lose. If substantiation slips, we ship
+  // without the differentiator.
   const candidateConcerns: Reason[] = [];
   const pivot = derivations.pivot;
   // Gated on the AI-language check having completed: an unperformed scan must not
-  // supply a concern point.
+  // supply an observation either — it would be reporting a date we never read.
   if (
     pivot &&
     checked("ai_language_first_seen") &&
     pivot.domainAgeDays >= PIVOT_ESTABLISHED_DAYS &&
     pivot.aiOnsetAgoDays <= PIVOT_RECENT_DAYS
   ) {
-    candidateConcerns.push({ text: pivot.text, source: pivot.sources[0] ?? null });
+    // OBSERVATION caveat (§3.2): the check completed and found something worth
+    // noting that is not a concern. It describes the DOMAIN, so it must carry a
+    // source — the §6.2 symmetry rule applies to observations exactly as it did
+    // when this was a concern. An unsourced pivot publishes nothing, as before.
+    const pivotSource = pivot.sources[0] ?? null;
+    if (pivotSource) {
+      caveats.push({ text: pivot.text, source: pivotSource, kind: "caveat" });
+    }
   }
   // Q4 GUARD: previously `dnsResolved && !spf && !dmarc`, which fired when the TXT
   // lookups FAILED (null reads as "absent") as long as the A lookup had answered.
@@ -491,6 +544,15 @@ export function computeIndicator(
     });
   }
   // SYMMETRY RULE: an unsourced reason neither publishes NOR counts (18.3 §6.2).
+  //
+  // NOTE THE CONSEQUENCE OF THE PIVOT RULING ABOVE: the concern pool now has
+  // exactly ONE member, so `concerns.length` can never reach
+  // ACCUMULATION_MIN_FINDINGS. Accumulation is not "near-unreachable" any more
+  // (§3.1) — it is STRICTLY unreachable until the pool grows. The rule and its
+  // constants are retained deliberately: they are correct, they are calibrated,
+  // and the Profile Section brief contemplates a dozen new scans. The
+  // methodology page must state this plainly rather than describe a Red route
+  // nobody can reach.
   const concerns = candidateConcerns.filter((c) => c.source != null);
 
   // ---- 2) Footprint THIN → BLUE ("too new to tell"). ----

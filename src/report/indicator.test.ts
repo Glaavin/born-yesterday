@@ -150,23 +150,61 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     expect(main.every((x) => x.source != null)).toBe(true);
   });
 
-  it("3) two sourced concern points (pivot + missing SPF/DMARC) → RED, enumerated", () => {
-    const r = checkedBaseline(
-      sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }),
+  // ---- The pivot is an OBSERVATION, not a concern (18.3 §2.7, owner ruling) ----
+
+  const firedPivot: Derivations = {
+    pivot: {
+      text: "PIVOT (approximate)",
+      sources: [S("Wayback snapshot", "u-snap")],
+      domainAgeDays: 4000,
+      aiOnsetAgoDays: 200,
+    },
+  };
+  const pivotSignals = (extra: Signal[] = []) =>
+    established([
+      sig("ai_language_first_seen", { valueText: "2025-01-01", source: S("Wayback snapshot", "u-snap") }),
+      ...extra,
+    ]);
+
+  it("3) a fired pivot publishes as a SOURCED OBSERVATION and does not deny GREEN", () => {
+    // Was: "two sourced concern points (pivot + missing SPF/DMARC) → RED".
+    // The pivot no longer contributes a concern point, so that combination can
+    // no longer be built — see the strict-unreachability test below.
+    const ind = computeIndicator("x.com", pivotSignals(), firedPivot, NOW);
+
+    expect(ind.state).toBe("green"); // the pivot no longer blocks establishment
+    const observation = ind.reasons.find((x) => x.text === "PIVOT (approximate)")!;
+    expect(observation).toBeDefined();
+    expect(observation.kind).toBe("caveat"); // routes to the summary, not to flagged[]
+    expect(observation.source).toEqual(S("Wayback snapshot", "u-snap")); // observations carry a source
+    // and it is NOT presented as a contributing reason
+    expect(ind.reasons.filter((x) => x.kind !== "caveat").some((x) => /PIVOT/.test(x.text))).toBe(false);
+  });
+
+  it("an UNSOURCED pivot publishes nothing — the symmetry rule survives the demotion", () => {
+    const unsourced: Derivations = {
+      pivot: { text: "PIVOT (approximate)", sources: [], domainAgeDays: 4000, aiOnsetAgoDays: 200 },
+    };
+    const ind = computeIndicator("x.com", pivotSignals(), unsourced, NOW);
+    expect(ind.reasons.some((x) => /PIVOT/.test(x.text))).toBe(false);
+  });
+
+  it("accumulation is STRICTLY unreachable while the concern pool has one member", () => {
+    // Not a wish — a property of the current rule set, asserted so that anyone
+    // who grows the concern pool sees this test fail and re-reads §3.1. With the
+    // pivot demoted, the only concern left is the SPF/DMARC point, so
+    // `concerns.length` cannot reach ACCUMULATION_MIN_FINDINGS.
+    const worstCase = checkedBaseline(
+      sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }), // resolved, no SPF, no DMARC
       sig("domain_age_days", { valueNum: 4000 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(4000), source: S("RDAP", "u-rdap") }),
       sig("ai_language_first_seen", { valueText: "2025-01-01", source: S("Wayback snapshot", "u-snap") }),
     );
-    const pivot: Derivations = {
-      pivot: { text: "PIVOT (approximate)", sources: [S("RDAP", "u-rdap")], domainAgeDays: 4000, aiOnsetAgoDays: 200 },
-    };
-    const ind = computeIndicator("x.com", r, pivot, NOW);
-    expect(ind.state).toBe("red");
-    // Two sourced concerns, plus the accumulation sentence stating the ratio.
-    const main = ind.reasons.filter((x) => x.kind !== "caveat");
-    expect(main).toHaveLength(2);
-    expect(main.every((x) => x.source != null)).toBe(true);
-    expect(ind.reasons.some((x) => /checks we completed returned findings/.test(x.text))).toBe(true);
+    const ind = computeIndicator("x.com", worstCase, firedPivot, NOW);
+
+    expect(ind.state).not.toBe("red");
+    expect(ind.reasons.filter((x) => x.kind !== "caveat")).toHaveLength(1); // the one surviving concern
+    expect(ind.reasons.some((x) => /checks we completed returned findings/.test(x.text))).toBe(false);
   });
 
   it("3b) ONE concern point → AMBER", () => {
