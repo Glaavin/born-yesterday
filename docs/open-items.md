@@ -2,7 +2,7 @@
 
 **Purpose.** One place for what is *not* settled, so nobody rediscovers it and nobody ships assuming otherwise. Every entry names where the reasoning lives.
 
-**Status:** current as of **2026-08-27**, end of the Lithium build run (PRs #44–#60).
+**Status:** current as of **2026-08-27**, end of the Lithium build run (PRs #44–#62, deployed to production).
 **Companion documents:** `docs/decisions/story-18-3-amendment.md` (the reasoning), `docs/conventions.md` (the rules that came out of it), `docs/mvp-spec.md` §2E (the published rubric).
 
 **Reading rule.** A flaw listed here is **disclosed, not hidden**. Several are live in the product on purpose, with the cost accepted explicitly. What is *not* acceptable is discovering one of them fresh and treating it as new.
@@ -19,6 +19,8 @@ Does a domain's current operator match the one its history belongs to? Not built
 **Consequences while it is open:** B1, B2 and B3 below. Two of those are live in the report today.
 
 *This is the item to answer first. Everything in section B that says "until substantiation ships" means this.*
+
+> **B11 may now outrank it.** Operator continuity fixes verdicts that are *wrong*; B11 is about verdicts we cannot *produce at all* when one third party is slow. Both are open; the second was found in production and is visible to any user today.
 
 ### A2. When does a rubric change invalidate cached reports?
 `reports.schema_version` is **written and never read.** `serve.ts` invalidates on the 7-day TTL alone, so a rubric change does not expire anything. After the Lithium run, 12 of 17 cached reports were still serving verdicts computed by rules that no longer exist.
@@ -72,6 +74,36 @@ Honest but thin. **§3.2's no-verdict outcome is the intended fix**, and these a
 `THIN_SNAPSHOT_COUNT` is rescued by §5.2's argument that *"a young domain has had no time to accumulate captures regardless of popularity."* **That is false at the margin:** `bolt.new` accumulated 0.59 daily-collapsed captures a day — five in nine days.
 
 A heavily-crawled young domain therefore misses *"too new to tell"* and lands under *"some concerns."* Same defect class as §3.4.3, one state over. **The fix is a span test rather than a count test — a rule change.** The corpus contains no domain that exercises it.
+
+### B11. Green has a SINGLE POINT OF FAILURE, and it failed on the first live test
+**Found in production, 2026-08-27, minutes after the Lithium deploy.**
+
+Archive **span** is now the *only* route to establishment (§3.4). So when the Wayback CDX call does not complete, **no domain can reach Green** — it falls through to Amber carrying no main reason (B5).
+
+That is not hypothetical. Three live report generations immediately after the deploy:
+
+| Domain | `wayback_first` | verdict |
+|---|---|---|
+| `suckless.org` | **failed** | amber |
+| `wikipedia.org` | **failed** | amber |
+| `stripe.com` | **failed** | amber *(background refresh overwrote a cached Green)* |
+
+`web.archive.org` was returning **60s+ timeouts** at the time against an **8s** collector budget (`WAYBACK_TIMEOUT_MS`), and crt.sh was returning 502 — so `first_cert_date` failed on all three as well.
+
+**Two separate problems, and they must not be conflated.**
+
+1. **Transient:** archive.org was badly degraded that day. It will recover.
+2. **Structural, and ours:** *before* Lithium, registration age could carry Green when Wayback failed. That route was **unsound** and removing it was correct — but removing it also removed the redundancy, and nothing replaced it. **A correctness fix concentrated all of Green's evidence in the single slowest, least reliable third party we query.**
+
+**The corpus could not have caught this.** `corpus-verdicts.ts` replays observations recorded by a *patient 45-second* qualifier (Story 18.2 measured archive.org at ~38s/request). Every corpus domain therefore has a successful Wayback observation, and the delta gate has never once seen the live 8-second budget fail. **This is §5.1 firing on the sharpest possible example: the corpus spans verdicts, not failure modes — and this failure mode is the modal one in production.**
+
+**Do not "fix" this by raising the timeout alone.** That trades a wrong verdict for a slow page and still fails whenever archive.org is down. The real options are a decision, not a tweak:
+
+- a **second establishment instrument** (certificates could corroborate *and* substitute, if crt.sh were reliable — see C1),
+- treating an unavailable archive as **§3.2's no-verdict outcome** rather than Amber (B5's fix, which this makes urgent rather than tidy),
+- caching CDX responses far more aggressively than the current 1-day TTL, since archive history changes slowly.
+
+**Related:** this is also what makes B5 user-visible rather than theoretical. Every one of those three reports is an Amber whose findings list reads *"none worth a closer look."*
 
 ### B7. The layout still argues where the prose no longer does
 Everything in `positive[]` publishes under a **Positive** badge, so a capture count there asserts that heavy crawling is reassuring — **exactly what §3.4.3 denies.** This is §3.4.5 surviving in the layout after being removed from the wording.
