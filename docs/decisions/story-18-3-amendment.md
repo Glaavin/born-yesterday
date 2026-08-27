@@ -522,6 +522,18 @@ This is structural, not an oversight. A domain whose DNS reliably fails is not s
 
 Recorded here so Stage 3 has a **written source** rather than a restated one. Each constant is classified by whether it is sound, and if so, on what basis its value rests.
 
+> **EXTENDED POST-STAGE-3 — a fourth basis: BOUNDED.**
+>
+> Three categories were not enough. Stage 3 found that `ESTABLISHED_ARCHIVE_SPAN_DAYS` sits in a **358-day gap** in the corpus, and that *every value inside that gap produces identical output across all 49 domains*. Calling that **MEASURED** is generous: the data constrains the value to a range and says nothing about where in the range it belongs. 913 versus 1000 is a choice the corpus does not make.
+>
+> **BOUNDED — the data constrains the value to a range but cannot locate it within that range. The bound is measured; the point inside it is chosen.**
+>
+> **The general principle: every measured threshold sits in a gap; what matters is the gap's width.** A narrow gap means the point barely matters and MEASURED is honest. A wide one means the point is a judgment wearing a measurement's label.
+>
+> BOUNDED is more honest than MEASURED and more informative than REASONED, and it tells a future calibration pass **exactly what more data would buy: a narrower interval, not a better point.**
+>
+> `ESTABLISHED_ARCHIVE_SPAN_DAYS` is **BOUNDED**, not Measured. Its row below is corrected accordingly.
+
 **Sound — calibrate in Part A**
 
 | Constant | Basis | Note |
@@ -531,7 +543,7 @@ Recorded here so Stage 3 has a **written source** rather than a restated one. Ea
 | `PIVOT_RECENT_DAYS` | **Reasoned** | The corpus shows *when* companies pivoted (median 2.4 years), not *when a pivot becomes notable*. Different questions; the first does not imply the second. More data will not settle it. |
 | Accumulation ratio + both floors | **Reasoned, synthetic-only** | Zero real triggering cases. Set against synthetic fixtures, following the Story 18.2 precedent. |
 | `PIVOT_ESTABLISHED_DAYS` | **Reasoned** | **ADDED POST-STAGE-3A.** Split out of `ESTABLISHED_DOMAIN_DAYS` in Stage 2, so the table above classified only its retired parent — and classified it *unsound*. **The demotion does not carry over, because the two ask opposite questions of the same field.** `ESTABLISHED_DOMAIN_DAYS` used registration age as a **lower** bound on operating history — *"this domain is old, therefore established"* — invalid per §3.4.1. `PIVOT_ESTABLISHED_DAYS` asks whether the domain is old enough that recent AI language is notable: if registration was fifteen years ago then whoever holds it now, **the domain predates the AI era.** That is an **upper**-bound use, and sound. *Same field, same value, opposite validity.* Reasoned rather than measured because *"old enough that a pivot is notable"* is a judgment about salience, which the corpus cannot settle. |
-| `ESTABLISHED_ARCHIVE_SPAN_DAYS` | **Measured** | **ADDED POST-STAGE-3A.** **This constant replaces all three of the unsound routes listed below** — it is the successor entry, not a fourth peer. Archive span is a time measure taken directly from `wayback_first`, and the corpus carries a first-capture date for every domain whose Wayback check completed, so the data can genuinely move it. See §3.4.6 for why span and not count, and §3.4.8 for what span still cannot see. |
+| `ESTABLISHED_ARCHIVE_SPAN_DAYS` | **BOUNDED** *(was Measured; corrected post-Stage-3)* | **ADDED POST-STAGE-3A.** **This constant replaces all three of the unsound routes listed below** — it is the successor entry, not a fourth peer. Archive span is a time measure taken directly from `wayback_first`, and the corpus carries a first-capture date for every domain whose Wayback check completed, so the data can genuinely move it. See §3.4.6 for why span and not count, and §3.4.8 for what span still cannot see. |
 
 **Unsound — do not calibrate, replace.** All three were replaced by `ESTABLISHED_ARCHIVE_SPAN_DAYS` in Stage 3a; this table is the succession record, not a live inventory.
 
@@ -664,7 +676,9 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
 | 18.3.27 | Registration-date clamp **declined**; the report will over-vouch for re-registered domains, knowingly | **OWNER RULING** (2026-08-26) — §3.4.8 |
 | 18.3.28 | Unestablished-because-unchecked degrades to Amber with no main reason until §3.2 ships | **INTERIM STATE** — §3.4.9 |
 | 18.3.29 | No corpus domain carries certificate data; §3.4's certificate work is unexercised | **COVERAGE GAP** — §5.3 |
-| 18.3.30 | `ESTABLISHED_ARCHIVE_SPAN_DAYS` = **913** (~2.5y). The corpus measures a 358-day interval and cannot discriminate the point inside it; 913 is mid-gap | **MEASURED** (interval) + reasoned (point) — Stage 3 |
+| 18.3.30 | `ESTABLISHED_ARCHIVE_SPAN_DAYS` = **913** (~2.5y). The corpus measures a 358-day interval and cannot discriminate the point inside it; 913 is mid-gap | **BOUNDED** — Stage 3 |
+| 18.3.37 | Fourth basis category **BOUNDED**: the data constrains the value to a range but cannot locate it within it. Every measured threshold sits in a gap; what matters is the gap's width | **CLASSIFICATION** — post-Stage-3 |
+| 18.3.38 | The corpus delta gate diffs **reasons**, not just states. A state-only diff reports success on a story that changed only reasoning | **CONVENTION** — `docs/conventions.md`, post-Stage-3 |
 | 18.3.31 | `YOUNG_DOMAIN_DAYS` confirmed at **180**. Never touches Green; moves domains only between Blue and Amber. Tightening would dress insufficiency as concern | **OWNER RULING** (2026-08-26) — posture, not measurement |
 | 18.3.32 | `PIVOT_RECENT_DAYS` left at **365** knowing it produces two false Ambers; no value improves them | **OWNER RULING** (2026-08-26) — §2.7 |
 | 18.3.33 | The pivot alone denies Green and publishes as the sole finding. §2.1's false-Red licence missed the false-Amber harm | **DEFECT** — §2.7, second constituency for §2.4 |

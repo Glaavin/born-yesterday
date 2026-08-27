@@ -42,6 +42,11 @@ export interface Indicator {
    also checkable: the corpus is in the repo.
 
      MEASURED     the data can move it; more data gives a better answer
+     BOUNDED      the data constrains the value to a RANGE but cannot locate it
+                  within that range. The bound is measured; the point inside it
+                  is chosen. Every measured threshold sits in a gap — what
+                  matters is the gap's WIDTH. More data buys a narrower
+                  interval, not a better point.
      REASONED     a judgment the data informs but cannot settle
      DEFINITIONAL a choice about the product's posture, not a measurement
 
@@ -155,8 +160,10 @@ export const REGISTRATION_NOTE_MIN_AGE_DAYS = 365;
  * established. A SPAN is a time measure; the retired capture count was a measure
  * of crawler attention (§3.4.3) — `bolt.new` is ~2 years old with 449 captures.
  *
- * BASIS: MEASURED (§5.2). Taken from `wayback_first`, which the corpus carries
- * for all 42 domains whose Wayback check completed.
+ * BASIS: BOUNDED (§5.2). Taken from `wayback_first`, which the corpus carries
+ * for all 42 domains whose Wayback check completed — but the corpus fixes the
+ * INTERVAL and not the point, which is what BOUNDED names and why "Measured"
+ * would have overclaimed on a label the methodology page publishes.
  *
  * This is a NECESSITY claim — how little span is too little to establish
  * anything — and is NOT the decade rule, which is a SUFFICIENCY claim about
