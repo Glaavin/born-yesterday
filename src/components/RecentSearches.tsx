@@ -14,7 +14,7 @@ export default function RecentSearches({
   if (!items.length) return null;
   return (
     <section className="w-full max-w-2xl" aria-labelledby="recent-heading">
-      <h2 id="recent-heading" className="mb-2 text-center text-base text-label-teal">
+      <h2 id="recent-heading" className="mb-2 text-center text-base text-label-accent">
         Recently checked
       </h2>
       <ul className="flex flex-col gap-1.5">
@@ -23,7 +23,7 @@ export default function RecentSearches({
             key={`${r.domain}:${r.generatedAt}`}
             className="flex items-center justify-between gap-3 rounded-md border border-ink-muted/20 px-3 py-2 text-base"
           >
-            <Link href={`/r/${encodeURIComponent(r.domain)}`} className="truncate text-ink hover:text-accent-gold">
+            <Link href={`/r/${encodeURIComponent(r.domain)}`} className="truncate text-ink hover:text-accent-primary">
               {r.domain}
             </Link>
             <span

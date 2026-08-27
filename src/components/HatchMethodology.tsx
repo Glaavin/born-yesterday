@@ -17,7 +17,7 @@ export default function HatchMethodology({ count }: { count: number }) {
     <div className="flex w-full flex-col items-center gap-8">
       <p className="text-center text-base text-ink">
         Something&rsquo;s hatching!{" "}
-        <span className="font-semibold text-accent-gold">
+        <span className="font-semibold text-accent-primary">
           {count.toLocaleString()}
         </span>{" "}
         reports hatched so far.{" "}
@@ -26,7 +26,7 @@ export default function HatchMethodology({ count }: { count: number }) {
           onClick={() => setOpen((o) => !o)}
           aria-expanded={open}
           aria-controls="methodology-panel"
-          className="font-semibold text-accent-gold underline hover:no-underline"
+          className="font-semibold text-accent-primary underline hover:no-underline"
         >
           View Our Report Methodology
         </button>

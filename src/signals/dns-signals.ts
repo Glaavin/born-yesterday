@@ -1,5 +1,5 @@
 import type { Fetcher } from "../lib/cached-fetch";
-import type { CollectorResult, Signal, SignalSource } from "./types";
+import type { CollectorResult, Signal, SignalSource, SignalStatus } from "./types";
 import { fetchDoh, parseAnswers } from "./doh";
 import { findSpf, findDmarc, hostingFromPtr, reverseName } from "./dns";
 
@@ -23,39 +23,54 @@ const dnsSource = (name: string, type: string): SignalSource => ({
   url: `https://dns.google/query?name=${encodeURIComponent(name)}&type=${type}`,
 });
 
+/**
+ * One DoH lookup. Returns the answers AND whether the query completed —
+ * an empty array from a completed query ("no such record") is a FINDING,
+ * while an empty array from a failed query is not (Story 18.3 §1.1).
+ */
 const answers = async (
   name: string,
   type: string,
   fetcher: Fetcher,
-): Promise<string[]> => {
+): Promise<{ ok: boolean; values: string[] }> => {
   const r = await fetchDoh(name, type, fetcher);
-  return r.ok && r.json ? parseAnswers(r.json, type) : [];
+  if (!r.ok || !r.json) return { ok: false, values: [] };
+  // `ok` tracks the PARSE, not the fetch: a 200 carrying a malformed body is a
+  // failed observation, not "no such record" (docs/conventions.md).
+  const values = parseAnswers(r.json, type);
+  return values ? { ok: true, values } : { ok: false, values: [] };
 };
 
 export async function collectDns(domain: string, deps: DnsDeps): Promise<CollectorResult> {
   const dmarcName = `_dmarc.${domain}`;
 
   // Independent lookups in parallel.
-  const [txt, dmarcTxt, aIps, mxRaw] = await Promise.all([
+  const [txtQ, dmarcQ, aQ, mxQ] = await Promise.all([
     answers(domain, "TXT", deps.fetcher),
     answers(dmarcName, "TXT", deps.fetcher),
     answers(domain, "A", deps.fetcher),
     answers(domain, "MX", deps.fetcher),
   ]);
 
-  const spf = findSpf(txt);
-  const dmarc = findDmarc(dmarcTxt);
+  const st = (q: { ok: boolean }): SignalStatus => (q.ok ? "ok" : "failed");
+  const aIps = aQ.values;
+  const spf = findSpf(txtQ.values);
+  const dmarc = findDmarc(dmarcQ.values);
   // MX data is "<priority> <host>." → keep the host, drop the trailing dot.
-  const mxHosts = mxRaw
+  const mxHosts = mxQ.values
     .map((m) => m.split(/\s+/).pop()?.replace(/\.$/, "") ?? "")
     .filter(Boolean);
 
   // Reverse DNS on the first A IP → hosting provider (best-effort).
   let hosting: string | null = null;
+  // No A record to reverse ⇒ the PTR lookup is NOT ATTEMPTED, which is distinct
+  // from attempting it and finding no hostname.
+  let hostingStatus: SignalStatus = "not_attempted";
   const rev = aIps.length ? reverseName(aIps[0]) : null;
   if (rev) {
-    const ptr = await answers(rev, "PTR", deps.fetcher);
-    hosting = hostingFromPtr(ptr[0] ?? null);
+    const ptrQ = await answers(rev, "PTR", deps.fetcher);
+    hostingStatus = st(ptrQ);
+    hosting = hostingFromPtr(ptrQ.values[0] ?? null);
   }
 
   // Resolved = we got DNS answers for A or any query.
@@ -68,35 +83,42 @@ export async function collectDns(domain: string, deps: DnsDeps): Promise<Collect
       label: "SPF record",
       valueText: spf,
       valueNum: null,
-      source: spf ? dnsSource(domain, "TXT") : null,
+      // A completed lookup cites the query even when no record exists —
+      // "we asked, and there is none" is a sourced finding.
+      source: txtQ.ok ? dnsSource(domain, "TXT") : null,
+      status: st(txtQ),
     },
     {
       key: "dns_dmarc",
       label: "DMARC record",
       valueText: dmarc,
       valueNum: null,
-      source: dmarc ? dnsSource(dmarcName, "TXT") : null,
+      source: dmarcQ.ok ? dnsSource(dmarcName, "TXT") : null,
+      status: st(dmarcQ),
     },
     {
       key: "dns_a",
       label: "A records",
       valueText: aIps.length ? aIps.join(", ") : null,
       valueNum: aIps.length || null,
-      source: aIps.length ? dnsSource(domain, "A") : null,
+      source: aQ.ok ? dnsSource(domain, "A") : null,
+      status: st(aQ),
     },
     {
       key: "dns_mx",
       label: "MX records",
       valueText: mxHosts.length ? mxHosts.join(", ") : null,
       valueNum: null,
-      source: mxHosts.length ? dnsSource(domain, "MX") : null,
+      source: mxQ.ok ? dnsSource(domain, "MX") : null,
+      status: st(mxQ),
     },
     {
       key: "hosting_provider",
       label: "Hosting provider",
       valueText: hosting,
       valueNum: null,
-      source: hosting && rev ? dnsSource(rev, "PTR") : null,
+      source: hostingStatus === "ok" && rev ? dnsSource(rev, "PTR") : null,
+      status: hostingStatus,
     },
   ];
 

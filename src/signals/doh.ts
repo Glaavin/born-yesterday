@@ -50,13 +50,16 @@ function cleanTxt(data: string): string {
 
 /**
  * PURE: read the DoH `{ Status, Answer:[{type,data}] }` shape and return the
- * `data` values for the requested record type. []/empty on NXDOMAIN/empty/
- * malformed; never throws. (Non-TXT values are returned as-is, trimmed.)
+ * `data` values for the requested record type. `[]` means the response parsed
+ * and held no matching records (NXDOMAIN/empty) — a finding. **null means the
+ * payload was unparseable**, which is NOT the same as "no records"
+ * (docs/conventions.md). Never throws. (Non-TXT values are returned as-is.)
  */
-export function parseAnswers(json: string, type: string): string[] {
+export function parseAnswers(json: string, type: string): string[] | null {
   try {
     const o = JSON.parse(json) as { Answer?: Array<{ type?: number; data?: unknown }> };
-    if (!o || !Array.isArray(o.Answer)) return [];
+    if (!o || typeof o !== "object") return null; // not a DoH payload
+    if (!Array.isArray(o.Answer)) return []; // parsed: no Answer section = no records
     const want = TYPE_NUM[type];
     const out: string[] = [];
     for (const a of o.Answer) {
@@ -66,6 +69,6 @@ export function parseAnswers(json: string, type: string): string[] {
     }
     return out;
   } catch {
-    return [];
+    return null; // unparseable — NOT "no records"
   }
 }

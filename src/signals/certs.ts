@@ -23,20 +23,26 @@ export async function collectCerts(
   const tls: SignalSource = { label: "Live TLS handshake", url: `https://${domain}` };
 
   // crt.sh — first-ever cert.
+  let crtshOk = false;
   let firstCertIso: string | null = null;
   let certCount: number | null = null;
   try {
     const r = await fetchCrtsh(domain, deps.fetcher);
     if (r.ok && r.json) {
       const p = parseCrtsh(r.json);
-      firstCertIso = p.firstCertDate;
-      certCount = p.certCount;
+      // Status from the PARSE, not the fetch (docs/conventions.md).
+      if (p) {
+        crtshOk = true;
+        firstCertIso = p.firstCertDate;
+        certCount = p.certCount;
+      }
     }
   } catch {
     // non-throwing contract
   }
 
   // Live TLS handshake — current cert (SSRF-checked + IP-pinned inside fetchTls).
+  let tlsOk = false;
   let issuer: string | null = null;
   let validTo: string | null = null;
   let sslO: string | null = null;
@@ -44,6 +50,7 @@ export async function collectCerts(
   try {
     const t = await fetchTls(domain, deps);
     if (t.ok) {
+      tlsOk = true;
       const c = parseTlsCert(t.cert);
       issuer = c.issuer;
       validTo = c.validTo;
@@ -65,42 +72,52 @@ export async function collectCerts(
       label: "First certificate seen",
       valueText: firstCertIso,
       valueNum: firstCertSec,
-      source: firstCertIso ? crtsh : null,
+      // A CT log we queried and that held nothing cites the query; an
+      // unreachable log (crt.sh 5xx, routinely) cites nothing.
+      source: crtshOk ? crtsh : null,
+      status: crtshOk ? "ok" : "failed",
     },
     {
       key: "cert_count",
       label: "Certificates on record",
       valueText: null,
       valueNum: certCount,
-      source: certCount != null ? crtsh : null,
+      source: crtshOk ? crtsh : null,
+      status: crtshOk ? "ok" : "failed",
     },
     {
       key: "tls_issuer",
       label: "Current certificate issuer",
       valueText: issuer,
       valueNum: null,
-      source: issuer ? tls : null,
+      source: tlsOk ? tls : null,
+      status: tlsOk ? "ok" : "failed",
     },
     {
       key: "tls_valid_to",
       label: "Certificate expires",
       valueText: validTo,
       valueNum: null,
-      source: validTo ? tls : null,
+      source: tlsOk ? tls : null,
+      status: tlsOk ? "ok" : "failed",
     },
     {
       key: "ssl_org",
       label: "Certificate organization",
       valueText: sslO,
       valueNum: null,
-      source: sslO ? tls : null,
+      // A handshake that succeeded and returned a cert with no O field is a
+      // finding about the certificate, not a failed check.
+      source: tlsOk ? tls : null,
+      status: tlsOk ? "ok" : "failed",
     },
     {
       key: "ssl_ou",
       label: "Certificate org. unit",
       valueText: sslOU,
       valueNum: null,
-      source: sslOU ? tls : null,
+      source: tlsOk ? tls : null,
+      status: tlsOk ? "ok" : "failed",
     },
   ];
 

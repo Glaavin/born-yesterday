@@ -43,10 +43,16 @@ describe("parseAnswers (pure)", () => {
   it("filters by requested type", () => {
     expect(parseAnswers(TXT_SPF, "A")).toEqual([]); // TXT answers, asked for A
   });
-  it("returns [] for NXDOMAIN / empty / malformed", () => {
+  it("PARSED-but-empty returns [] — 'no such record' is a finding", () => {
     expect(parseAnswers(NXDOMAIN, "A")).toEqual([]);
     expect(parseAnswers(doh([]), "A")).toEqual([]);
-    expect(parseAnswers("{ not json", "A")).toEqual([]);
+  });
+
+  it("UNPARSEABLE returns null, never [] (docs/conventions.md)", () => {
+    // The old contract returned [] here, so a malformed DoH body published as
+    // "SPF/DMARC absent, checked" — feeding the concern point and the Green gate.
+    expect(parseAnswers("{ not json", "A")).toBeNull();
+    expect(parseAnswers('"a string"', "A")).toBeNull();
   });
 });
 
@@ -77,6 +83,21 @@ describe("collectDns", () => {
       const body = map[opts.key] ?? NXDOMAIN;
       return { ok: true, status: 200, body, fromCache: false };
     });
+
+  it("HTTP 200 with a MALFORMED DoH body is 'failed', never 'record absent'", async () => {
+    // Verdict-bearing: the old contract published this as "SPF/DMARC absent,
+    // checked", which feeds the concern point and the Green gate.
+    const fetcher = vi.fn<Fetcher>(async (): Promise<FetchResult> => ({
+      ok: true, status: 200, body: "{ not json", fromCache: false,
+    }));
+    const r = await collectDns("x.com", { fetcher } as DnsDeps);
+    for (const key of ["dns_spf", "dns_dmarc", "dns_a", "dns_mx"]) {
+      const sig = r.signals.find((s) => s.key === key)!;
+      expect(sig.status).toBe("failed");
+      expect(sig.valueText).toBeNull();
+      expect(sig.source).toBeNull();
+    }
+  });
 
   it("emits all five signals when SPF/DMARC/A/MX/PTR are present", async () => {
     const deps: DnsDeps = {
@@ -121,14 +142,37 @@ describe("collectDns", () => {
     expect(by.dns_a.valueNum).toBe(2);
   });
 
-  it("NXDOMAIN → ok:false with all-null values, no throw", async () => {
+  it("NXDOMAIN → ok:false, all-null values, but the queries RAN (checked-empty is a finding)", async () => {
     const deps: DnsDeps = { fetcher: makeFetcher({}) }; // everything NXDOMAIN
 
     const r = await collectDns("nope.invalid", deps);
-    expect(r.ok).toBe(false);
+    expect(r.ok).toBe(false); // nothing useful resolved
     for (const s of r.signals) {
       expect(s.valueText).toBeNull();
-      expect(s.source).toBeNull();
+    }
+    // A resolver that answers "no such name" has COMPLETED the check. Story 18.3
+    // §1.1: that is a finding, so it cites the query we ran — distinct from a
+    // lookup that never completed, which cites nothing.
+    const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
+    expect(by.dns_spf.status).toBe("ok");
+    expect(by.dns_spf.source).not.toBeNull();
+    expect(by.dns_dmarc.status).toBe("ok");
+    // No A record ⇒ the reverse lookup was never attempted, which is a third
+    // outcome again — neither a finding nor a failure.
+    expect(by.hosting_provider.status).toBe("not_attempted");
+    expect(by.hosting_provider.source).toBeNull();
+  });
+
+  it("a FAILED lookup carries no source and is not a finding", async () => {
+    // fetcher rejects ⇒ fetchDoh returns !ok ⇒ the query did not complete
+    const deps: DnsDeps = { fetcher: (async () => ({ ok: false, error: "network" })) as DnsDeps["fetcher"] };
+
+    const r = await collectDns("example.com", deps);
+    const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
+    for (const key of ["dns_spf", "dns_dmarc", "dns_a", "dns_mx"]) {
+      expect(by[key].status).toBe("failed");
+      expect(by[key].source).toBeNull();
+      expect(by[key].valueText).toBeNull();
     }
   });
 });

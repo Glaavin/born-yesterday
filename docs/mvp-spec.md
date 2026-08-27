@@ -6,10 +6,15 @@
 **Companions:** `docs/PRODUCT.md` (strategy source of truth), `docs/design-system.md` (visual system)
 **Live placeholder:** https://bornyesterday.tech/
 
-> Reconciliation note (this version): updated to align with PRODUCT.md v1.2 and the Sprint 1.2
+> Reconciliation note (this version): updated to align with PRODUCT.md v1.3 and the shipped
 > design system. The technical core (architecture, data model, signal collection, caching) is
 > carried forward intact. Product-surface and framing sections were revised. All prior open items
 > are now resolved (see §11); genuinely deferred items live in PRODUCT.md §16.
+>
+> Story 18.1 reconciliation (2026-08-12): §2E rewritten to the rule-based Story 18 model (the
+> point-based draft is retired); §2C reputation moved to link-outs with neutral search terms;
+> §2D tech-stack fingerprint reassigned to the Profile Section; analytics, the four-state naming,
+> the corrections-SLA basis, the dropped B2B API, and sprint→epic references all corrected.
 
 ---
 
@@ -36,7 +41,7 @@ The voice is split by surface (see `design-system.md` §1):
 2. Tech journalists and researchers sanity-checking companies.
 3. Curious consumers reacting to hyped AI ads.
 
-Procurement / B2B buyers are a Year-2 audience (the B2B API). Do not build for them yet.
+Procurement / B2B buyers are **out of scope** — the previously-planned Year-2 B2B API was **dropped** (see PRODUCT.md §6; per the legal summary §4 — owner-held, not in repo). Do not build for them.
 
 ### What success looks like at launch
 
@@ -85,12 +90,16 @@ Principle: we count, we don't judge. Surface public mentions and link out.
 
 | Signal | Source | Notes |
 |---|---|---|
-| Trustpilot presence | Scrape public Trustpilot search page | Rating + review count if present, link out |
-| BBB presence | Scrape BBB search | Rating + link if present |
+| Trustpilot presence | Link-out to the public Trustpilot page | **Link only, not scraped.** Demoted from a scrape on ToS grounds (legal risk register L-14 — owner-held, not in repo). |
+| BBB presence | Link-out to BBB search | **Link only, not scraped** (demoted earlier on accuracy grounds). |
 | PhishTank listing | PhishTank free feed | Binary: listed / not listed |
 | URLhaus listing | URLhaus free API | Binary: listed / not listed |
-| "[name] scam" / "[name] review" | Link-out to search; do not scrape SERPs | Links, not displayed counts |
+| Web reviews / complaints | Link-out to search; never scrape SERPs | **Neutral query terms only** ("reviews", "complaints"). Characterizing words ("scam", "fraud", "ripoff", "lawsuit", …) are **never** appended (legal risk register L-10 — owner-held, not in repo). |
 | Reddit search link | Link-out to `reddit.com/search?q=<domain>` | |
+
+> **Change from the prior version (do not lose the history):** Trustpilot was previously specced as a *scrape*, and the web-search link-out previously appended the word **"scam"** to every company. Both were wrong and are superseded — Trustpilot and BBB are now link-outs, and the search link-outs use neutral terms only (L-14, L-10). Of the reputation sources, only PhishTank/URLhaus (and the live homepage, §2B) are fetched.
+>
+> Implementation note: the **L-10** neutral-terms fix has shipped in `src/signals/reputation-links.ts`. The **L-14** Trustpilot demotion is decided here but **not yet in the code** — `src/signals/reputation.ts` still scrapes Trustpilot best-effort. That code demotion is a tracked follow-up (see `docs/ops-tasks.md`), not a change made by this docs pass.
 
 ### Section D — Ownership & Stack
 
@@ -98,7 +107,9 @@ Principle: we count, we don't judge. Surface public mentions and link out.
 |---|---|---|
 | Organization on SSL cert | TLS cert OU/O fields | Often reveals parent company |
 | WHOIS registrant org (where not privacy-protected) | RDAP / WHOIS | |
-| Tech stack fingerprint | Open-source Wappalyzer-style detection | "Powered by Vercel, uses Stripe, Intercom" — useful color |
+| ~~Tech stack fingerprint~~ | *Reassigned — see note* | Moved out of the Trust Report proper into the Profile Section (non-scoring) |
+
+> **Tech-stack fingerprint — reassigned, not dropped (Story 18).** It is **not** built into the Trust Report. It survives as scan **A5 ("Technology and services in use")** in the proposed **Profile Section** — a non-scoring block that **does not feed the Skepticism Indicator** (the Profile firewall; decision doc §4) — pending that epic. **Build constraint carried with it:** the fingerprint list must be **hand-rolled**. Wappalyzer's detection database moved to a proprietary licence in 2023 and **must not be vendored**; that constraint is precisely why this entry is kept rather than deleted — whoever builds it later needs to know not to reach for the obvious library.
 
 ### Section E — The Skepticism Indicator
 
@@ -112,13 +123,80 @@ A single categorical indicator, **not a score** (see PRODUCT.md §3, design-syst
 
 The indicator's visual expression is the **mascot** (wordless), with a worded pill on the report card stating the result in text so meaning never rests on color alone. The amber state carries the overall *moderate* verdict; this is distinct from the inline pink-flagged / cyan-positive highlights in the report body, which mark which specific data points are concerning or reassuring.
 
-**Rubric — DRAFT, finalized in Sprint 1.7.** The point-based draft below is a starting input only. The required change from the prior version: it must resolve to the **four states above**. The old four *severity* bands (green/yellow/orange/red) are retired — yellow and orange collapse into a single **amber**, and **blue** is added as an orthogonal "can't assess." In particular:
-- **blue ("too new to tell")** fires on *thin* signals — very young domain, few/no Wayback snapshots, no reputation presence, not listed anywhere. Insufficiency, not suspicion.
-- **green ("checks out")** is established + clean.
-- **amber ("some concerns")** is the middle — some flags present but not damning.
-- **red ("red flags found")** fires on *material* concerns — PhishTank/URLhaus listing, the classic pivot (established domain + very recent AI-language onset), or accumulated skeptic-flags past a threshold.
+**Rubric — rule-based (Story 18).** The indicator is a **rule-based** model, *not* a numeric score: the verdict is a transparent function of a small set of enumerated, linked, sourced facts. This **supersedes the point-based draft that previously lived here** — that draft (green/yellow/orange/red severity bands with per-signal weights TBD) is **retired, and a future reader should not implement it.** The authority is [`docs/decisions/story-18-indicator-model.md`](decisions/story-18-indicator-model.md); the summary below is a pointer, not a substitute.
 
-Draft signals (weights TBD in 1.7): domain age bands; AI-language-age-vs-domain-age pivot; PhishTank/URLhaus listing; missing SPF/DMARC; WHOIS privacy on a young domain; long-lived first SSL cert (mitigating); strong Trustpilot presence (mitigating). Always show which signals contributed, with links. The indicator is a summary of facts, not a verdict.
+The four states are **three rule shapes plus a residual**, not a severity ladder:
+- **Red — "Red flags found"** — **disjunctive** over a short enumerated list: any single material trigger fires it. Triggers: a threat-feed listing (PhishTank/URLhaus); or **accumulation** — a proportion of findings across successfully-checked signals. Accumulation is a *peer* trigger, not a lesser one, because the count is itself one nameable, linkable fact. **The AI pivot is no longer a trigger of any kind** — see below.
+- **Blue — "Too new to tell"** — a **conjunction of absences**: insufficient footprint to assess. Insufficiency, not suspicion.
+- **Green — "Checks out"** — **conjunctive**, requires *positive* establishment evidence, never merely the absence of red flags.
+- **Amber — "Some concerns"** — the **residual**: some findings, none individually damning; the default when no other state claims the domain.
+
+**The AI pivot is an OBSERVATION, not a concern (owner ruling, 2026-08-26).** It is collected in full and published in full — the registration date, the date AI language first appears in sampled captures, the matched phrase and the Wayback links all reach the reader. What it no longer does is **contribute a concern, deny Green, or publish under an adverse heading.** We hand over the facts and let the reader infer.
+
+*Why:* the signal cannot separate **"added AI features"** — which nearly every software company did — from **"pivoted to AI,"** a company repositioning around a capability it did not have. In archived page text those are identical. The corpus makes this concrete rather than theoretical: **its own hand-picked exemplar of a classic pivot does not fire at any defensible threshold, and at the threshold that would fire it, that exemplar is arguably a false positive too.** The distinguishing evidence is *substantiation* — did the capability actually appear — which is specified in `story-18-3-amendment.md` §2.4 and is not built.
+
+*This is a temporary disablement of a headline feature, accepted explicitly.* **What reverses it is substantiation shipping, not a better threshold.** Tightening the recency window would reduce false positives by firing less, which looks like improvement and is the signal doing less.
+
+*Consequence for Red:* with the pivot demoted, the concern pool has **one** member, so accumulation — which requires at least two findings — is **strictly unreachable today**, not merely rare. The rule and its thresholds are retained deliberately, because the signal set is expected to grow. **Stated here rather than hidden, because a published rubric that describes an unreachable route is not a publishable rubric.**
+
+**Blue's conditions (Story 19 Stage 2).** Blue's evidence is **domain age and archive depth**, both from checks that completed. Reputation presence was **removed** from the conjunction: most legitimate businesses have no Trustpilot page, so its absence is near-zero evidence of footprint, and the check is the least reliable one we run — gating the modal verdict on it made Blue unreachable whenever Trustpilot blocked us. The check still runs and still publishes; it no longer gates.
+
+**Precedence: Red → Blue → Green → Amber**, in that order, Amber as catch-all. Material concern survives establishment evidence (Red beats Green — a live listing is not laundered by age); a clean bill cannot be certified on a thin footprint (Blue before Green). On a domain that is both thin *and* mildly flagged, **Blue wins** — soft flags on a thin evidence base do not carry Amber's weight.
+
+Two cross-cutting rules: **caveats are orthogonal to state** — a `kind: "caveat"` note (e.g. "threat feed unreachable at check time") qualifies but never changes the verdict; and a **degraded/unperformed signal blocks Green without forcing Amber** — an unperformed check is not a finding, so the domain falls through to Blue/Amber on the strength of everything else, with a caveat disclosing the gap.
+
+**Green's conditions, stated (Story 19 Stage 2).** Recorded because Story 18.3 §3.3 found this gate lived only in code — a rubric that is not written down is not publishable. Green requires **all** of:
+
+1. **Positive establishment — archive SPAN.** *(Replaced the three former routes; see [`docs/decisions/story-18-3-amendment.md`](decisions/story-18-3-amendment.md) §3.4.)* The domain's Wayback record must reach back at least the established-span threshold. **Span, not count:** capture frequency is driven by crawler attention, so a count rewards popularity rather than durability — `bolt.new` is ~2 years old with 449 captures. The three retired routes and why:
+
+   | Retired route | Why |
+   |---|---|
+   | Registration age | A valid *upper* bound on operating history and an invalid *lower* one (§3.4.1). It survives only in the young-domain rule, which uses it in the sound direction. |
+   | Archive capture count | Measures crawler attention, not durability (§3.4.3). |
+   | First certificate | Certificate Transparency only became comprehensive in 2018, so it cannot span the window (§3.4.4). **Demoted to corroborating evidence, capped.** |
+
+   **What we assert, and what we do not.** We publish the fact — *"Archived since 2009"* — and never the inference *"this company has operated since 2009."* The first is true of a recycled domain; the second is not.
+
+   **Two known gaps, disclosed rather than hidden.** *Continuity* (captures across most of the intervening years, tolerant of gaps) and *operator continuity* (whether the site changed hands) are **not built** — both are post-MVP, and both are what would justify the inference above. Until they exist, every report carrying a long archive span also carries a caveat saying the history describes the domain name rather than whoever runs it now. **Span alone is the available fix, not the correct one.**
+
+   **Registration date is still published** — as a neutral, dated, sourced observation that states plainly what it does *not* mean. Demoted from evidence to fact, not deleted.
+
+   **Cert-derived ages are capped.** A first-certificate date earlier than **30 April 2018** — the date after which Chrome required CT logging; earlier certificates were grandfathered and logged only voluntarily — is not a measurement, because *"the first certificate was 2012"* and *"the first **logged** certificate was 2012"* are indistinguishable in the record. Such a date is published as a floor (*"over 10 years"*), labelled as one, and capped at a decade. Capping is not rounding a number we have; it is declining to report one we do not.
+2. **SPF present.** A completed DNS check that finds no SPF record blocks Green. **DMARC absence does NOT block Green** — finding F2 measured ~24% of established organisations without DMARC, so requiring it measured adoption lag rather than risk. A completed check that finds no DMARC is **disclosed as a caveat**, not flagged as a concern.
+3. **No concern points.**
+
+A check that did **not complete** can never satisfy any of these. Per Story 18 §3.5 it therefore **blocks** Green — not because the gap is a concern (it raises none), but because Green requires positive evidence and a check that produced none cannot supply it. The gap is disclosed as a caveat.
+
+### The thresholds, with their bases (Story 19 Stage 3)
+
+**No weights** — the model is not weighted. Every number below is a **threshold**, and every one ships with the basis of its value, per `story-18-3-amendment.md` §5.2. That labelling is not decoration: publishing *"calibrated against a reference corpus"* over a judgment call would be **L-01 pointed at our own method**, asserting more than we checked about ourselves — and it is checkable, because the corpus is in the repo.
+
+| Basis | Means |
+|---|---|
+| **MEASURED** | The data can move it. More data gives a better answer. |
+| **BOUNDED** | The data constrains the value to a **range** but cannot locate it within that range. The bound is measured; the point inside it is chosen. More data buys a *narrower interval*, not a better point. |
+| **REASONED** | A judgment the data informs but cannot settle. |
+| **DEFINITIONAL** | A choice about the product's posture, not a measurement. |
+
+*Every measured threshold sits in a gap; what matters is the gap's width. A narrow gap means the point barely matters and MEASURED is honest. A wide one means the point is a judgment wearing a measurement's label — that is what BOUNDED names.*
+
+| Threshold | Value | Basis | Why this value |
+|---|---|---|---|
+| `YOUNG_DOMAIN_DAYS` | **180** (6 months) | DEFINITIONAL | The point at which we would rather say *"too new to tell"* than reach a verdict we would not stand behind. Never affects Green — it moves domains only between Blue and Amber. |
+| `THIN_SNAPSHOT_COUNT` | **5** | REASONED *(measured lower bound)* | Every young domain in the corpus has three captures or fewer, so the boundary lies at four or above; five leaves a capture of margin. Any value ≥ 4 gives identical verdicts, so the choice of five over forty is meaning, not measurement. |
+| `ESTABLISHED_ARCHIVE_SPAN_DAYS` | **913** (~2.5 years) | **BOUNDED** | The corpus has one real gap — `bolt.new` at 717 days, then nothing until `v0.dev` at 1075. Every value in that gap gives identical output, so the data measures the **interval** and the point inside it is chosen: 913 is its centre. Cannot be read above ~6 years; the corpus holds nothing between 6 and 12.7 years. |
+| `PIVOT_ESTABLISHED_DAYS` | **1095** (3 years) | REASONED | Old enough that recent AI language is notable. An **upper-bound** use of registration age and therefore sound, unlike the retired establishment route that used the same field as a lower bound. Not calibrated in Stage 3. **Now gates an observation, not a verdict.** |
+| `PIVOT_RECENT_DAYS` | **365** (1 year) | REASONED | Recent enough to be worth remarking on for a domain that predates the AI era. **Now gates an observation, not a verdict** — it drives no verdict at all, so **do not retune it**: a value tuned against no active use will look calibrated and will not be. What changes it is substantiation shipping. |
+| `ACCUMULATION_RATIO` | **0.1** | REASONED *(synthetic only)* | Keeps the trigger **degradation-invariant** — two findings clear it at every denominator the corpus produces (8, 9, 11, 12), so a report that lost checks reaches the same verdict as a complete one. Above 2/12 that stops being true. |
+| `ACCUMULATION_MIN_CHECKS` | **8** | REASONED *(synthetic only)* | The smallest denominator the corpus actually produces; below it a proportion means nothing. |
+| `ACCUMULATION_MIN_FINDINGS` | **2** | REASONED *(near-definitional)* | *Accumulation* means more than one thing. A ratio alone cannot express plurality. |
+| `REGISTRATION_NOTE_MIN_AGE_DAYS` | **365** | DEFINITIONAL | Below a year the registration date says nothing the young-domain rule has not already said better. Governs what publishes, not which verdict fires. |
+| `CERT_AGE_CAP_YEARS` | **10** | *Not a threshold* | A decision that beyond a decade further precision adds nothing. |
+| `CT_INTERPRETABLE_FROM_ISO` | **2018-04-30** | *Not a threshold* | A fact about Certificate Transparency, not about us. |
+
+**All values are provisional for MVP.** They are set to be **defensible and documented, not optimal**, and will be revised against real traffic — which will teach us more than another corpus pass would.
+
+**What the corpus could not inform.** Stated because silence is not evidence: **no corpus domain carries certificate data**, so nothing certificate-related has run against a real certificate; **accumulation has zero real triggering cases** — the corpus maximum is one concern on any domain — so all three of its constants rest on synthetic fixtures; and the case that would falsify `THIN_SNAPSHOT_COUNT`'s reasoning (a heavily-crawled young domain) does not occur in the corpus.
 
 ### Section F — Disclaimer (every report, fixed copy)
 
@@ -160,7 +238,7 @@ Deliberately boring, deliberately cheap. Next.js on Vercel with serverless Postg
 | Background jobs | Vercel Cron (weekly refresh); stale-refresh via `after()` / `waitUntil` | Dedicated queue (Upstash QStash) deferred |
 | Rate limiting | DB-backed via `search_quota` (see §7a) | 3 searches/day/session; no extra service needed |
 | Email | corrections@ inbound via Cloudflare Email Routing or a mailbox provider (DNS-level, host-independent) | Outbound (later, watchlist) via Resend |
-| Analytics | **Basic at launch** (Vercel Web Analytics — privacy-friendly); advanced funnel/insights in Sprint 1.8 | No Google Analytics — wrong vibe |
+| Analytics | **Not yet implemented — deferred.** No analytics package is installed. Basic privacy-friendly analytics (candidate: Vercel Web Analytics) is planned; advanced funnel/insights later. No Google Analytics — wrong vibe. | Deferred to a later analytics story |
 | Mascot animation | Rive via `@rive-app/react-canvas` (post-MVP); static placeholder at MVP | See design-system.md §4 |
 
 **Expected fixed monthly cost: ~$20/mo (Vercel Pro — required for a commercial/ad-supported site) + low usage; still far inside the $3K/mo budget. Cloudflare would trim this toward ~$0 at MVP scale (the parked option).**
@@ -342,17 +420,17 @@ Refuse scope creep on these; surface to the owner if pressure builds:
 
 - LLM-generated narrative or summaries; the AI Pivot Timeline *as an LLM feature* (the regex version in §2B stays)
 - User accounts / passwords
-- Public B2B API; bulk lookups
+- Public B2B API; bulk lookups (the B2B API is **dropped**, not merely deferred)
 - Browser extension; embeddable badge; verified-profile / company-response feature
 - Compare-two-domains view
 - **Live ad serving** (architecture is in scope; serving is not)
 - Image/PDF share-card export (the MVP shareable report is a rich-text object; richer forms evolve later)
 - Crunchbase / LinkedIn / Harmonic integration; any paid data source
 - SEO content marketing
-- **Consumer paid tier** — dropped; the model is ad-supported + Year-2 B2B API only
+- **Consumer paid tier** — dropped. The revenue model is **ad-supported or tip-supported — currently open, leaning tip, decision pending** (see PRODUCT.md §6–§7). The previously-planned Year-2 B2B API is also **dropped**.
 - **Email watchlist** — a planned *post-MVP* retention feature (PRODUCT.md §10), not in the MVP build; the `watchlist_subscriptions` table is provisioned now but unused at MVP
 
-For the full phase/sprint roadmap, defer to **PRODUCT.md §10**. This document defines the MVP build only; its definition-of-done is: all §2 signals working end-to-end, caching (§3) live, the 3-state indicator, report permalinks rendering server-side, the rate limit, the recent-searches feed, the design system, and the disclaimer on every report.
+For the full epic roadmap, defer to **PRODUCT.md §10**. This document defines the MVP build only; its definition-of-done is: all §2 signals working end-to-end, caching (§3) live, the four-state indicator, report permalinks rendering server-side, the rate limit, the recent-searches feed, the design system, and the disclaimer on every report.
 
 ---
 
@@ -362,7 +440,7 @@ For the full phase/sprint roadmap, defer to **PRODUCT.md §10**. This document d
 - **Two correction channels** (design-system.md §3, PRODUCT.md §12):
   - "Report an issue" (global nav) → site bugs.
   - "Request a correction" (on each report, by the disclaimer) → content → **corrections@bornyesterday.tech**.
-  - SLA: **72-hour public / 48-hour internal** for content corrections.
+  - SLA: **[PENDING — basis changed; wording not yet available].** The prior flat "72-hour public / 48-hour internal" promise is **superseded**. The corrections SLA is now a **tiered, process-not-outcome** commitment; the exact wording lives in a **Lane 3 legal document that is not in the repo (owner-held)** and is **subject to Lane 4 licensed-attorney review**. Do not treat any specific number as current until that wording lands. *(Owner action — see the final report.)*
 - **Robots.txt respect.** If a site's robots.txt forbids our agent, we still report public data from third parties (Wayback, crt.sh) but do not fetch the live site.
 - **Polite identification.** User agent: `BornYesterdayBot/1.0 (+https://bornyesterday.tech/about-bot)`.
 - **No PII.** Companies/domains only. WHOIS personal contact fields are never displayed, even when public.
@@ -375,14 +453,14 @@ For the full phase/sprint roadmap, defer to **PRODUCT.md §10**. This document d
 All prior open questions for this document are settled:
 
 1. **AI keyword list (§2B):** locked (see §2B).
-2. **Skepticism rubric:** four-state output confirmed (green/amber/red/blue); exact weights finalized in Sprint 1.7.
+2. **Skepticism rubric:** four-state output confirmed (green/amber/red/blue); model decided in Story 18 — **rule-based, not weighted** (see `docs/decisions/story-18-indicator-model.md`); thresholds calibrated in Story 19.
 3. **Consumer paid tier:** dropped.
 4. **Email watchlist:** post-MVP retention feature (PRODUCT.md §10); out of the MVP build.
 5. **Report download:** MVP shareable report is a rich-text object (copy + download); image/PDF forms deferred.
-6. **Analytics:** basic at launch (Vercel Web Analytics); advanced in Sprint 1.8.
+6. **Analytics:** not yet implemented (no analytics package installed); basic privacy-friendly analytics (candidate: Vercel Web Analytics) deferred to a later story. No Google Analytics.
 7. **Indicator visual:** the mascot flag-state (design-system.md §4).
 
-Genuinely deferred items (timing, not indecision) live in **PRODUCT.md §16**: Sprint 1.7 weights, ad-network choice (apply to AdSense early), economics validation, and the AI Pivot Timeline mitigation pipeline.
+Genuinely deferred items (timing, not indecision) live in **PRODUCT.md §16**: Story 19 indicator thresholds, ad-network choice (apply to AdSense early), economics validation, and — only if it is ever built — the *post-MVP, LLM-assisted* AI-pivot analysis and its mitigation pipeline (the deterministic, no-LLM AI-pivot signal in §2B has already shipped).
 
 ---
 

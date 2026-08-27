@@ -22,6 +22,9 @@
     "signal:report": "tsx scripts/signal-report.ts",
     "serve:report": "tsx scripts/serve-report.ts",
     "threat:ingest": "tsx scripts/threat-ingest.ts",
+    "corpus:qualify": "tsx scripts/qualify-corpus.ts",
+    "corpus:wayback": "tsx scripts/qualify-wayback.ts",
+    "corpus:build": "tsx scripts/build-corpus.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

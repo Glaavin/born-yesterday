@@ -39,8 +39,8 @@ describe("parseCrtsh (pure)", () => {
     expect(parseCrtsh("[]")).toEqual({ firstCertDate: null, certCount: null });
   });
 
-  it("does not throw on malformed JSON", () => {
-    expect(parseCrtsh("{ not json")).toEqual({ firstCertDate: null, certCount: null });
+  it("returns null on malformed JSON — unparseable is not 'no certificates found'", () => {
+    expect(parseCrtsh("{ not json")).toBeNull();
   });
 });
 

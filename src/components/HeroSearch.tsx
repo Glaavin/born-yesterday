@@ -24,9 +24,9 @@ function looksLikeUrl(value: string): boolean {
  * HeroSearch — the landing input ("Investigator" style). Client Component for the
  * passive→active state; submits GET to /search, which normalizes and redirects.
  *
- * Passive (empty/invalid): mint (label-teal) border/glyph/placeholder + a filled
+ * Passive (empty/invalid): mint (label-accent) border/glyph/placeholder + a filled
  * mint submit with dark text. Active (valid URL): the border and submit lock on
- * to accent-gold (pink). The submit reads "Check for flags" and keeps a fixed
+ * to accent-primary (pink). The submit reads "Check for flags" and keeps a fixed
  * width across states. A clear (×) button resets the input. Placeholder matches
  * the mint search glyph and clears on input; a real <label> is kept sr-only (§9).
  */
@@ -46,10 +46,10 @@ export default function HeroSearch() {
         Website to check for red flags
       </label>
       <div
-        className={`flex items-stretch overflow-hidden rounded-md border transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-label-teal ${
+        className={`flex items-stretch overflow-hidden rounded-md border transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-label-accent ${
           valid
-            ? "border-accent-gold"
-            : "border-label-teal/60 group-hover:border-label-teal"
+            ? "border-accent-primary"
+            : "border-label-accent/60 group-hover:border-label-accent"
         }`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2.5 px-4">
@@ -59,7 +59,7 @@ export default function HeroSearch() {
             stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
-            className="size-5 shrink-0 text-label-teal transition-colors"
+            className="size-5 shrink-0 text-label-accent transition-colors"
             aria-hidden="true"
           >
             <circle cx="11" cy="11" r="7" />
@@ -77,7 +77,7 @@ export default function HeroSearch() {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="What website are you curious about?"
-            className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink outline-none transition-colors placeholder:text-label-teal"
+            className="min-w-0 flex-1 bg-transparent py-3 text-base text-ink outline-none transition-colors placeholder:text-label-accent"
           />
           {value && (
             <button
@@ -108,8 +108,8 @@ export default function HeroSearch() {
           type="submit"
           className={`flex w-40 shrink-0 items-center justify-center py-3 font-semibold transition-colors ${
             valid
-              ? "bg-accent-gold text-surface-body-to group-hover:opacity-90"
-              : "bg-label-teal text-surface-body-to group-hover:opacity-90"
+              ? "bg-accent-primary text-surface-body-to group-hover:opacity-90"
+              : "bg-label-accent text-surface-body-to group-hover:opacity-90"
           }`}
         >
           Check for flags

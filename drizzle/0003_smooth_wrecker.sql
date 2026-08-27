@@ -1,0 +1,2 @@
+ALTER TABLE "signal_history" ADD COLUMN "status" text DEFAULT 'ok' NOT NULL;--> statement-breakpoint
+ALTER TABLE "signal_history" ADD CONSTRAINT "signal_history_status_check" CHECK ("signal_history"."status" in ('ok', 'failed', 'not_attempted'));

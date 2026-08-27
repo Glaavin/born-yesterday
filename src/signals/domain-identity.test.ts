@@ -97,8 +97,8 @@ describe("parseRdap (pure)", () => {
     expect(parseRdap(RDAP_MISSING)).toEqual({ registrationDate: null, registrar: null });
   });
 
-  it("does not throw on malformed JSON", () => {
-    expect(parseRdap("{ not json")).toEqual({ registrationDate: null, registrar: null });
+  it("returns null on malformed JSON — unparseable is not 'no registration data'", () => {
+    expect(parseRdap("{ not json")).toBeNull();
   });
 });
 
@@ -146,6 +146,43 @@ describe("collectDomainIdentity", () => {
 
     const reg = r.signals.find((s) => s.key === "registrar")!;
     expect(reg.valueText).toBe("MarkMonitor Inc.");
+  });
+
+  it("registry ANSWERED but publishes no creation date → checked-empty: status ok, cites the record consulted", async () => {
+    // The .edu / ccTLD shape (Story 18.3 §1.3). The lookup COMPLETED; the field
+    // simply is not published. That is a finding, so it must carry a source —
+    // otherwise the reason built from it is unsourced, gets dropped by the
+    // disclosed-facts rule, and the report shows a verdict with no rationale.
+    const deps = baseDeps({
+      fetcher: vi.fn(async () => fetchOk(RDAP_MISSING)) as unknown as Fetcher,
+      whoisQuery: vi.fn(async () => ""), // WHOIS returns nothing either
+    });
+
+    const r = await collectDomainIdentity("example.edu", deps);
+
+    const date = r.signals.find((s) => s.key === "domain_registration_date")!;
+    expect(date.valueText).toBeNull(); // no date published
+    expect(date.status).toBe("ok"); // but the check RAN
+    expect(date.source).toEqual({
+      label: "RDAP registration record",
+      url: "https://rdap.org/domain/example.edu",
+    });
+  });
+
+  it("registry lookup FAILED → not a finding: status failed, no source", async () => {
+    const deps = baseDeps({
+      fetcher: vi.fn(async () => ({ ok: false, error: "network" })) as unknown as Fetcher,
+      whoisQuery: vi.fn(async () => {
+        throw new Error("timeout");
+      }),
+    });
+
+    const r = await collectDomainIdentity("example.com", deps);
+
+    const date = r.signals.find((s) => s.key === "domain_registration_date")!;
+    expect(date.valueText).toBeNull();
+    expect(date.status).toBe("failed"); // attempted, did not complete
+    expect(date.source).toBeNull(); // a failed check cites nothing
   });
 
   it("derives domain_age_days from registration to now", async () => {
@@ -230,7 +267,7 @@ describe("collectDomainIdentity", () => {
 });
 
 describe("signalsToHistory (pure)", () => {
-  it("maps key→signal_type, text/num, and drops sources + all-null signals", () => {
+  it("maps key→signal_type, drops sources, and records EVERY signal with its status", () => {
     const signals: Signal[] = [
       {
         key: "domain_registration_date",
@@ -238,28 +275,39 @@ describe("signalsToHistory (pure)", () => {
         valueText: "1997-09-15T04:00:00Z",
         valueNum: 874296000,
         source: { label: "RDAP registration record", url: "https://rdap.org/domain/example.com" },
+        status: "ok",
       },
-      { key: "domain_age_days", label: "Domain age (days)", valueText: null, valueNum: 9605, source: null },
-      { key: "registrar", label: "Registrar", valueText: null, valueNum: null, source: null }, // dropped
+      { key: "domain_age_days", label: "Domain age (days)", valueText: null, valueNum: 9605, source: null, status: "ok" },
+      // CHECKED and found nothing — a finding. Previously dropped.
+      { key: "registrar", label: "Registrar", valueText: null, valueNum: null, source: null, status: "ok" },
+      // The check did NOT run — recorded so a later diff cannot read it as a
+      // value that disappeared (Story 18.3 §1.1).
+      { key: "dns_dmarc", label: "DMARC record", valueText: null, valueNum: null, source: null, status: "failed" },
     ];
 
     const rows = signalsToHistory("example.com", signals, 1700000000);
 
+    expect(rows).toHaveLength(4); // nothing is dropped
     expect(rows).toEqual([
-      {
-        domain: "example.com",
-        capturedAt: 1700000000,
-        signalType: "domain_registration_date",
-        valueText: "1997-09-15T04:00:00Z",
-        valueNum: 874296000,
-      },
-      {
-        domain: "example.com",
-        capturedAt: 1700000000,
-        signalType: "domain_age_days",
-        valueText: null,
-        valueNum: 9605,
-      },
+      { domain: "example.com", capturedAt: 1700000000, signalType: "domain_registration_date", valueText: "1997-09-15T04:00:00Z", valueNum: 874296000, status: "ok" },
+      { domain: "example.com", capturedAt: 1700000000, signalType: "domain_age_days", valueText: null, valueNum: 9605, status: "ok" },
+      { domain: "example.com", capturedAt: 1700000000, signalType: "registrar", valueText: null, valueNum: null, status: "ok" },
+      { domain: "example.com", capturedAt: 1700000000, signalType: "dns_dmarc", valueText: null, valueNum: null, status: "failed" },
     ]);
+  });
+
+  it("keeps checked-empty distinguishable from not-checked (the Phase-2 diff bug)", () => {
+    const rows = signalsToHistory(
+      "example.com",
+      [
+        { key: "dns_dmarc", label: "DMARC", valueText: null, valueNum: null, source: null, status: "ok" },
+        { key: "dns_spf", label: "SPF", valueText: null, valueNum: null, source: null, status: "failed" },
+      ],
+      1700000000,
+    );
+    // Same null value, different fact — a diff must be able to tell them apart.
+    expect(rows[0].status).toBe("ok");
+    expect(rows[1].status).toBe("failed");
+    expect(rows[0].valueText).toBe(rows[1].valueText);
   });
 });

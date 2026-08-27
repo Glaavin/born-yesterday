@@ -24,7 +24,7 @@ function SourceLink({ source }: { source: Source }) {
       href={source.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="text-accent-gold underline hover:no-underline"
+      className="text-accent-primary underline hover:no-underline"
     >
       {source.label}
     </a>
@@ -93,9 +93,9 @@ function StatusScreen({
       <div className="w-24">
         <Mascot state={mascot} />
       </div>
-      <h1 className="font-heading text-2xl font-bold text-accent-gold">{title}</h1>
+      <h1 className="font-heading text-2xl font-bold text-accent-primary">{title}</h1>
       <p className="max-w-md text-ink-muted">{children}</p>
-      <Link href="/" className="text-sm text-accent-gold underline hover:no-underline">
+      <Link href="/" className="text-sm text-accent-primary underline hover:no-underline">
         Check another site
       </Link>
     </div>
@@ -201,12 +201,12 @@ export default async function ReportPage({
 
   return (
     <article className="flex flex-col gap-6 py-4">
-      <h1 className="font-heading text-3xl font-bold text-accent-gold">
+      <h1 className="font-heading text-3xl font-bold text-accent-primary">
         Trust Report: {report.domain}
       </h1>
 
       {refreshing && (
-        <p className="rounded-md border border-indicator-amber/40 bg-indicator-amber/10 px-3 py-2 text-sm text-indicator-amber">
+        <p className="rounded-md border border-indicator-concerns/40 bg-indicator-concerns/10 px-3 py-2 text-sm text-indicator-concerns">
           Showing the last cached report — a fresh check is running in the background.
         </p>
       )}
@@ -225,7 +225,7 @@ export default async function ReportPage({
         <p className="text-sm text-ink-muted">{DISCLAIMER}</p>
         <a
           href={correctionHref}
-          className="mt-2 inline-block text-sm text-accent-gold underline hover:no-underline"
+          className="mt-2 inline-block text-sm text-accent-primary underline hover:no-underline"
         >
           Request a correction
         </a>
