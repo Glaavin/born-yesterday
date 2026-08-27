@@ -201,6 +201,32 @@ No longer load-bearing for false-Red risk. Remains a calibration input, informed
 >
 > **This is a second constituency for §2.4.** Like §3.4.9's, it converts an argument from principle into named cases: substantiation is not only what the pivot rule *ought* to have, it is what stops us publishing a concern about the EFF.
 
+> ---
+>
+> **OWNER RULING, 2026-08-26 — RULE CHANGE: the pivot stops producing a concern.**
+>
+> It continues to be **collected and published as a neutral observation**. The dates, the before/after language and the Wayback links all still reach the reader. What stops is **us attaching a conclusion** — the disclosed-facts posture: hand over the facts, let the reader infer.
+>
+> Concretely, the pivot **no longer contributes a concern point, no longer denies Green, and no longer publishes as a finding under an adverse heading.** Measured delta: exactly `eff.org` and `bun.sh`, amber → green, both on archive-span rationale with SPF present. Nothing else moves; Red stays 0.
+>
+> **THE DURABLE ARGUMENT IS `sugarcrm.com`, NOT "0 of 2".**
+>
+> Corpus tier 1, slot 6 was hand-picked as **the** classic-pivot exemplar — *"established domain + a datable AI-language onset."* Its onset is **1,945 days**. It does not fire at 365 or at 1095. Making it fire needs a ~5.3-year window, which flags **~14 of 49 domains** — and SugarCRM is a twenty-year-old CRM that added AI features in 2021, so at that window it is arguably a false positive too.
+>
+> **The corpus's own designated positive example is ambiguous at every threshold.** That is a statement about the instrument and does not rest on n=2.
+>
+> The underlying problem: the signal cannot separate **"added AI features"** — which nearly every software company did — from **"pivoted to AI,"** a company repositioning around a capability it did not have. In Wayback text those are identical. Substantiation (§2.4) is what distinguishes them.
+>
+> **NOT EVIDENCE — do not re-derive it.** *"No true positive at any window"* is **not** a measurement of this signal. The corpus contains no true positives **by construction**: the Story 18.2 brief forbade adverse pre-labelling of real companies and forbade committing a URLhaus host. **That absence measures our sampling rule, not the signal's recall.**
+>
+> **CONSISTENCY.** In the same week we removed a rationale that was true-but-wrong-in-implication when it **flattered** a company (`cursor.com`'s *"registered ~30 years ago"*, §3.4.5). The pivot concern is the same shape pointed the other way: a true fact, a wrong implication, published as our **sole** reason, about named real organisations. **Removing it in one direction and keeping it in the other is not a defensible position.**
+>
+> **WHAT REVERSES THIS: SUBSTANTIATION SHIPPING (§2.4). NOT a better window value.** Tightening reduces false positives by firing less, which looks like improvement and is the signal doing less. `PIVOT_RECENT_DAYS` stays at **365** and stays **REASONED**. It now drives no verdict — **do not retune it while it drives none**, because a value tuned against no active use will look calibrated and will not be.
+>
+> **THE COST, accepted explicitly rather than slid into.** This is a **temporary disablement of the product's headline feature**. It is a real narrowing of what Born Yesterday currently does. **We cannot measure what we lose, because we have no true positives to lose.** If substantiation slips, we ship without the differentiator. *Mitigation on record:* the observation keeps publishing either way — a reader still sees the dates, the language change and the links. *Owner note: the URL will not be shared until we are confident in the data, so no reader is affected by the interim state.*
+>
+> **KNOCK-ON: accumulation is now STRICTLY unreachable.** With the pivot demoted the concern pool has **one** member, so `concerns.length` cannot reach `ACCUMULATION_MIN_FINDINGS`. §3.1 said "near-unreachable"; it is now categorically unreachable until the pool grows. The rule and its calibrated constants are **retained deliberately** — the Profile Section brief contemplates a dozen new scans — and §3.1's instruction that **the methodology page must state this plainly** is now load-bearing rather than a nicety.
+
 ---
 
 ## 3. Resolved questions
@@ -679,6 +705,10 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
 | 18.3.30 | `ESTABLISHED_ARCHIVE_SPAN_DAYS` = **913** (~2.5y). The corpus measures a 358-day interval and cannot discriminate the point inside it; 913 is mid-gap | **BOUNDED** — Stage 3 |
 | 18.3.37 | Fourth basis category **BOUNDED**: the data constrains the value to a range but cannot locate it within it. Every measured threshold sits in a gap; what matters is the gap's width | **CLASSIFICATION** — post-Stage-3 |
 | 18.3.38 | The corpus delta gate diffs **reasons**, not just states. A state-only diff reports success on a story that changed only reasoning | **CONVENTION** — `docs/conventions.md`, post-Stage-3 |
+| 18.3.39 | **The AI pivot stops producing a concern**; collected and published as a neutral observation. Reversed by substantiation shipping, not by a better window | **OWNER RULING / RULE CHANGE** (2026-08-26) — §2.7 |
+| 18.3.40 | The durable argument is `sugarcrm.com` — the corpus's own designated pivot exemplar is ambiguous at every threshold — **not** "0 of 2" | **FINDING** — §2.7 |
+| 18.3.41 | *"No true positive at any window"* measures our **sampling rule**, not the signal's recall. The corpus excludes true positives by construction | **CORRECTION** — §2.7 |
+| 18.3.42 | Accumulation is now **strictly** unreachable (concern pool = 1), not merely rare. Rule and constants retained; the methodology page must say so | **CONSEQUENCE** — §3.1 |
 | 18.3.31 | `YOUNG_DOMAIN_DAYS` confirmed at **180**. Never touches Green; moves domains only between Blue and Amber. Tightening would dress insufficiency as concern | **OWNER RULING** (2026-08-26) — posture, not measurement |
 | 18.3.32 | `PIVOT_RECENT_DAYS` left at **365** knowing it produces two false Ambers; no value improves them | **OWNER RULING** (2026-08-26) — §2.7 |
 | 18.3.33 | The pivot alone denies Green and publishes as the sole finding. §2.1's false-Red licence missed the false-Amber harm | **DEFECT** — §2.7, second constituency for §2.4 |
