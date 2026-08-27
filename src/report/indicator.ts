@@ -18,10 +18,20 @@ export type IndicatorState = "green" | "amber" | "red" | "blue";
 export interface Reason {
   text: string;
   source: SignalSource | null;
-  /** "caveat" reasons are transparency notes (e.g. a feed we couldn't reach) —
-   *  they route to the report SUMMARY, never to positive[]/flagged[]. Default =
-   *  positive/contributing. */
-  kind?: "positive" | "caveat";
+  /**
+   * ROUTING label, not a semantic one.
+   *   "caveat"   transparency notes (a feed we couldn't reach, a neutral
+   *              observation) — route to the report SUMMARY, never to
+   *              positive[]/flagged[].
+   *   "residual" Amber's generous default. NOT a finding: it says what WE could
+   *              not establish, and it fires only when `concerns.length === 0`.
+   *              It used to render under a "Flagged" badge and be counted in
+   *              "N worth a closer look" — the same defect as Blue's reasons
+   *              rendering as concerns (§6.4), one state over. It routes to the
+   *              summary and is never counted.
+   *   default    a positive/contributing reason.
+   */
+  kind?: "positive" | "caveat" | "residual";
 }
 export interface Indicator {
   state: IndicatorState;
@@ -529,9 +539,10 @@ export function computeIndicator(
     // noting that is not a concern. It describes the DOMAIN, so it must carry a
     // source — the §6.2 symmetry rule applies to observations exactly as it did
     // when this was a concern. An unsourced pivot publishes nothing, as before.
-    const pivotSource = pivot.sources[0] ?? null;
-    if (pivotSource) {
-      caveats.push({ text: pivot.text, source: pivotSource, kind: "caveat" });
+    // Cites the CAPTURE that matched. This used to take `sources[0]` — RDAP —
+    // which evidenced the registration half of a sentence that no longer exists.
+    if (pivot.source) {
+      caveats.push({ text: pivot.text, source: pivot.source, kind: "caveat" });
     }
   }
   // Q4 GUARD: previously `dnsResolved && !spf && !dmarc`, which fired when the TXT
@@ -640,10 +651,16 @@ export function computeIndicator(
     // true of a recycled domain; "operating since 2009" is not, and we are not
     // entitled to it until operator continuity exists. The copy states what the
     // archive records and stops there.
+    // Carries the capture COUNT as trailing context so the assembler does not
+    // have to publish a second, near-identical archive line beside this one
+    // (§3.4.3: span leads, count follows). Span first, always — the count on its
+    // own measures crawler attention.
     reasons.push({
       text:
         `Archived since ${isoDay(firstArchivedSec!).slice(0, 4)} — the Wayback Machine's record for this ` +
-        `domain spans ~${humanAge(archiveSpanDays!)}.`,
+        `domain spans ~${humanAge(archiveSpanDays!)}` +
+        (snapshots != null ? ` (${snapshots} capture${snapshots === 1 ? "" : "s"} recorded)` : "") +
+        `.`,
       source: firstArchived?.source ?? null,
     });
     // CORROBORATING, never a route of its own (§3.4.4). Capped: a pre-2018 first
@@ -692,9 +709,13 @@ export function computeIndicator(
   // no-verdict outcome; that story is not built, so it degrades to Amber with the
   // gap disclosed rather than to a claim we cannot cite.
   const archiveSource = firstArchived?.source ?? byKey.get("wayback_snapshot_count")?.source ?? null;
+  // COPY DISCIPLINE, same as the Blue relabel (§6.4): this describes what WE
+  // could not determine, never what the company lacks. It is the residual — it
+  // fires only when nothing was flagged — so wording it as a deficiency of the
+  // domain would present insufficiency as concern.
   const fallbackText = established
-    ? "Established archive history, but some expected signals (e.g. SPF) are missing."
-    : "Some positive signals, but the archived record doesn't reach back far enough to fully vouch yet.";
+    ? "Archived history is established, but we couldn't confirm the email-authentication records we look for."
+    : "We couldn't establish enough archived history to vouch for this domain yet.";
   // THIRD CASE — the archive check did not complete. There is nothing to cite,
   // and the SYMMETRY RULE says an unsourced reason neither publishes nor counts,
   // so no reason is manufactured: the "not available at check time" disclosure
@@ -702,5 +723,5 @@ export function computeIndicator(
   // 18.3 §3.2 says should become a no-verdict outcome; until that story exists it
   // degrades to Amber-with-a-disclosure rather than to an uncitable claim.
   if (!checked("wayback_first") || archiveSource == null) return verdict("amber", []);
-  return verdict("amber", [{ text: fallbackText, source: archiveSource }]);
+  return verdict("amber", [{ text: fallbackText, source: archiveSource, kind: "residual" }]);
 }

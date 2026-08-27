@@ -102,6 +102,60 @@ describe("assembleReport", () => {
     expect(report.positive[0]).toEqual({ text: "Established domain — registered ~11 years ago.", source: S("RDAP", "u-rdap") });
   });
 
+  it("the RESIDUAL is never flagged and never counted — it explains, it does not accuse", () => {
+    // Same defect class as Blue rendering its reasons as concerns (§6.4), one
+    // state over: Amber's generous default fires only when nothing was flagged,
+    // so badging it "Flagged" and counting it as "1 worth a closer look" told
+    // the reader we had found something.
+    const indicator: Indicator = {
+      state: "amber",
+      reasons: [
+        {
+          text: "We couldn't establish enough archived history to vouch for this domain yet.",
+          source: S("Wayback CDX", "u-cdx"),
+          kind: "residual",
+        },
+      ],
+    };
+    const report = assembleReport("example.com", results, { pivot: null }, indicator, NOW);
+
+    expect(report.flagged).toEqual([]); // not a finding
+    expect(report.summary).toMatch(/nothing flagged/);
+    expect(report.summary).not.toMatch(/worth a closer look/); // not counted
+    expect(report.summary).toMatch(/couldn.t establish enough archived history/); // still explained
+    expect(report.summary).not.toMatch(EDITORIAL);
+    // copy discipline: about US, not about what the company lacks
+    expect(report.summary).toMatch(/\bwe\b/i);
+  });
+
+  it("GREEN does not state the same fact twice — the establishing reason wins", () => {
+    const withArchive: CollectorResult[] = [
+      ...results,
+      {
+        collector: "ai-pivot",
+        ok: true,
+        signals: [
+          sig("wayback_first", { valueText: "1996-11-01", source: S("Wayback CDX", "u-cdx") }),
+          sig("wayback_snapshot_count", { valueNum: 777, source: S("Wayback CDX", "u-cdx") }),
+        ],
+      },
+    ];
+    const indicator: Indicator = {
+      state: "green",
+      reasons: [
+        { text: "Archived since 1996 — the Wayback Machine's record for this domain spans ~30 years (777 captures recorded).", source: S("Wayback CDX", "u-cdx") },
+        { text: "Email authentication configured (SPF present).", source: S("DNS over HTTPS", "u-spf") },
+      ],
+    };
+    const report = assembleReport("example.com", withArchive, { pivot: null }, indicator, NOW);
+
+    const archiveLines = report.positive.filter((f) => /Wayback Machine/.test(f.text));
+    expect(archiveLines).toHaveLength(1);
+    expect(archiveLines[0].text).toMatch(/^Archived since 1996/); // the indicator's wording, not the assembler's
+    const spfLines = report.positive.filter((f) => /SPF/.test(f.text));
+    expect(spfLines).toHaveLength(1);
+  });
+
   it("a GREEN caveat lands in the SUMMARY — never in positive[] or flagged[]", () => {
     const indicator: Indicator = {
       state: "green",

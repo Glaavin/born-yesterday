@@ -30,8 +30,23 @@ export const stateToKey = (s: IndicatorState): ReportStateKey => STATE_TO_KEY[s]
 
 const fmtDate = (nowSec: number): string => new Date(nowSec * 1000).toISOString().slice(0, 10);
 
-/** Reassuring, SOURCED facts (clean threat checks included as info — never a strong "safe"). */
-function gatherPositives(byKey: Map<string, Signal>, nowSec: number): Finding[] {
+/**
+ * Reassuring, SOURCED facts (clean threat checks included as info — never a
+ * strong "safe").
+ *
+ * `alreadyStated` names facts the INDICATOR has already published as leading
+ * establishing reasons, in better words. Green publishes its establishing
+ * reasons at the head of `positive[]`, so without this the same fact appeared
+ * twice a few lines apart — "Archived since 1996 — … spans ~30 years" followed
+ * by "Archived on the Wayback Machine since 1996 (6687 captures recorded)".
+ * Suppression rather than string-matching, so the two copies cannot drift into
+ * disagreeing about which is authoritative.
+ */
+function gatherPositives(
+  byKey: Map<string, Signal>,
+  nowSec: number,
+  alreadyStated: ReadonlySet<string> = new Set(),
+): Finding[] {
   const out: Finding[] = [];
   const push = (text: string, source: SignalSource | null | undefined) => {
     if (source) out.push({ text, source });
@@ -46,7 +61,7 @@ function gatherPositives(byKey: Map<string, Signal>, nowSec: number): Finding[] 
   // neutral sourced observation in the summary, emitted by `indicator.ts` — so
   // the reader loses no fact, only an inference we were not entitled to.
 
-  if (byKey.get("dns_spf")?.valueText != null) push("SPF email-authentication record present.", byKey.get("dns_spf")?.source);
+  if (!alreadyStated.has("spf") && byKey.get("dns_spf")?.valueText != null) push("SPF email-authentication record present.", byKey.get("dns_spf")?.source);
   if (byKey.get("dns_dmarc")?.valueText != null) push("DMARC policy present.", byKey.get("dns_dmarc")?.source);
 
   const tp = byKey.get("trustpilot");
@@ -63,7 +78,9 @@ function gatherPositives(byKey: Map<string, Signal>, nowSec: number): Finding[] 
   const firstArchived = byKey.get("wayback_first");
   const firstIso =
     firstArchived?.status === "ok" ? (firstArchived.valueText ?? null) : null;
-  if (firstIso) {
+  if (alreadyStated.has("archive")) {
+    // The indicator's establishing reason already carries span AND count.
+  } else if (firstIso) {
     const since = firstIso.slice(0, 4);
     push(
       snaps != null
@@ -121,7 +138,11 @@ export function assembleReport(
   // Caveat reasons (e.g. an unreachable feed) are transparency notes — they go to
   // the SUMMARY, never into flagged[]/positive[]. The rest are contributing reasons.
   const caveats = indicator.reasons.filter((r) => r.kind === "caveat");
-  const mainReasons = indicator.reasons.filter((r) => r.kind !== "caveat");
+  // The RESIDUAL is not a finding — it states what we could not establish, and
+  // it fires only when nothing was flagged. It routes to the summary, so it is
+  // never badged "Flagged" and never counted in "N worth a closer look".
+  const residual = indicator.reasons.find((r) => r.kind === "residual") ?? null;
+  const mainReasons = indicator.reasons.filter((r) => r.kind !== "caveat" && r.kind !== "residual");
 
   // Concern reasons become flagged findings (sourced); none for Green.
   const flagged: Finding[] =
@@ -131,8 +152,16 @@ export function assembleReport(
           .filter((r): r is { text: string; source: SignalSource } => r.source != null)
           .map((r) => ({ text: r.text, source: r.source }));
 
-  // Reassuring facts; for Green, the establishing reasons lead.
-  const positive: Finding[] = gatherPositives(byKey, nowSec);
+  // Reassuring facts; for Green, the establishing reasons lead — and whatever
+  // they already state is not restated below them.
+  const stated = new Set<string>();
+  if (indicator.state === "green") {
+    for (const r of mainReasons) {
+      if (/^Archived since /.test(r.text)) stated.add("archive");
+      if (/SPF present/.test(r.text)) stated.add("spf");
+    }
+  }
+  const positive: Finding[] = gatherPositives(byKey, nowSec, stated);
   if (indicator.state === "green") {
     for (let i = mainReasons.length - 1; i >= 0; i--) {
       const r = mainReasons[i];
@@ -159,10 +188,16 @@ export function assembleReport(
   const tally =
     indicator.state === "blue"
       ? "not enough to assess yet"
-      : `${flagged.length === 0 ? "none" : flagged.length} worth a closer look`;
+      : residual
+        ? "nothing flagged"
+        : `${flagged.length === 0 ? "none" : flagged.length} worth a closer look`;
+  // The residual follows the tally as its own sentence rather than being counted
+  // as a finding: "nothing flagged" is the count, and this is why the verdict is
+  // still not Green.
+  const because = residual ? ` ${residual.text}` : "";
   const summary =
     `Surfaces ${signalCount} public signal${signalCount !== 1 ? "s" : ""} for ${domain}; ` +
-    `${tally}.${note}`;
+    `${tally}.${because}${note}`;
 
   return {
     domain,

@@ -127,6 +127,7 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     const unsourcedPivot: Derivations = {
       pivot: {
         text: "unsourced pivot",
+        source: null,
         sources: [],
         domainAgeDays: PIVOT_ESTABLISHED_DAYS + 1,
         aiOnsetAgoDays: 10,
@@ -155,6 +156,7 @@ describe("computeIndicator (the locked rubric, in order)", () => {
   const firedPivot: Derivations = {
     pivot: {
       text: "PIVOT (approximate)",
+      source: S("Wayback snapshot", "u-snap"),
       sources: [S("Wayback snapshot", "u-snap")],
       domainAgeDays: 4000,
       aiOnsetAgoDays: 200,
@@ -183,7 +185,7 @@ describe("computeIndicator (the locked rubric, in order)", () => {
 
   it("an UNSOURCED pivot publishes nothing — the symmetry rule survives the demotion", () => {
     const unsourced: Derivations = {
-      pivot: { text: "PIVOT (approximate)", sources: [], domainAgeDays: 4000, aiOnsetAgoDays: 200 },
+      pivot: { text: "PIVOT (approximate)", source: null, sources: [], domainAgeDays: 4000, aiOnsetAgoDays: 200 },
     };
     const ind = computeIndicator("x.com", pivotSignals(), unsourced, NOW);
     expect(ind.reasons.some((x) => /PIVOT/.test(x.text))).toBe(false);
