@@ -182,6 +182,25 @@ v1 imposed a time budget. v2 names the instrument, and corrects a PM overclaim.
 
 No longer load-bearing for false-Red risk. Remains a calibration input, informed by §5.
 
+> **CORRECTED POST-STAGE-3 — the false-RED framing missed the harm that is actually live.**
+>
+> §2.1 recovered Helium's licence for a loose window: *a pivot cannot fire Red alone, so a loose recency window is safe.* **That is still true, and it is the wrong reassurance.** The pivot alone **denies Green** (`concerns.length === 0` is a Green conjunct) and then **publishes as the sole flagged finding under "Some concerns."** A false Amber was never analysed, and it is what the corpus produces.
+>
+> **Measured at the current value (Stage 3): the pivot fires for two corpus domains, and both are false positives.**
+>
+> | Domain | Published today |
+> |---|---|
+> | `eff.org` | *"Domain registered ~36 years ago; AI language first appeared in sampled archive captures ~2 days ago"* — under **Some concerns**, as its only finding |
+> | `bun.sh` | Same shape, onset ~7 months |
+>
+> The Electronic Frontier Foundation is a thirty-six-year-old civil-liberties organisation that **writes about** AI. `matchAiTerms` matches any **mention**, so editorial coverage is indistinguishable from a pivot. `eff.org`'s two-day onset is additionally a §2.6 sampling artifact — six captures sampled from 6,687.
+>
+> **No value of this constant fixes it.** Tightening cannot exclude a two-day onset; loosening to three years pulls in eight more domains including `cloudflare.com`, `cursor.com` and `retool.com`. Measured precision at the current threshold is **0 of 2**, and the corpus contains **no true positive at any window** — every one of its 24 usable onsets is either a legitimate company adding AI features or a young AI-native company the `PIVOT_ESTABLISHED_DAYS` precondition already excludes.
+>
+> **Owner ruling, 2026-08-26: leave the default as-is.** The two false Ambers ship knowingly. **Do not tighten this constant as a proxy for substantiation** — tightening trades a measured false-positive rate for an unmeasured false-negative one and buys nothing in either direction.
+>
+> **This is a second constituency for §2.4.** Like §3.4.9's, it converts an argument from principle into named cases: substantiation is not only what the pivot rule *ought* to have, it is what stops us publishing a concern about the EFF.
+
 ---
 
 ## 3. Resolved questions
@@ -511,12 +530,14 @@ Recorded here so Stage 3 has a **written source** rather than a restated one. Ea
 | `THIN_SNAPSHOT_COUNT` | **Measured, in context** | Capture count is a popularity proxy (§3.4.3), but it is conjoined with `young`. Young + few captures genuinely is thin, because a young domain has had no time to accumulate captures regardless of popularity. Sound **only** in that conjunction. |
 | `PIVOT_RECENT_DAYS` | **Reasoned** | The corpus shows *when* companies pivoted (median 2.4 years), not *when a pivot becomes notable*. Different questions; the first does not imply the second. More data will not settle it. |
 | Accumulation ratio + both floors | **Reasoned, synthetic-only** | Zero real triggering cases. Set against synthetic fixtures, following the Story 18.2 precedent. |
+| `PIVOT_ESTABLISHED_DAYS` | **Reasoned** | **ADDED POST-STAGE-3A.** Split out of `ESTABLISHED_DOMAIN_DAYS` in Stage 2, so the table above classified only its retired parent — and classified it *unsound*. **The demotion does not carry over, because the two ask opposite questions of the same field.** `ESTABLISHED_DOMAIN_DAYS` used registration age as a **lower** bound on operating history — *"this domain is old, therefore established"* — invalid per §3.4.1. `PIVOT_ESTABLISHED_DAYS` asks whether the domain is old enough that recent AI language is notable: if registration was fifteen years ago then whoever holds it now, **the domain predates the AI era.** That is an **upper**-bound use, and sound. *Same field, same value, opposite validity.* Reasoned rather than measured because *"old enough that a pivot is notable"* is a judgment about salience, which the corpus cannot settle. |
+| `ESTABLISHED_ARCHIVE_SPAN_DAYS` | **Measured** | **ADDED POST-STAGE-3A.** **This constant replaces all three of the unsound routes listed below** — it is the successor entry, not a fourth peer. Archive span is a time measure taken directly from `wayback_first`, and the corpus carries a first-capture date for every domain whose Wayback check completed, so the data can genuinely move it. See §3.4.6 for why span and not count, and §3.4.8 for what span still cannot see. |
 
-**Unsound — do not calibrate, replace**
+**Unsound — do not calibrate, replace.** All three were replaced by `ESTABLISHED_ARCHIVE_SPAN_DAYS` in Stage 3a; this table is the succession record, not a live inventory.
 
 | Constant | Disposition |
 |---|---|
-| `ESTABLISHED_DOMAIN_DAYS` | Replaced by span + continuity (§3.4.6). Demoted to upper-bound use only. |
+| `ESTABLISHED_DOMAIN_DAYS` | Replaced by span + continuity (§3.4.6). Demoted to upper-bound use only — the surviving upper-bound uses are `YOUNG_DOMAIN_DAYS` and `PIVOT_ESTABLISHED_DAYS`. |
 | `ESTABLISHED_SNAPSHOT_COUNT` | Replaced. Measures crawler attention (§3.4.3). |
 | `ESTABLISHED_CERT_DAYS` | Demoted to corroborating evidence, capped (§3.4.4). |
 
@@ -643,6 +664,13 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
 | 18.3.27 | Registration-date clamp **declined**; the report will over-vouch for re-registered domains, knowingly | **OWNER RULING** (2026-08-26) — §3.4.8 |
 | 18.3.28 | Unestablished-because-unchecked degrades to Amber with no main reason until §3.2 ships | **INTERIM STATE** — §3.4.9 |
 | 18.3.29 | No corpus domain carries certificate data; §3.4's certificate work is unexercised | **COVERAGE GAP** — §5.3 |
+| 18.3.30 | `ESTABLISHED_ARCHIVE_SPAN_DAYS` = **913** (~2.5y). The corpus measures a 358-day interval and cannot discriminate the point inside it; 913 is mid-gap | **MEASURED** (interval) + reasoned (point) — Stage 3 |
+| 18.3.31 | `YOUNG_DOMAIN_DAYS` confirmed at **180**. Never touches Green; moves domains only between Blue and Amber. Tightening would dress insufficiency as concern | **OWNER RULING** (2026-08-26) — posture, not measurement |
+| 18.3.32 | `PIVOT_RECENT_DAYS` left at **365** knowing it produces two false Ambers; no value improves them | **OWNER RULING** (2026-08-26) — §2.7 |
+| 18.3.33 | The pivot alone denies Green and publishes as the sole finding. §2.1's false-Red licence missed the false-Amber harm | **DEFECT** — §2.7, second constituency for §2.4 |
+| 18.3.34 | Accumulation ratio `0.1` defended as **degradation-invariant**: above 2/12 the verdict depends on how many checks succeeded | **REASONED** — Stage 3 |
+| 18.3.35 | `THIN_SNAPSHOT_COUNT`'s §5.2 rescue does not hold at the margin (`bolt.new`: 0.59 captures/day ⇒ five in nine days); corpus cannot exercise it | **DEFECT** — recorded, fix is a rule change |
+| 18.3.36 | `REGISTRATION_NOTE_MIN_AGE_DAYS` named (was a bare `365` introduced in Stage 3a) | **DEFINITIONAL** — Stage 3 |
 
 ---
 

@@ -28,17 +28,126 @@ export interface Indicator {
   reasons: Reason[];
 }
 
-// ---- DRAFT thresholds — single source of truth; calibrated in Story 19 Stage 3.
-// Every one is a NAMED constant: Stage 1 found the accumulation threshold living
-// as a bare `2` inside an `if`.
-export const YOUNG_DOMAIN_DAYS = 180; // DRAFT: < ~6 months → "young"
-export const THIN_SNAPSHOT_COUNT = 5; // DRAFT: < this many archive captures → "thin"
+/* ============================================================================
+   RUBRIC THRESHOLDS — single source of truth. Calibrated in Story 19 Stage 3.
+
+   EVERY threshold is a NAMED constant. Stage 1 found the accumulation threshold
+   living as a bare `2` inside an `if`; Stage 3's own inventory found a second
+   one (the registration-note age) that Stage 3a had introduced the week before.
+   A number inside a condition is a rule nobody can find.
+
+   EVERY constant carries a BASIS, per 18.3 §5.2. The methodology page publishes
+   these, and claiming a corpus calibrated a judgment call would be L-01 pointed
+   at our own method — asserting more than we checked, about ourselves. It is
+   also checkable: the corpus is in the repo.
+
+     MEASURED     the data can move it; more data gives a better answer
+     REASONED     a judgment the data informs but cannot settle
+     DEFINITIONAL a choice about the product's posture, not a measurement
+
+   ALL VALUES ARE PROVISIONAL FOR MVP. They are set to be defensible and
+   documented, not optimal, and will be revised against real traffic — which
+   will teach us more than another corpus pass would.
+   ========================================================================== */
+
+/**
+ * BASIS: DEFINITIONAL. How much history we require before we will assess a
+ * domain at all. Fitting this to a 50-domain sample would let the sample decide
+ * our caution (§5.2).
+ *
+ * DEFENCE: six months is the point at which we would rather say "too new to
+ * tell" than reach a verdict we would not stand behind.
+ *
+ * DECIDED BY THE OWNER, 2026-08-26 — confirmed at 180 after seeing the three-way
+ * comparison, so this is a posture that was chosen rather than a draft that was
+ * never revisited. It never touches Green (30 domains at 90, 180 and 365 alike);
+ * it moves domains only between Blue and Amber. Tightening to 90 would have put
+ * `vostride.com` — five months old, three captures — under "Some concerns" with
+ * the generous-default rationale, which is insufficiency dressed as concern:
+ * §6.4's Blue-relabel defect returning through a threshold instead of the CSS.
+ */
+export const YOUNG_DOMAIN_DAYS = 180;
+
+/**
+ * BASIS: REASONED, with a measured lower bound. Capture count is a popularity
+ * proxy (§3.4.3), sound only in conjunction with `young`.
+ *
+ * DEFENCE: every young domain in the corpus has three captures or fewer, so the
+ * boundary lies at four or above; five leaves a capture of margin. The corpus
+ * cannot fix an upper bound — any value ≥ 4 produces identical verdicts across
+ * all 49 — so the choice of five over forty is meaning, not measurement.
+ *
+ * KNOWN LIMIT (Stage 3): §5.2 rescues this constant by arguing that "a young
+ * domain has had no time to accumulate captures regardless of popularity."
+ * That argument is FALSIFIABLE AT THE MARGIN and the corpus does not exercise
+ * it: `bolt.new` accumulated 449 daily-collapsed captures in 764 days — 0.59 a
+ * day — at which rate a domain clears five captures in nine days. A hyped
+ * launch would therefore miss Blue and land in Amber, which implies concern.
+ * Same defect class as §3.4.3, one state over. The fix is a span test rather
+ * than a count test, which is a RULE change, not a calibration outcome.
+ */
+export const THIN_SNAPSHOT_COUNT = 5;
 
 // Stage 1 Part B found ONE constant doing three unrelated jobs, so retuning it for
-// Green silently retuned pivot eligibility. Split; the survivors keep the same DRAFT
+// Green silently retuned pivot eligibility. Split; the survivors keep the same
 // value today, which is exactly why the coupling was invisible.
-export const PIVOT_ESTABLISHED_DAYS = 365 * 3; // DRAFT: "established" precondition for the pivot
-export const PIVOT_RECENT_DAYS = 365; // DRAFT: AI language added within ~1y → "recent onset"
+/**
+ * BASIS: REASONED (§5.2, classified post-Stage-3a). NOT calibrated in Stage 3.
+ *
+ * This survived the §3.4 demotion that retired `ESTABLISHED_DOMAIN_DAYS`, and
+ * the reason is worth keeping next to the value: the two ask OPPOSITE questions
+ * of the same field. `ESTABLISHED_DOMAIN_DAYS` used registration age as a LOWER
+ * bound on operating history — "old, therefore established" — which §3.4.1
+ * rules invalid. This asks whether the domain is old enough that recent AI
+ * language is notable: if registration was fifteen years ago then whoever holds
+ * it now, the DOMAIN predates the AI era. An UPPER-bound use, and sound.
+ * Same field, same value, opposite validity.
+ */
+export const PIVOT_ESTABLISHED_DAYS = 365 * 3;
+
+/**
+ * BASIS: REASONED. The corpus shows WHEN companies added AI language (24 usable
+ * onsets, median 2.1 years), not WHEN a pivot becomes worth flagging. Different
+ * questions; the first does not imply the second (§5.2).
+ *
+ * DEFENCE: one year is the window inside which adding AI language is recent
+ * enough to be worth remarking on for a domain that predates the AI era.
+ *
+ * KNOWN LIMIT (Stage 3) — THE WINDOW IS NOT THE PROBLEM. At this value the
+ * pivot fires for exactly two corpus domains, `eff.org` and `bun.sh`, and both
+ * are false positives: the scan matches any MENTION of AI, so a civil-liberties
+ * organisation publishing about AI reads identically to a company pivoting to
+ * it. No value of this constant fixes that — `eff.org`'s onset is two days old,
+ * so tightening cannot exclude it, and loosening to three years pulls in eight
+ * more including `cloudflare.com` and `cursor.com`. The lever is substantiation
+ * (§2.4), which is unbuilt. Recorded rather than tuned around.
+ *
+ * OWNER RULING, 2026-08-26: leave the default as-is. The two false Ambers ship
+ * knowingly, on the reasoning that no available value improves them and the
+ * real fix is substantiation. Do NOT tighten this constant as a proxy for that
+ * fix — tightening trades a measured false-positive rate for an unmeasured
+ * false-negative one, and buys nothing in either direction.
+ */
+export const PIVOT_RECENT_DAYS = 365;
+
+/**
+ * BASIS: DEFINITIONAL. Minimum domain age at which the registration date is
+ * worth remarking on at all.
+ *
+ * NAMED IN STAGE 3, and it is the defect Stage 1 already fixed once: Stage 3a
+ * introduced this as a bare `365` inside an `if`, gating which reports publish
+ * the registration-date observation. Smaller than accumulation's bare `2` — it
+ * governs what publishes, not which verdict fires — but the same class, and
+ * "smaller instance of a defect we already fixed" is exactly what comes back.
+ *
+ * It is deliberately its OWN constant rather than a reuse of a threshold it
+ * happens to coincide with: this is a judgment about when a date is remarkable,
+ * not a claim about establishment or pivot salience.
+ *
+ * DEFENCE: below a year the registration date says nothing the young-domain
+ * rule has not already said better.
+ */
+export const REGISTRATION_NOTE_MIN_AGE_DAYS = 365;
 
 // ---- ESTABLISHMENT (18.3 §3.4) — SPAN, not count, not registration age. ----
 /**
@@ -46,14 +155,41 @@ export const PIVOT_RECENT_DAYS = 365; // DRAFT: AI language added within ~1y →
  * established. A SPAN is a time measure; the retired capture count was a measure
  * of crawler attention (§3.4.3) — `bolt.new` is ~2 years old with 449 captures.
  *
- * DRAFT. Value chosen deliberately as the retired `ESTABLISHED_DOMAIN_DAYS`
- * value (3 years) so this story changes WHICH CLOCK we read, not HOW HIGH the
- * bar is — that keeps the verdict delta readable as one change rather than two.
- * It is NOT the owner's decade rule (§3.4.6), which states that ten years is
- * *sufficient* for establishment and says nothing about what is *necessary*.
- * Stage 3 sets the real value.
+ * BASIS: MEASURED (§5.2). Taken from `wayback_first`, which the corpus carries
+ * for all 42 domains whose Wayback check completed.
+ *
+ * This is a NECESSITY claim — how little span is too little to establish
+ * anything — and is NOT the decade rule, which is a SUFFICIENCY claim about
+ * when further span stops adding anything (§3.4.6). Setting one says nothing
+ * about the other.
+ *
+ * WHAT THE DISTRIBUTION SHOWS. Sorted, the corpus has one real gap in the
+ * informative range: `bolt.new` at 717 days, then nothing until `v0.dev` at
+ * 1075 — a 358-day void. Every value in [718, 1075] produces IDENTICAL output
+ * across all 49 domains, so **the corpus measures the interval and cannot
+ * discriminate the point inside it.** 913 sits mid-gap: 196 days clear of the
+ * highest non-establishing domain, 162 clear of the lowest establishing one.
+ *
+ * Note the interval ENDS at 1075, not at the old 1095: `v0.dev` is established
+ * at 913 and was not at 1095. Its VERDICT does not move — it is Amber either
+ * way, on a concern (no SPF or DMARC) rather than on establishment — but its
+ * published caveats do. A delta that reported only state changes would have
+ * shown nothing here.
+ *
+ * DEFENCE: two and a half years, placed at the centre of the only real gap the
+ * corpus shows, so the nearest domain on either side is ~half a year away.
+ *
+ * The retired draft was 1095 — deliberately the old `ESTABLISHED_DOMAIN_DAYS`
+ * value, so Stage 3a's delta was attributable to the measure rather than the
+ * threshold. It also sat 20 days from `v0.dev`, which is the worst place to
+ * leave a threshold: fragile to a fortnight of archiving.
+ *
+ * CANNOT BE READ ABOVE ~6 YEARS. The corpus holds nothing between `hex.tech`
+ * (6.0y) and `secondlibrary.com` (12.7y, and a re-registration — §3.4.8). That
+ * void is corpus construction, not population structure, and no threshold in it
+ * would be measured.
  */
-export const ESTABLISHED_ARCHIVE_SPAN_DAYS = 365 * 3; // DRAFT
+export const ESTABLISHED_ARCHIVE_SPAN_DAYS = 913; // ~2.5 years
 
 /**
  * RETIRED in 18.3 §3.4 — recorded here so they are not reintroduced:
@@ -77,6 +213,10 @@ export const ESTABLISHED_ARCHIVE_SPAN_DAYS = 365 * 3; // DRAFT
  * cannot distinguish "the first certificate was 2012" from "the first *logged*
  * certificate was 2012." Not a fact about calibration; a fact about the record.
  */
+// BASIS: none — this is a FACT ABOUT THE INSTRUMENT, not a threshold. Stage 3
+// sets no certificate constant, and the certificate gap persists: zero of 49
+// corpus domains carry certificate data (§5.3), so nothing here has ever run
+// against a real certificate. crt.sh re-checked 2026-08-26: still HTTP 502.
 export const CT_INTERPRETABLE_FROM_ISO = "2018-04-30";
 const CT_INTERPRETABLE_FROM_SEC = Math.floor(Date.parse(`${CT_INTERPRETABLE_FROM_ISO}T00:00:00Z`) / 1000);
 /**
@@ -84,25 +224,49 @@ const CT_INTERPRETABLE_FROM_SEC = Math.floor(Date.parse(`${CT_INTERPRETABLE_FROM
  * rule (§3.4.6) — beyond a decade further precision adds nothing — NOT a draft
  * calibration value.
  */
+// BASIS: none — the owner's decade rule (§3.4.6), not a calibration output.
 export const CERT_AGE_CAP_YEARS = 10;
 
 // ---- Q3: accumulation as a RATIO of findings to COMPLETED observations. ----
-// DRAFT value chosen ONLY to reproduce the retired `concerns.length >= 2` rule at
-// realistic denominators (2/13 = 0.154, 2/20 = 0.10), so this stage does not change
-// accumulation outcomes. It is NOT a considered value for "several concerns" — 10%
-// of completed checks returning findings is a low bar. Stage 3 sets the real one.
-export const ACCUMULATION_RATIO = 0.1; // DRAFT — behaviour-preserving, not calibrated
-export const ACCUMULATION_MIN_CHECKS = 8; // DRAFT: floor — too few observations cannot reach Red
+// All three are REASONED, SYNTHETIC-ONLY (§5.2): the corpus contains zero real
+// triggering cases — its maximum is ONE concern on any domain — so these are set
+// against the Story 18.2 synthetic fixtures, whose ratios run 0.25 to 0.58.
+// They must be re-validated the first time a real accumulation case appears.
 /**
- * DRAFT floor on the NUMERATOR, and an amendment defect worth recording: a pure
- * ratio cannot express "several findings" while the concern pool has two members.
- * Any threshold low enough for 2 findings to fire at a realistic denominator
- * (2/20 = 0.10) is also low enough for ONE finding to fire at a smaller one
- * (1/10 = 0.10) — measured, not hypothesised: at ratio 0.1 alone, seven corpus
- * domains went Red on a single concern. "Accumulation" means more than one
- * finding by definition, so the count needs its own floor alongside the ratio.
+ * BASIS: REASONED, synthetic-only.
+ *
+ * DEFENCE: a tenth keeps the trigger DEGRADATION-INVARIANT. The corpus's real
+ * denominators are 8, 9, 11 and 12 completed checks; two findings clear a tenth
+ * at every one of them, so a report that lost checks reaches the same verdict as
+ * a complete one. Above 2/12 = 0.167 that stops being true — two findings would
+ * fire at 8 checks and not at 12, making the verdict depend on how many lookups
+ * happened to succeed, which is §1.3's determinism problem returning through the
+ * denominator. A tenth sits below that boundary with headroom for the signal set
+ * to grow to twenty checks before the ratio starts binding.
+ *
+ * The ratio is therefore INERT TODAY and deliberately so: with a two-member
+ * concern pool `ACCUMULATION_MIN_FINDINGS` carries the rule, and the ratio is
+ * what stops a fixed count silently loosening as signals are added (§3.1).
  */
-export const ACCUMULATION_MIN_FINDINGS = 2; // DRAFT
+export const ACCUMULATION_RATIO = 0.1;
+/**
+ * BASIS: REASONED, synthetic-only — corroborated by the corpus.
+ *
+ * DEFENCE: eight is the smallest denominator the corpus actually produces, and
+ * the one the degraded fixture models; below it there are too few observations
+ * for a proportion to mean anything.
+ */
+export const ACCUMULATION_MIN_CHECKS = 8;
+/**
+ * BASIS: REASONED — arguably definitional; two is what the word means.
+ *
+ * DEFENCE: "accumulation" means more than one thing, so the numerator needs its
+ * own floor. A pure ratio cannot express plurality: any threshold low enough for
+ * 2 findings at a realistic denominator (2/20 = 0.10) is also low enough for ONE
+ * at a smaller one (1/10 = 0.10) — measured, not hypothesised, at ratio 0.1
+ * alone seven corpus domains went Red on a single concern.
+ */
+export const ACCUMULATION_MIN_FINDINGS = 2;
 /**
  * Link-outs are NOT checks. The four constant reputation links are emitted on
  * every report regardless of findings, so they inflate any naive count (Stage 1
@@ -281,7 +445,7 @@ export function computeIndicator(
   // inference it invites explicitly denied. Scoped to the same domains the old
   // positive finding covered (a year or more), so no report gains a note it
   // would not already have carried a claim on.
-  if (ageChecked && reg?.valueNum != null && ageDays != null && ageDays >= 365) {
+  if (ageChecked && reg?.valueNum != null && ageDays != null && ageDays >= REGISTRATION_NOTE_MIN_AGE_DAYS) {
     caveats.push({
       text:
         `Domain registered ${isoDay(reg.valueNum)}. A registration date records when the domain name ` +
