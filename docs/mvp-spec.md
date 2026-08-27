@@ -159,7 +159,33 @@ Two cross-cutting rules: **caveats are orthogonal to state** — a `kind: "cavea
 
 A check that did **not complete** can never satisfy any of these. Per Story 18 §3.5 it therefore **blocks** Green — not because the gap is a concern (it raises none), but because Green requires positive evidence and a check that produced none cannot supply it. The gap is disclosed as a caveat.
 
-**No thresholds here, no weights.** Every number — domain-age bands, the pivot window, the established-span threshold, the accumulation threshold *and its denominator* — is a **Story 19 calibration output**, deliberately not specified in this spec. No weights are specified because the model is not weighted. See the decision doc §5.
+### The thresholds, with their bases (Story 19 Stage 3)
+
+**No weights** — the model is not weighted. Every number below is a **threshold**, and every one ships with the basis of its value, per `story-18-3-amendment.md` §5.2. That labelling is not decoration: publishing *"calibrated against a reference corpus"* over a judgment call would be **L-01 pointed at our own method**, asserting more than we checked about ourselves — and it is checkable, because the corpus is in the repo.
+
+| Basis | Means |
+|---|---|
+| **MEASURED** | The data can move it. More data gives a better answer. |
+| **REASONED** | A judgment the data informs but cannot settle. |
+| **DEFINITIONAL** | A choice about the product's posture, not a measurement. |
+
+| Threshold | Value | Basis | Why this value |
+|---|---|---|---|
+| `YOUNG_DOMAIN_DAYS` | **180** (6 months) | DEFINITIONAL | The point at which we would rather say *"too new to tell"* than reach a verdict we would not stand behind. Never affects Green — it moves domains only between Blue and Amber. |
+| `THIN_SNAPSHOT_COUNT` | **5** | REASONED *(measured lower bound)* | Every young domain in the corpus has three captures or fewer, so the boundary lies at four or above; five leaves a capture of margin. Any value ≥ 4 gives identical verdicts, so the choice of five over forty is meaning, not measurement. |
+| `ESTABLISHED_ARCHIVE_SPAN_DAYS` | **913** (~2.5 years) | MEASURED *(interval)* | The corpus has one real gap — `bolt.new` at 717 days, then nothing until `v0.dev` at 1075. Every value in that gap gives identical output, so the data measures the **interval** and the point inside it is chosen: 913 is its centre. Cannot be read above ~6 years; the corpus holds nothing between 6 and 12.7 years. |
+| `PIVOT_ESTABLISHED_DAYS` | **1095** (3 years) | REASONED | Old enough that recent AI language is notable. An **upper-bound** use of registration age and therefore sound, unlike the retired establishment route that used the same field as a lower bound. Not calibrated in Stage 3. |
+| `PIVOT_RECENT_DAYS` | **365** (1 year) | REASONED | Recent enough to be worth remarking on for a domain that predates the AI era. **Known limit:** the scan matches any *mention* of AI, so editorial coverage reads like a pivot; no value of this threshold fixes that. |
+| `ACCUMULATION_RATIO` | **0.1** | REASONED *(synthetic only)* | Keeps the trigger **degradation-invariant** — two findings clear it at every denominator the corpus produces (8, 9, 11, 12), so a report that lost checks reaches the same verdict as a complete one. Above 2/12 that stops being true. |
+| `ACCUMULATION_MIN_CHECKS` | **8** | REASONED *(synthetic only)* | The smallest denominator the corpus actually produces; below it a proportion means nothing. |
+| `ACCUMULATION_MIN_FINDINGS` | **2** | REASONED *(near-definitional)* | *Accumulation* means more than one thing. A ratio alone cannot express plurality. |
+| `REGISTRATION_NOTE_MIN_AGE_DAYS` | **365** | DEFINITIONAL | Below a year the registration date says nothing the young-domain rule has not already said better. Governs what publishes, not which verdict fires. |
+| `CERT_AGE_CAP_YEARS` | **10** | *Not a threshold* | A decision that beyond a decade further precision adds nothing. |
+| `CT_INTERPRETABLE_FROM_ISO` | **2018-04-30** | *Not a threshold* | A fact about Certificate Transparency, not about us. |
+
+**All values are provisional for MVP.** They are set to be **defensible and documented, not optimal**, and will be revised against real traffic — which will teach us more than another corpus pass would.
+
+**What the corpus could not inform.** Stated because silence is not evidence: **no corpus domain carries certificate data**, so nothing certificate-related has run against a real certificate; **accumulation has zero real triggering cases** — the corpus maximum is one concern on any domain — so all three of its constants rest on synthetic fixtures; and the case that would falsify `THIN_SNAPSHOT_COUNT`'s reasoning (a heavily-crawled young domain) does not occur in the corpus.
 
 ### Section F — Disclaimer (every report, fixed copy)
 
