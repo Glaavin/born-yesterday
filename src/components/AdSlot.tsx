@@ -40,7 +40,7 @@ export default function AdSlot({
       {/* Always-present label (§5). Lives inside the fixed box, so it never
           changes the reserved dimensions. "FUTURE" sits above "Advertisement"
           to read as reserved-but-empty inventory. */}
-      <div className="flex flex-col items-center gap-0.5 text-center text-xs uppercase tracking-widest text-ink-muted">
+      <div className="flex flex-col items-center gap-0.5 text-center text-xs uppercase tracking-widest text-ink">
         <span>Future</span>
         <span>Advertisement</span>
       </div>
