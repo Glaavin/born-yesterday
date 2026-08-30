@@ -124,10 +124,15 @@ export default async function ReportPage({
   const input = decodeURIComponent(raw);
 
   const h = await headers();
-  const ip = clientIpFrom(h.get("x-forwarded-for"));
+  const forwarded = h.get("x-forwarded-for");
+  // Without a trusted client IP we cannot identify the caller. Such a request may
+  // still view cached reports, but must not trigger a new collection — see
+  // RequestMeta.identified (Tier 1 · 1c).
+  const identified = forwarded != null && forwarded.trim().length > 0;
+  const ip = clientIpFrom(forwarded);
   const deps = buildServeDeps((fn) => after(fn)); // background refresh runs after the response
 
-  const result = await serveReport(input, { sessionKey: sessionKey(ip) }, deps);
+  const result = await serveReport(input, { sessionKey: sessionKey(ip), identified }, deps);
 
   if (result.state === "error") {
     return (

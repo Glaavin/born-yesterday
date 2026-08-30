@@ -40,6 +40,20 @@ The AA ratios in §8.2 were measured against the old navy body and no longer app
 sub-AA spot: the **pink accent as small text** (hatch-counter number, "View Our Report
 Methodology" link) measures ~**3.4–4.2:1** on the teal body gradient, below the 4.5:1
 normal-text standard. Re-verify the full palette once the style is locked.
+*(Update: the "Fresh Field" light palette (#69) + AA-deepen (#72/#74) moved the accent to blue
+`#37599e` at ~6.4:1 and deepened the verdict colors to ~4.68–4.75:1, so the specific pink sub-AA
+spot above is addressed — but see the tooling task below: it was verified by a manual sweep, not
+a repeatable check.)*
+
+### AA contrast sweep is not a checked-in tool
+**Status:** OPEN · **Surfaced:** 2026-08-29 codebase audit (Tier-1 triage)
+The "26/26 pass" contrast sweep behind #72/#74 lives nowhere in the repo — it is a manual pass,
+re-run by hand each palette change. The palette has changed twice and will change again; a sweep
+that isn't reproducible will rot silently, and this is exactly the *"output, not discipline"* case
+`docs/testing-recommendations.md` argues for. Small tooling task, long tail: a script (or unit
+test) that reads the `@theme` tokens from `globals.css`, computes WCAG contrast for each
+text-on-surface pairing, and fails below 4.5:1 (3:1 for large text). Then the sweep is a gate, not
+a memory. **Not urgent — do when the palette next settles.**
 
 ---
 
