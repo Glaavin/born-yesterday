@@ -65,6 +65,13 @@ describe("hostAllowed", () => {
     expect(r.allowed).toBe(false);
   });
 
+  it("fails CLOSED on EAI_AGAIN — a temporary resolver failure, not not-found (Tier 1 · 1d)", async () => {
+    const r = await hostAllowed("x.test", async () => {
+      throw err("EAI_AGAIN");
+    });
+    expect(r.allowed).toBe(false);
+  });
+
   it("fails CLOSED on an unexpected error with no code", async () => {
     const r = await hostAllowed("x.test", async () => {
       throw new Error("boom");

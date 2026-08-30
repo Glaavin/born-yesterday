@@ -25,6 +25,15 @@ export interface ServeResult {
 
 export interface RequestMeta {
   sessionKey: string;
+  /** False when the caller could NOT determine a trusted client IP (e.g. no
+   *  x-forwarded-for). Such a request can still VIEW already-generated reports,
+   *  but must not be able to trigger a new collection: pooling all header-less
+   *  requests under one sessionKey shares a single 3/day bucket (accidental
+   *  site-wide DoS), and a per-request key would bypass the limit entirely.
+   *  Treating it as out-of-quota declines only the expensive, quota-gated action
+   *  while keeping cached reports viewable (§11). Defaults to identified.
+   *  (Tier 1 · 1c) */
+  identified?: boolean;
 }
 
 export interface ServeDeps {
@@ -58,10 +67,11 @@ export async function serveReport(
   const existing = await deps.getReport(domain);
   const fresh = existing != null && isFresh(existing, nowSec);
   const used = await deps.getQuota(meta.sessionKey, day);
-  const quotaRemaining = used < SEARCH_LIMIT_PER_DAY;
+  // An unidentified caller has no collection quota (Tier 1 · 1c) — it can still
+  // be served a cached report, but cannot trigger the expensive collect.
+  const quotaRemaining = meta.identified !== false && used < SEARCH_LIMIT_PER_DAY;
 
   const decision = decideServe({ existing: existing != null, fresh, quotaRemaining });
-  if (decision.consumesQuota) await deps.incrementQuota(meta.sessionKey, day);
 
   switch (decision.action) {
     case "serve-fresh":
@@ -71,16 +81,34 @@ export async function serveReport(
       return { state: "stale", report: parseReport(existing!), freshness: "stale" };
 
     case "serve-stale-refresh":
+      // The stale report is served now; the refresh is the quota-charged work,
+      // so charge up front (the caller IS getting a report). A background failure
+      // can't be surfaced and the stale report already stands, so swallow it.
+      if (decision.consumesQuota) await deps.incrementQuota(meta.sessionKey, day);
       deps.runBackground(async () => {
-        const t = deps.now();
-        const { report, signals } = await deps.collect(domain, t);
-        await deps.persist(domain, report, signals, t);
+        try {
+          const t = deps.now();
+          const { report, signals } = await deps.collect(domain, t);
+          await deps.persist(domain, report, signals, t);
+        } catch {
+          // Refresh failed; the stale report was already served. Nothing to do.
+        }
       });
       return { state: "refreshing", report: parseReport(existing!), freshness: "stale" };
 
     case "collect": {
-      const { report, signals } = await deps.collect(domain, nowSec);
-      await deps.persist(domain, report, signals, nowSec);
+      // Charge quota only AFTER a successful synchronous generation. A failed
+      // collect/persist must not burn the caller's daily allowance, and must
+      // surface as the friendly error state — never a thrown 500 (Tier 1 · 1b).
+      let report: Report;
+      try {
+        const generated = await deps.collect(domain, nowSec);
+        await deps.persist(domain, generated.report, generated.signals, nowSec);
+        report = generated.report;
+      } catch {
+        return { state: "error", freshness: "none" };
+      }
+      if (decision.consumesQuota) await deps.incrementQuota(meta.sessionKey, day);
       return { state: "served", report, freshness: "new" };
     }
 

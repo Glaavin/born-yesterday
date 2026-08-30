@@ -98,9 +98,12 @@ export interface HostCheck {
 
 // A resolver throwing one of these means the host genuinely doesn't resolve —
 // the connection would fail as a network error anyway, so we fail OPEN. ANY
-// other error (e.g. node:dns import failure on a non-Node runtime) is a
-// resolver-unavailable condition and we fail CLOSED (block).
-const HOST_NOT_FOUND_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_AGAIN", "EAI_NONAME"]);
+// other error is a resolver-unavailable condition and we fail CLOSED (block).
+// NOTE: EAI_AGAIN is deliberately NOT here (Tier 1 · 1d) — it is a *temporary*
+// resolver failure ("try again"), i.e. the resolver was unavailable, not a
+// definitive not-found. Failing open on it would let a flaky check pass a host
+// the real connection could still resolve to an internal address.
+const HOST_NOT_FOUND_CODES = new Set(["ENOTFOUND", "ENODATA", "EAI_NONAME"]);
 
 function isHostNotFound(e: unknown): boolean {
   const code = (e as { code?: unknown } | null)?.code;
