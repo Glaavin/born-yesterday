@@ -31,87 +31,109 @@ export const stateToKey = (s: IndicatorState): ReportStateKey => STATE_TO_KEY[s]
 const fmtDate = (nowSec: number): string => new Date(nowSec * 1000).toISOString().slice(0, 10);
 
 /**
- * Reassuring, SOURCED facts (clean threat checks included as info — never a
- * strong "safe").
+ * Split the collected facts into the channels the report renders (Story 19.1).
+ *
+ * CLASSIFICATION IS ROUTING, NEVER A RULE. Nothing here decides whether a
+ * finding fires — only where it is published. Owner rulings, 2026-08-27:
+ *
+ *   POSITIVE  affirmative evidence — SPF present, DMARC present, and the
+ *             archive span WHEN it is the published reason for Green.
+ *   NEUTRAL   a fact supporting no inference either way — the capture count,
+ *             the archive span on any report that is NOT Green, certificate
+ *             age, the Trustpilot rating, and a clean threat check.
+ *   FLAGGED   adverse. None originate here; they come from the indicator.
  *
  * `alreadyStated` names facts the INDICATOR has already published as leading
- * establishing reasons, in better words. Green publishes its establishing
- * reasons at the head of `positive[]`, so without this the same fact appeared
- * twice a few lines apart — "Archived since 1996 — … spans ~30 years" followed
- * by "Archived on the Wayback Machine since 1996 (6687 captures recorded)".
- * Suppression rather than string-matching, so the two copies cannot drift into
- * disagreeing about which is authoritative.
+ * establishing reasons, in better words — Green publishes those at the head of
+ * `positive[]`, so without this the same fact appeared twice a few lines apart.
+ * Suppression rather than string-matching on output, so the two copies cannot
+ * drift into disagreeing about which is authoritative.
  */
-function gatherPositives(
+function gatherFindings(
   byKey: Map<string, Signal>,
   nowSec: number,
+  isGreen: boolean,
   alreadyStated: ReadonlySet<string> = new Set(),
-): Finding[] {
-  const out: Finding[] = [];
-  const push = (text: string, source: SignalSource | null | undefined) => {
-    if (source) out.push({ text, source });
+): { positive: Finding[]; neutral: Finding[] } {
+  const positive: Finding[] = [];
+  const neutral: Finding[] = [];
+  // §6.2 binds every channel alike: no source, no publish.
+  const push = (into: Finding[], text: string, source: SignalSource | null | undefined) => {
+    if (source) into.push({ text, source });
   };
 
-  // REGISTRATION AGE IS NOT PUBLISHED HERE ANY MORE (18.3 §3.4.1 / §3.4.5).
-  // `Registered ~${humanAge(ageDays)} ago.` sat in this list, under a "Positive"
-  // badge, and that framing is the claim: it offered registration age as
-  // evidence of establishment. Registration age is a valid UPPER bound on
-  // operating history and an invalid LOWER bound, so for a recycled domain the
-  // fact was true and the implication false. The date is still published — as a
-  // neutral sourced observation in the summary, emitted by `indicator.ts` — so
-  // the reader loses no fact, only an inference we were not entitled to.
+  // REGISTRATION AGE IS NOT PUBLISHED HERE (18.3 §3.4.1 / §3.4.5). It reached
+  // the reader as a neutral, sourced observation from `indicator.ts`, and now
+  // routes into `neutral[]` with the other observations — the same fact, and
+  // still not offered as evidence of establishment.
 
-  if (!alreadyStated.has("spf") && byKey.get("dns_spf")?.valueText != null) push("SPF email-authentication record present.", byKey.get("dns_spf")?.source);
-  if (byKey.get("dns_dmarc")?.valueText != null) push("DMARC policy present.", byKey.get("dns_dmarc")?.source);
+  if (!alreadyStated.has("spf") && byKey.get("dns_spf")?.valueText != null) {
+    push(positive, "SPF email-authentication record present.", byKey.get("dns_spf")?.source);
+  }
+  if (byKey.get("dns_dmarc")?.valueText != null) {
+    push(positive, "DMARC policy present.", byKey.get("dns_dmarc")?.source);
+  }
 
+  // TRUSTPILOT — restored to the report, in the channel it always needed.
+  // Hotfix #64 removed it from `positive[]` because `valueText` is the rating
+  // verbatim, so "1.8/5 (40 reviews)" published under a heading calling it
+  // reassuring. There is still NO direction check and there must not be:
+  // deciding 4.6 is good and 1.8 is bad means adopting a third party's verdict
+  // on a company, which the intake rule prohibits and `reputation.ts` disclaims
+  // ("we count and link, we don't judge"). We print the score, attach nothing,
+  // and let the reader weigh it.
   const tp = byKey.get("trustpilot");
-  if (tp?.valueText != null) push(`Trustpilot: ${tp.valueText}.`, tp.source);
+  if (tp?.valueText != null) push(neutral, `Trustpilot: ${tp.valueText}.`, tp.source);
 
-  // SPAN LEADS, COUNT FOLLOWS AS CONTEXT (§3.4.3). The count on its own measures
-  // crawler attention — `bolt.new` is ~2 years old with 449 captures — so
-  // publishing it as the headline reassurance rewarded popularity. The span is
-  // the time measure; the count is disclosed beside it, not in place of it. Both
-  // are facts about the DOMAIN: the operator-continuity gap they leave is
-  // disclosed as a caveat by `indicator.ts`.
+  // ARCHIVE — the one CONTEXT-DEPENDENT classification, and deliberately so.
+  // On a Green report the span IS the establishing evidence and the indicator
+  // has already published it. Anywhere else the same sentence establishes
+  // nothing: `bolt.new`'s "Archived since 2024" is precisely why it is NOT
+  // Green, and `secondlibrary.com`'s span is actively misleading (§3.4.8).
+  // Same fact, three meanings — so the channel follows the verdict. The
+  // assembler already knows the state, so this stays routing.
   const snapSig = byKey.get("wayback_snapshot_count");
   const snaps = snapSig?.valueNum ?? null;
   const firstArchived = byKey.get("wayback_first");
-  const firstIso =
-    firstArchived?.status === "ok" ? (firstArchived.valueText ?? null) : null;
+  const firstIso = firstArchived?.status === "ok" ? (firstArchived.valueText ?? null) : null;
   if (alreadyStated.has("archive")) {
     // The indicator's establishing reason already carries span AND count.
   } else if (firstIso) {
     const since = firstIso.slice(0, 4);
     push(
+      isGreen ? positive : neutral,
       snaps != null
         ? `Archived on the Wayback Machine since ${since} (${snaps} capture${snaps === 1 ? "" : "s"} recorded).`
         : `Archived on the Wayback Machine since ${since}.`,
       firstArchived?.source,
     );
   } else if (snaps != null && snaps > 0) {
-    push(`${snaps} archived capture${snaps === 1 ? "" : "s"} on the Wayback Machine.`, snapSig?.source);
+    push(neutral, `${snaps} archived capture${snaps === 1 ? "" : "s"} on the Wayback Machine.`, snapSig?.source);
   }
 
-  // CAPPED (§3.4.4). A pre-2018 first-cert date is not a measurement — CT
-  // logging was voluntary and non-uniform before then, so we cannot tell "first
-  // certificate" from "first LOGGED certificate". Stated as a floor, and labelled
-  // as one. Same helper as the indicator's corroborating reason: the cap has to
-  // hold in both places or it does not hold at all.
+  // CERTIFICATES — NEUTRAL. They corroborate an established span; they are
+  // never a route of their own (§3.4.4), and a pre-2018 date is a floor rather
+  // than a measurement, which is stated in the copy.
   const fc = byKey.get("first_cert_date");
   if (fc?.status === "ok" && fc.valueNum != null) {
     push(
+      neutral,
       `TLS certificates logged for ${certAgeClaim(fc.valueNum, nowSec)}` +
         (certAgeIsFloorOnly(fc.valueNum) ? " (a floor — Certificate Transparency does not reach further back)." : "."),
       fc.source,
     );
   }
 
+  // CLEAN THREAT CHECKS — NEUTRAL, which is what the code has said all along in
+  // two places: "a clean threat check is information, NOT a strong 'safe'" and
+  // "included as info". Absence from a list of KNOWN bad hosts is weak evidence
+  // of safety, and this project rejects absence-as-evidence everywhere else.
   const pt = byKey.get("phishtank_listed");
   const uh = byKey.get("urlhaus_listed");
-  if (pt?.valueText === THREAT_NOT_LISTED) push("Not listed on PhishTank (this host).", pt.source);
-  if (uh?.valueText === THREAT_NOT_LISTED) push("Not listed on URLhaus (this host).", uh.source);
+  if (pt?.valueText === THREAT_NOT_LISTED) push(neutral, "Not listed on PhishTank (this host).", pt.source);
+  if (uh?.valueText === THREAT_NOT_LISTED) push(neutral, "Not listed on URLhaus (this host).", uh.source);
 
-  return out;
+  return { positive, neutral };
 }
 
 function dedupeSources(list: SignalSource[]): Source[] {
@@ -135,9 +157,20 @@ export function assembleReport(
 ): Report {
   const byKey = signalsByKey(results);
 
-  // Caveat reasons (e.g. an unreachable feed) are transparency notes — they go to
-  // the SUMMARY, never into flagged[]/positive[]. The rest are contributing reasons.
-  const caveats = indicator.reasons.filter((r) => r.kind === "caveat");
+  // §3.2's TWO CAVEAT DISCIPLINES FINALLY GET TWO HOMES — and the split is
+  // structural rather than conventional, which is what §3.2 wanted a `subkind`
+  // field for (register item A3):
+  //
+  //   OBSERVATION  sourced, describes the DOMAIN  → the neutral channel
+  //   DISCLOSURE   unsourced, describes OUR limits → the summary note
+  //
+  // The symmetry rule (§6.2) already forces this: a disclosure carries no
+  // source, so it cannot be published as a finding in any channel. Nothing new
+  // had to be invented to tell them apart — the invariant was already load-
+  // bearing, it just had nowhere to route to.
+  const allCaveats = indicator.reasons.filter((r) => r.kind === "caveat");
+  const caveats = allCaveats.filter((r) => r.source == null);
+  const observations = allCaveats.filter((r) => r.source != null);
   // The RESIDUAL is not a finding — it states what we could not establish, and
   // it fires only when nothing was flagged. It routes to the summary, so it is
   // never badged "Flagged" and never counted in "N worth a closer look".
@@ -146,7 +179,7 @@ export function assembleReport(
 
   // Concern reasons become flagged findings (sourced); none for Green.
   const flagged: Finding[] =
-    indicator.state === "green"
+    indicator.state === "green" || indicator.state === "blue"
       ? []
       : mainReasons
           .filter((r): r is { text: string; source: SignalSource } => r.source != null)
@@ -154,20 +187,31 @@ export function assembleReport(
 
   // Reassuring facts; for Green, the establishing reasons lead — and whatever
   // they already state is not restated below them.
+  const isGreen = indicator.state === "green";
   const stated = new Set<string>();
-  if (indicator.state === "green") {
+  if (isGreen) {
     for (const r of mainReasons) {
       if (/^Archived since /.test(r.text)) stated.add("archive");
       if (/SPF present/.test(r.text)) stated.add("spf");
     }
   }
-  const positive: Finding[] = gatherPositives(byKey, nowSec, stated);
-  if (indicator.state === "green") {
+  const { positive, neutral } = gatherFindings(byKey, nowSec, isGreen, stated);
+  if (isGreen) {
     for (let i = mainReasons.length - 1; i >= 0; i--) {
       const r = mainReasons[i];
       if (r.source) positive.unshift({ text: r.text, source: r.source });
     }
   }
+  // BLUE's reasons are NEUTRAL (owner ruling). They are facts we established —
+  // a registration date and a capture count — and they were rendering under a
+  // "Couldn't establish" badge, which is the opposite of what they are. Blue's
+  // meaning is carried by the pill and the summary, not by badging its evidence.
+  if (indicator.state === "blue") {
+    for (const r of mainReasons) if (r.source) neutral.push({ text: r.text, source: r.source });
+  }
+  // Sourced observations from the indicator (registration date, the AI-language
+  // date, DMARC absent) join them.
+  for (const r of observations) neutral.push({ text: r.text, source: r.source! });
 
   const sources = dedupeSources([
     ...results.flatMap((c) =>
@@ -206,6 +250,7 @@ export function assembleReport(
     lastChecked: fmtDate(nowSec),
     flagged,
     positive,
+    neutral,
     sources,
   };
 }

@@ -47,6 +47,22 @@ export type Report = {
   lastChecked: string;
   flagged: Finding[];
   positive: Finding[];
+  /**
+   * Facts that support no inference in either direction (Story 19.1).
+   *
+   * Without this channel a fact that was neither concerning nor reassuring had
+   * to land in `positive[]`, so the "Positive findings" heading asserted
+   * favourability over it. The sharpest case: a capture count under a Positive
+   * badge told the reader that being crawled a lot is reassuring, which §3.4.3
+   * explicitly denies — §3.4.5's defect surviving in the LAYOUT after it had
+   * been removed from the prose. A heading cannot be worded out of asserting
+   * something; it needs somewhere else to put the fact.
+   *
+   * OPTIONAL ON READ, ALWAYS WRITTEN. Reports cached before this existed have
+   * no such field, and `reports.schema_version` is written but never read, so
+   * nothing regenerates them. `serve.ts` normalises on the way in.
+   */
+  neutral?: Finding[];
   sources: Source[];
 };
 
@@ -64,6 +80,9 @@ export function reportToText(r: Report): string {
     "",
     "Positive:",
     ...r.positive.map(line),
+    "",
+    "What we found:",
+    ...(r.neutral ?? []).map(line),
     "",
     "Sources:",
     ...r.sources.map((s) => `- ${s.label}: ${s.url}`),

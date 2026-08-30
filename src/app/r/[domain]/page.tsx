@@ -39,7 +39,7 @@ function SourceLink({ source }: { source: Source }) {
  * (ink-muted / ink), never the flag-negative concern treatment. Presentation only:
  * the Report shape is unchanged and the reason still lives in `flagged[]`.
  */
-type FindingKind = "flagged" | "positive" | "unestablished";
+type FindingKind = "flagged" | "positive" | "neutral" | "unestablished";
 
 const FINDING_STYLES: Record<FindingKind, { label: string; badge: string; text: string }> = {
   flagged: {
@@ -52,6 +52,16 @@ const FINDING_STYLES: Record<FindingKind, { label: string; badge: string; text: 
     badge: "border-flag-positive/50 text-flag-positive",
     text: "text-flag-positive",
   },
+  // NEUTRAL (Story 19.1) — a fact that supports no inference either way. It is
+  // deliberately NOT styled with a signal colour: the whole reason this channel
+  // exists is that a heading (and a badge) assert something the fact does not.
+  neutral: {
+    label: "Observed",
+    badge: "border-ink-muted/50 text-ink-muted",
+    text: "text-ink",
+  },
+  // Retained for CACHED reports written before 19.1, which can still carry Blue
+  // reasons in flagged[]. Newly-assembled Blue reports route those to neutral[].
   unestablished: {
     label: "Couldn’t establish",
     badge: "border-ink-muted/50 text-ink-muted",
@@ -114,10 +124,15 @@ export default async function ReportPage({
   const input = decodeURIComponent(raw);
 
   const h = await headers();
-  const ip = clientIpFrom(h.get("x-forwarded-for"));
+  const forwarded = h.get("x-forwarded-for");
+  // Without a trusted client IP we cannot identify the caller. Such a request may
+  // still view cached reports, but must not trigger a new collection — see
+  // RequestMeta.identified (Tier 1 · 1c).
+  const identified = forwarded != null && forwarded.trim().length > 0;
+  const ip = clientIpFrom(forwarded);
   const deps = buildServeDeps((fn) => after(fn)); // background refresh runs after the response
 
-  const result = await serveReport(input, { sessionKey: sessionKey(ip) }, deps);
+  const result = await serveReport(input, { sessionKey: sessionKey(ip), identified }, deps);
 
   if (result.state === "error") {
     return (
@@ -147,6 +162,9 @@ export default async function ReportPage({
   // suspicion. Its reasons must not be presented as concerns.
   const inconclusive = report.state === "too-new";
   const reasonKind: FindingKind = inconclusive ? "unestablished" : "flagged";
+  // Cached reports pre-date this field; `serve.ts` normalises, and this is the
+  // belt to that braces.
+  const neutral = report.neutral ?? [];
 
   const overview = (
     <div className="flex flex-col gap-4">
@@ -156,6 +174,11 @@ export default async function ReportPage({
       <ul className="mt-1">
         {report.flagged[0] && <FindingItem kind={reasonKind} finding={report.flagged[0]} />}
         {report.positive[0] && <FindingItem kind="positive" finding={report.positive[0]} />}
+        {/* Blue has no flagged and no positive findings — without this its
+            overview would be empty of any finding at all. */}
+        {!report.flagged[0] && !report.positive[0] && neutral[0] && (
+          <FindingItem kind="neutral" finding={neutral[0]} />
+        )}
       </ul>
     </div>
   );
@@ -183,6 +206,21 @@ export default async function ReportPage({
           {report.positive.length === 0 && <li className="py-2 text-ink-muted">None recorded.</li>}
           {report.positive.map((f, i) => (
             <FindingItem key={i} kind="positive" finding={f} />
+          ))}
+        </ul>
+      </section>
+      {/* WHAT WE FOUND (Story 19.1) — facts that support no inference either
+          way. The heading names the act of observing, never the meaning: it
+          must not rank itself below the other two, and must not imply it is
+          everything we checked. */}
+      <section aria-labelledby="signals-neutral">
+        <h2 id="signals-neutral" className="text-sm font-semibold text-ink-muted">
+          What we found
+        </h2>
+        <ul>
+          {neutral.length === 0 && <li className="py-2 text-ink-muted">None recorded.</li>}
+          {neutral.map((f, i) => (
+            <FindingItem key={i} kind="neutral" finding={f} />
           ))}
         </ul>
       </section>
