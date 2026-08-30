@@ -33,9 +33,54 @@ export interface Reason {
    */
   kind?: "positive" | "caveat" | "residual";
 }
+/**
+ * Which branch of the rubric produced the verdict. DIAGNOSTIC ONLY — it never
+ * reaches `Report` and never affects what a reader sees.
+ *
+ * It exists because the corpus delta gate could not say which paths it had
+ * exercised, and *"zero changes"* therefore read as reassurance when it was
+ * often silence. Measured at the time this was added: the gate entered **five
+ * of nine** paths, and two of the six blind-spot defects found during Lithium
+ * lived on paths it never entered (`docs/testing-recommendations.md`).
+ *
+ * Labelled EXPLICITLY rather than inferred from the output, deliberately. The
+ * first attempt at measuring this inferred the path from the reason list and
+ * misfiled five domains, because residual reasons carry `kind: "residual"` and
+ * the classifier filtered for `"main"`. **An instrument that can be wrong in
+ * the same way as the code is not an instrument.**
+ *
+ * Because `verdict()` takes this as its first argument, a new `return` site
+ * cannot be added without naming its path — the compiler asks.
+ */
+export type RubricPath =
+  | "red-threat-listing"
+  | "red-accumulation"
+  | "blue-thin-footprint"
+  | "green-established-clean"
+  | "amber-concerns"
+  | "amber-residual-no-spf"
+  | "amber-residual-not-established"
+  | "amber-no-reason-spf-unchecked"
+  | "amber-no-reason-archive-unchecked";
+
+/** Every path, so a coverage report can name the ones it did NOT reach. */
+export const RUBRIC_PATHS: readonly RubricPath[] = [
+  "red-threat-listing",
+  "red-accumulation",
+  "blue-thin-footprint",
+  "green-established-clean",
+  "amber-concerns",
+  "amber-residual-no-spf",
+  "amber-residual-not-established",
+  "amber-no-reason-spf-unchecked",
+  "amber-no-reason-archive-unchecked",
+];
+
 export interface Indicator {
   state: IndicatorState;
   reasons: Reason[];
+  /** Diagnostic; see `RubricPath`. Never rendered. */
+  path: RubricPath;
 }
 
 /* ============================================================================
@@ -359,9 +404,10 @@ export function computeIndicator(
   // A `subkind` field would make the distinction enforceable rather than
   // conventional; proposed, deliberately not built here.
   const caveats: Reason[] = [];
-  const verdict = (state: IndicatorState, reasons: Reason[]): Indicator => ({
+  const verdict = (path: RubricPath, state: IndicatorState, reasons: Reason[]): Indicator => ({
     state,
     reasons: [...reasons, ...caveats],
+    path,
   });
 
   const reg = byKey.get("domain_registration_date");
@@ -476,7 +522,7 @@ export function computeIndicator(
   const listings: Reason[] = [];
   if (listed(pt)) listings.push({ text: "Listed on PhishTank (public phishing feed).", source: pt!.source });
   if (listed(uh)) listings.push({ text: "Listed on URLhaus (abuse.ch malware feed).", source: uh!.source });
-  if (listings.length) return verdict("red", listings);
+  if (listings.length) return verdict("red-threat-listing", "red", listings);
 
   // ---- The AI pivot: an OBSERVATION, not a concern (owner ruling, 2026-08-26).
   //
@@ -591,7 +637,7 @@ export function computeIndicator(
         source: byKey.get("wayback_snapshot_count")?.source ?? null,
       },
     ];
-    return verdict("blue", blueReasons);
+    return verdict("blue-thin-footprint", "blue", blueReasons);
   }
 
   // ---- 3) ACCUMULATION → RED (Q3: a RATIO over completed observations). ----
@@ -609,7 +655,7 @@ export function computeIndicator(
     completedChecks >= ACCUMULATION_MIN_CHECKS &&
     accumulationRatio >= ACCUMULATION_RATIO
   ) {
-    return verdict("red", [
+    return verdict("red-accumulation", "red", [
       ...concerns,
       {
         text: `${concerns.length} of the ${completedChecks} checks we completed returned findings. Each is listed above with its source.`,
@@ -688,7 +734,7 @@ export function computeIndicator(
         kind: "caveat",
       });
     }
-    return verdict("green", reasons);
+    return verdict("green-established-clean", "green", reasons);
   }
 
   // ---- 5) Else → AMBER ("some concerns") — the generous default. ----
@@ -699,7 +745,7 @@ export function computeIndicator(
       kind: "caveat",
     });
   }
-  if (concerns.length) return verdict("amber", concerns);
+  if (concerns.length) return verdict("amber-concerns", "amber", concerns);
   // The claim here is about ARCHIVED HISTORY, so it is cited to the archive —
   // citing it to RDAP was the §3.4.5 defect in its quietest form: registration
   // offered as the source for a statement about establishment. Three cases,
@@ -726,7 +772,7 @@ export function computeIndicator(
     if (spfChecked && spfSig?.source) {
       // CHECKED AND ABSENT — a confirmed empty state is a FINDING (§1.1), it
       // describes the domain, and it cites the query we actually ran.
-      return verdict("amber", [
+      return verdict("amber-residual-no-spf", "amber", [
         { text: "No SPF email-authentication record was found.", source: spfSig.source, kind: "residual" },
       ]);
     }
@@ -734,7 +780,7 @@ export function computeIndicator(
     // domain. The "email-authentication lookup did not complete" caveat above
     // already states it, in the channel built for it, and the symmetry rule
     // (§6.2) forbids manufacturing an unsourced reason to sit beside it.
-    return verdict("amber", []);
+    return verdict("amber-no-reason-spf-unchecked", "amber", []);
   }
   // NOT ESTABLISHED. The claim is about archived history, so it cites the
   // archive. Where the archive check did not complete there is nothing to cite:
@@ -742,8 +788,8 @@ export function computeIndicator(
   // shape §3.2 says should become a no-verdict outcome; until that story exists
   // it degrades to Amber-with-a-disclosure rather than to an uncitable claim.
   const archiveSource = firstArchived?.source ?? byKey.get("wayback_snapshot_count")?.source ?? null;
-  if (!checked("wayback_first") || archiveSource == null) return verdict("amber", []);
-  return verdict("amber", [
+  if (!checked("wayback_first") || archiveSource == null) return verdict("amber-no-reason-archive-unchecked", "amber", []);
+  return verdict("amber-residual-not-established", "amber", [
     {
       text: "We couldn't establish enough archived history to vouch for this domain yet.",
       source: archiveSource,

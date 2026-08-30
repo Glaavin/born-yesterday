@@ -14,7 +14,7 @@
  */
 import { readFileSync } from "node:fs";
 import type { CollectorResult, Signal, SignalStatus } from "../src/signals/types";
-import { computeIndicator } from "../src/report/indicator";
+import { computeIndicator, RUBRIC_PATHS, type RubricPath } from "../src/report/indicator";
 import { derive } from "../src/report/derive";
 
 const NOW = Math.floor(Date.parse("2026-08-24T00:00:00Z") / 1000);
@@ -114,22 +114,158 @@ function build(o: Obs, pivot: Obs | undefined): CollectorResult[] {
   ];
 }
 
+/**
+ * WHAT THIS HARNESS CANNOT MODEL (printed on every run, deliberately).
+ *
+ * These are blind spots baked into the INSTRUMENT, not into the corpus, and
+ * they were previously visible only to someone who read this file. A clean
+ * delta says nothing whatever about them, and the person reading the delta is
+ * usually not the person who knew that.
+ */
+const BLIND_SPOTS: string[] = [
+  "certificate data — 0 of 49 observations carry any (crt.sh was 5xx throughout 18.2, and again on 2026-08-27)",
+  "threat-feed listings — never collected; both feeds are modelled as not_attempted",
+  "Trustpilot ratings — 0 observations carry one; valueText is always null here",
+  "live latency — observations came from a PATIENT 45s qualifier, so the production 8s budget is never exercised (B11)",
+];
+
+function declareBlindSpots(): void {
+  console.error("\n── what this harness cannot model ──");
+  for (const b of BLIND_SPOTS) console.error(`   · ${b}`);
+  console.error("   Results say NOTHING about these paths.\n");
+}
+
+/** Force one collector's signals to `failed` — the failure-mode sweep. */
+function failCollector(results: CollectorResult[], collector: string): CollectorResult[] {
+  return results.map((c) =>
+    c.collector !== collector
+      ? c
+      : { ...c, ok: false, signals: c.signals.map((sg) => ({ ...sg, status: "failed" as SignalStatus, valueText: null, valueNum: null, source: null })) },
+  );
+}
+
+function reportPathCoverage(seen: Map<RubricPath, number>): void {
+  const missing = RUBRIC_PATHS.filter((p) => !seen.get(p));
+  console.error("── rubric-path coverage ──");
+  for (const p of RUBRIC_PATHS) {
+    const n = seen.get(p) ?? 0;
+    console.error(`   ${n ? "HIT " : "MISS"}  ${p.padEnd(36)} n=${n}`);
+  }
+  console.error(
+    `\n   ${RUBRIC_PATHS.length - missing.length} of ${RUBRIC_PATHS.length} paths entered.` +
+      (missing.length ? `  NEVER ENTERED: ${missing.join(", ")}` : ""),
+  );
+  console.error(
+    missing.length
+      ? "   A clean delta is not evidence about the paths above — it never reached them.\n"
+      : "\n",
+  );
+}
+
+/**
+ * FAILURE-MODE SWEEP. Runs the corpus once per collector with that collector
+ * forced to fail, and reports which verdicts become unreachable.
+ *
+ * This is the check that would have caught B11 BEFORE the production deploy
+ * rather than minutes after it: with Wayback failed, Green goes to zero across
+ * all 49 domains, because archive span is now the only route to establishment.
+ */
+function sweep(domains: string[], obs: Map<string, Obs>, piv: Map<string, Obs>): void {
+  const COLLECTORS = ["domain-identity", "dns", "certs", "threats", "reputation", "ai-pivot"];
+  declareBlindSpots();
+  console.error("── failure-mode sweep: one collector forced to fail per run ──\n");
+  const baseline = tally(domains, obs, piv, null);
+  console.error(`   ${"(none — baseline)".padEnd(18)} ${fmt(baseline)}`);
+  const findings: string[] = [];
+  const uninformative: string[] = [];
+  for (const c of COLLECTORS) {
+    // A collector the corpus ALREADY models as failed cannot be informative
+    // here — forcing it to fail changes nothing, and an unchanged row would
+    // read as "this dependency is safe" when it means "we never had it".
+    // Saying so is the whole point of this file; see BLIND_SPOTS.
+    const alreadyDown = everyDomainAlreadyFails(domains, obs, piv, c);
+    const t = tally(domains, obs, piv, c);
+    console.error(`   ${c.padEnd(18)} ${fmt(t)}${alreadyDown ? "   ← already failed in baseline: UNINFORMATIVE" : ""}`);
+    if (alreadyDown) {
+      uninformative.push(c);
+      continue;
+    }
+    for (const st of ["green", "amber", "blue", "red"] as const) {
+      if ((baseline[st] ?? 0) > 0 && (t[st] ?? 0) === 0) {
+        findings.push(`${st.toUpperCase()} becomes UNREACHABLE when "${c}" fails (baseline ${baseline[st]})`);
+      }
+    }
+  }
+  console.error("");
+  if (findings.length) {
+    console.error("⚠  FINDINGS — a single dependency takes a whole verdict with it:");
+    for (const f of findings) console.error(`   · ${f}`);
+    console.error("\n   That is a decision, not a warning to scroll past.\n");
+  } else {
+    console.error("   No verdict is lost to any single collector failure.\n");
+  }
+  if (uninformative.length) {
+    console.error(
+      `   NOT TESTED: ${uninformative.join(", ")} — already failed in the baseline, so forcing\n` +
+        "   them to fail proves nothing. Their unchanged rows above are silence, not safety.\n",
+    );
+  }
+}
+
+/** True when the corpus already models this collector as down for every domain. */
+function everyDomainAlreadyFails(domains: string[], obs: Map<string, Obs>, piv: Map<string, Obs>, collector: string): boolean {
+  for (const d of domains) {
+    const o = obs.get(d);
+    if (!o) continue;
+    const c = build(o, piv.get(d)).find((x) => x.collector === collector);
+    if (c && c.signals.some((sg) => sg.status === "ok")) return false;
+  }
+  return true;
+}
+
+const fmt = (t: Record<string, number>): string =>
+  (["green", "amber", "blue", "red"] as const).map((k) => `${k} ${String(t[k] ?? 0).padStart(2)}`).join("  ");
+
+function tally(domains: string[], obs: Map<string, Obs>, piv: Map<string, Obs>, fail: string | null): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const d of domains) {
+    const o = obs.get(d);
+    if (!o) continue;
+    let results = build(o, piv.get(d));
+    if (fail) results = failCollector(results, fail);
+    const ind = computeIndicator(d, results, derive(results, NOW), NOW);
+    out[ind.state] = (out[ind.state] ?? 0) + 1;
+  }
+  return out;
+}
+
 function main() {
   const corpus = JSON.parse(readFileSync("docs/calibration/corpus.json", "utf8"));
   const domains: string[] = corpus.entries.filter((e: Obs) => e.domain).map((e: Obs) => e.domain);
   const obs = new Map<string, Obs>(read("docs/calibration/observations.ndjson").map((o) => [o.domain, o]));
   const piv = new Map<string, Obs>(read("docs/calibration/pivot-onset-scan.ndjson").map((o) => [o.domain, o]));
 
+  if (process.argv.includes("--sweep")) {
+    sweep(domains.sort(), obs, piv);
+    return;
+  }
+
+  const seen = new Map<RubricPath, number>();
   for (const d of domains.sort()) {
     const o = obs.get(d);
     if (!o) { console.error(`(no observation for ${d})`); continue; }
     const results = build(o, piv.get(d));
     const ind = computeIndicator(d, results, derive(results, NOW), NOW);
+    seen.set(ind.path, (seen.get(ind.path) ?? 0) + 1);
     console.log(JSON.stringify({
       domain: d,
       state: ind.state,
+      path: ind.path,
       reasons: ind.reasons.map((r) => ({ kind: r.kind ?? "main", text: r.text })),
     }));
   }
+  // Both go to STDERR so the ndjson on stdout stays machine-readable.
+  reportPathCoverage(seen);
+  declareBlindSpots();
 }
 main();

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { CollectorResult, Signal, SignalSource } from "../signals/types";
 import { derive, type Derivations } from "./derive";
-import { computeIndicator, PIVOT_ESTABLISHED_DAYS, ESTABLISHED_ARCHIVE_SPAN_DAYS } from "./indicator";
+import { computeIndicator, PIVOT_ESTABLISHED_DAYS, ESTABLISHED_ARCHIVE_SPAN_DAYS, RUBRIC_PATHS, type RubricPath } from "./indicator";
 
 const NOW = Math.floor(Date.parse("2026-06-26T00:00:00Z") / 1000);
 const daysAgoSec = (d: number) => NOW - d * 86400;
@@ -35,6 +35,30 @@ const checkedBaseline = (...overrides: Signal[]): CollectorResult[] => {
   return results([...base, ...overrides]);
 };
 const noPivot: Derivations = { pivot: null };
+
+// ESTABLISHMENT IS NOW A SPAN (18.3 §3.4): how far back the archive reaches,
+// not how old the registration is and not how many captures exist. The
+// fixture carries a deep capture count AND an old registration precisely so
+// that removing `wayback_first` proves neither of them can establish Green.
+const ARCHIVED_SINCE = new Date((NOW - (ESTABLISHED_ARCHIVE_SPAN_DAYS + 400) * 86400) * 1000)
+  .toISOString()
+  .slice(0, 10);
+const established = (extra: Signal[] = []) => {
+  // `signalsByKey` is first-wins, so an extra must REPLACE the fixture's own
+  // signal of the same key rather than sit behind it — otherwise a test that
+  // means "now take the span away" silently asserts nothing.
+  const overridden = new Set(extra.map((e) => e.key));
+  const base = [
+    sig("domain_age_days", { valueNum: 4015 }),
+    sig("domain_registration_date", { valueNum: daysAgoSec(4015), source: S("RDAP", "u-rdap") }),
+    sig("dns_spf", { valueText: "v=spf1 ~all", source: S("DNS over HTTPS", "u-spf") }),
+    sig("dns_dmarc", { valueText: "v=DMARC1; p=reject", source: S("DNS over HTTPS", "u-dmarc") }),
+    sig("wayback_snapshot_count", { valueNum: 900, source: S("Wayback CDX", "u-cdx") }),
+    sig("wayback_first", { valueText: ARCHIVED_SINCE, source: S("Wayback CDX", "u-cdx") }),
+  ].filter((b) => !overridden.has(b.key));
+  return checkedBaseline(...base, ...extra);
+};
+
 
 describe("derive (pivot)", () => {
   it("derives an APPROXIMATE pivot when both dates exist", () => {
@@ -220,29 +244,6 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     expect(main).toHaveLength(1);
     expect(main[0].source).not.toBeNull();
   });
-
-  // ESTABLISHMENT IS NOW A SPAN (18.3 §3.4): how far back the archive reaches,
-  // not how old the registration is and not how many captures exist. The
-  // fixture carries a deep capture count AND an old registration precisely so
-  // that removing `wayback_first` proves neither of them can establish Green.
-  const ARCHIVED_SINCE = new Date((NOW - (ESTABLISHED_ARCHIVE_SPAN_DAYS + 400) * 86400) * 1000)
-    .toISOString()
-    .slice(0, 10);
-  const established = (extra: Signal[] = []) => {
-    // `signalsByKey` is first-wins, so an extra must REPLACE the fixture's own
-    // signal of the same key rather than sit behind it — otherwise a test that
-    // means "now take the span away" silently asserts nothing.
-    const overridden = new Set(extra.map((e) => e.key));
-    const base = [
-      sig("domain_age_days", { valueNum: 4015 }),
-      sig("domain_registration_date", { valueNum: daysAgoSec(4015), source: S("RDAP", "u-rdap") }),
-      sig("dns_spf", { valueText: "v=spf1 ~all", source: S("DNS over HTTPS", "u-spf") }),
-      sig("dns_dmarc", { valueText: "v=DMARC1; p=reject", source: S("DNS over HTTPS", "u-dmarc") }),
-      sig("wayback_snapshot_count", { valueNum: 900, source: S("Wayback CDX", "u-cdx") }),
-      sig("wayback_first", { valueText: ARCHIVED_SINCE, source: S("Wayback CDX", "u-cdx") }),
-    ].filter((b) => !overridden.has(b.key));
-    return checkedBaseline(...base, ...extra);
-  };
 
   it("4) established AND clean (both feeds checked-clear) → GREEN, no disclosure", () => {
     const r = established([
@@ -432,5 +433,84 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     ]);
     const ind = computeIndicator("x.com", r, noPivot, NOW);
     expect(ind.state).toBe("amber");
+  });
+});
+
+/**
+ * RUBRIC-PATH COVERAGE.
+ *
+ * The corpus delta gate — the review artifact for four consecutive stories —
+ * enters five of these nine paths, and two of Lithium's six blind-spot defects
+ * lived on paths it never entered. This table covers what the corpus
+ * structurally cannot, and it is EXHAUSTIVE BY CONSTRUCTION: the `Record`
+ * key type is the `RubricPath` union, so adding a `return verdict(...)` without
+ * adding a case here fails the type-check, not a later review.
+ */
+describe("rubric-path coverage", () => {
+  const SPAN_SHORT = new Date((NOW - 200 * 86400) * 1000).toISOString().slice(0, 10);
+  const CDX = S("Wayback CDX", "u-cdx");
+  const DNS = S("DNS over HTTPS", "u-dns");
+
+  /** Reachable path → a fixture that lands on it. Unreachable → why. */
+  const PATHS: Record<RubricPath, { results: CollectorResult[]; derivations?: Derivations } | { unreachable: string }> = {
+    "red-threat-listing": {
+      results: checkedBaseline(sig("phishtank_listed", { valueText: "Listed", source: S("PhishTank", "u-pt") })),
+    },
+    "red-accumulation": {
+      // NOT A GAP — a documented consequence (18.3 §3.1, §2.7). Since the pivot
+      // was demoted to an observation the concern pool has ONE member, so
+      // `concerns.length` cannot reach ACCUMULATION_MIN_FINDINGS = 2. The
+      // companion test "accumulation is STRICTLY unreachable…" fails the moment
+      // the pool grows, at which point this entry must become a fixture.
+      unreachable: "concern pool has one member; see the strict-unreachability test",
+    },
+    "blue-thin-footprint": {
+      results: checkedBaseline(
+        sig("domain_age_days", { valueNum: 30 }),
+        sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
+        sig("wayback_snapshot_count", { valueNum: 1, source: CDX }),
+      ),
+    },
+    "green-established-clean": { results: established() },
+    "amber-concerns": {
+      results: checkedBaseline(
+        sig("dns_a", { valueText: "1.2.3.4", source: DNS }), // resolved, no SPF, no DMARC
+        sig("domain_age_days", { valueNum: 4000 }),
+      ),
+    },
+    "amber-residual-no-spf": {
+      // established; SPF checked and ABSENT; DMARC present so the both-missing
+      // concern does not fire. Zero of 49 corpus domains reach this.
+      results: established([sig("dns_spf", { valueText: null, source: DNS })]),
+    },
+    "amber-residual-not-established": {
+      results: established([sig("wayback_first", { valueText: SPAN_SHORT, source: CDX })]),
+    },
+    "amber-no-reason-spf-unchecked": {
+      results: established([sig("dns_spf", { status: "failed", valueText: null })]),
+    },
+    "amber-no-reason-archive-unchecked": {
+      results: established([sig("wayback_first", { status: "failed" }), sig("wayback_snapshot_count", { status: "failed" })]),
+    },
+  };
+
+  for (const name of RUBRIC_PATHS) {
+    const f = PATHS[name];
+    if ("unreachable" in f) {
+      it(`${name} — declared unreachable: ${f.unreachable}`, () => {
+        expect(f.unreachable.length).toBeGreaterThan(0);
+      });
+      continue;
+    }
+    it(`${name} — reached, and labelled as itself`, () => {
+      const ind = computeIndicator("x.com", f.results, f.derivations ?? noPivot, NOW);
+      expect(ind.path).toBe(name);
+    });
+  }
+
+  it("every path is either covered by a fixture or declared unreachable", () => {
+    // `Record<RubricPath, …>` already enforces this at compile time; this
+    // asserts the runtime list has not drifted from the union.
+    expect(Object.keys(PATHS).sort()).toEqual([...RUBRIC_PATHS].sort());
   });
 });
