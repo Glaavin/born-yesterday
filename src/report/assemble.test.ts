@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { CollectorResult, Signal, SignalSource } from "../signals/types";
 import { assembleReport, stateToKey, KEY_TO_STATE } from "./assemble";
-import type { Indicator } from "./indicator";
+import type { Indicator, RubricPath } from "./indicator";
 
 const NOW = Math.floor(Date.parse("2026-06-26T00:00:00Z") / 1000);
 const S = (label: string, url: string): SignalSource => ({ label, url });
@@ -14,6 +14,18 @@ const sig = (key: string, o: Partial<Signal> = {}): Signal => ({
   status: "ok", // tests describe COMPLETED checks unless they say otherwise
   ...o,
 });
+
+/**
+ * `Indicator.path` is a DIAGNOSTIC label naming which branch of the rubric
+ * fired. The assembler ignores it entirely, so these fixtures supply a
+ * plausible one and assert nothing about it — the coverage report that consumes
+ * it is exercised in `indicator.test.ts` instead.
+ */
+const IND = (
+  state: Indicator["state"],
+  reasons: Indicator["reasons"],
+  path: RubricPath = "amber-concerns",
+): Indicator => ({ state, reasons, path });
 
 const REPORT_KEYS = ["domain", "state", "summary", "lastChecked", "flagged", "positive", "sources"];
 const EDITORIAL = /\b(scam|fraud|legit|safe|trust(?:worthy)?|suspicious|fake|sketchy|dangerous)\b/i;
@@ -29,7 +41,7 @@ describe("state ⇄ ReportStateKey mapping", () => {
 });
 
 describe("summary phrasing by state (insufficiency is not concern)", () => {
-  const ind = (state: Indicator["state"], reasons: Indicator["reasons"]): Indicator => ({ state, reasons });
+  const ind = IND;
   const oneSourced = [{ text: "a reason", source: S("RDAP", "u-rdap") }];
 
   it("BLUE is never described as 'worth a closer look' and carries no tally", () => {
@@ -71,10 +83,9 @@ describe("assembleReport", () => {
   ];
 
   it("produces the EXACT Report shape with the mapped state + factual summary", () => {
-    const indicator: Indicator = {
-      state: "amber",
-      reasons: [{ text: "No SPF or DMARC records found.", source: S("DNS over HTTPS", "u-dmarc") }],
-    };
+    const indicator = IND("amber", [
+      { text: "No SPF or DMARC records found.", source: S("DNS over HTTPS", "u-dmarc") },
+    ]);
     const report = assembleReport("example.com", results, { pivot: null }, indicator, NOW);
 
     expect(Object.keys(report).sort()).toEqual([...REPORT_KEYS].sort());
@@ -92,10 +103,11 @@ describe("assembleReport", () => {
   });
 
   it("green → no flagged; establishing reasons lead the positives", () => {
-    const indicator: Indicator = {
-      state: "green",
-      reasons: [{ text: "Established domain — registered ~11 years ago.", source: S("RDAP", "u-rdap") }],
-    };
+    const indicator = IND(
+      "green",
+      [{ text: "Established domain — registered ~11 years ago.", source: S("RDAP", "u-rdap") }],
+      "green-established-clean",
+    );
     const report = assembleReport("example.com", results, { pivot: null }, indicator, NOW);
     expect(report.state).toBe("checks-out");
     expect(report.flagged).toEqual([]);
@@ -120,7 +132,7 @@ describe("assembleReport", () => {
           sig("trustpilot", { valueText: rating, valueNum: parseFloat(rating), source: S("Trustpilot", "u-tp") }),
         ]},
       ];
-      const report = assembleReport("example.com", withTp, { pivot: null }, { state: "amber", reasons: [] }, NOW);
+      const report = assembleReport("example.com", withTp, { pivot: null }, IND("amber", []), NOW);
       expect(report.positive.some((f) => /Trustpilot/i.test(f.text))).toBe(false);
       expect(report.flagged.some((f) => /Trustpilot/i.test(f.text))).toBe(false);
       // the LINK survives — the reader can still go and look
@@ -133,16 +145,17 @@ describe("assembleReport", () => {
     // state over: Amber's generous default fires only when nothing was flagged,
     // so badging it "Flagged" and counting it as "1 worth a closer look" told
     // the reader we had found something.
-    const indicator: Indicator = {
-      state: "amber",
-      reasons: [
+    const indicator = IND(
+      "amber",
+      [
         {
           text: "We couldn't establish enough archived history to vouch for this domain yet.",
           source: S("Wayback CDX", "u-cdx"),
           kind: "residual",
         },
       ],
-    };
+      "amber-residual-not-established",
+    );
     const report = assembleReport("example.com", results, { pivot: null }, indicator, NOW);
 
     expect(report.flagged).toEqual([]); // not a finding
@@ -166,13 +179,14 @@ describe("assembleReport", () => {
         ],
       },
     ];
-    const indicator: Indicator = {
-      state: "green",
-      reasons: [
+    const indicator = IND(
+      "green",
+      [
         { text: "Archived since 1996 — the Wayback Machine's record for this domain spans ~30 years (777 captures recorded).", source: S("Wayback CDX", "u-cdx") },
         { text: "Email authentication configured (SPF present).", source: S("DNS over HTTPS", "u-spf") },
       ],
-    };
+      "green-established-clean",
+    );
     const report = assembleReport("example.com", withArchive, { pivot: null }, indicator, NOW);
 
     const archiveLines = report.positive.filter((f) => /Wayback Machine/.test(f.text));
@@ -183,13 +197,14 @@ describe("assembleReport", () => {
   });
 
   it("a GREEN caveat lands in the SUMMARY — never in positive[] or flagged[]", () => {
-    const indicator: Indicator = {
-      state: "green",
-      reasons: [
+    const indicator = IND(
+      "green",
+      [
         { text: "Established domain — registered ~11 years ago.", source: S("RDAP", "u-rdap") },
         { text: "PhishTank was not reachable at check time; not independently cleared.", source: null, kind: "caveat" },
       ],
-    };
+      "green-established-clean",
+    );
     const report = assembleReport("example.com", results, { pivot: null }, indicator, NOW);
 
     const inFindings = [...report.positive, ...report.flagged].some((f) => /not reachable/i.test(f.text));
