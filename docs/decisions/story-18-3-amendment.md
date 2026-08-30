@@ -720,6 +720,13 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
 | 18.3.43 | Every corpus gap found so far is a path that **does not correspond to a verdict**. A property of how it was built; adding domains will not fix it | **CHARACTERIZATION** — §5.1, post-hotfix |
 | 18.3.44 | Trustpilot ratings are never published as findings. We report the score and link out; we never adopt its verdict | **HOTFIX** (2026-08-27) |
 | 18.3.45 | Twice a correction has introduced the defect it was correcting. The argument for the copy discipline being a **check**, not a convention | **PATTERN** — post-hotfix |
+| 18.3.46 | A third finding channel, **"What we found"**, for facts that are neither concerning nor reassuring | **OWNER RULING** (2026-08-27) — Story 19.1 |
+| 18.3.47 | **Archive span is POSITIVE only when it is the published reason for Green**, NEUTRAL otherwise. The one context-dependent classification, and deliberate | **OWNER RULING** (2026-08-27) |
+| 18.3.48 | A clean threat check is **NEUTRAL**, matching what `indicator.ts` and `assemble.ts` already say twice. "Positive" keeps meaning affirmative evidence, not absence of bad news | **OWNER RULING** (2026-08-27) |
+| 18.3.49 | Trustpilot ratings publish in the neutral channel, with **no framing attached**. We report the score; we never adopt its verdict | **OWNER RULING** (2026-08-27) |
+| 18.3.50 | Cached reports: the renderer tolerates a missing field. **Bumping `SCHEMA_VERSION` rejected as a no-op** — nothing reads it. Real invalidation is its own story | **OWNER RULING** (2026-08-27) — A2 |
+| 18.3.51 | **B11: an unavailable load-bearing check produces §3.2's NO-VERDICT outcome**, not a misleading Amber. Raising the timeout rejected. Merges B5 into the same story | **OWNER RULING** (2026-08-27) — the general answer, not a per-route patch |
+| 18.3.52 | B11 is **four** single points of failure, not one: Green dies with Wayback and with DNS; Blue with Wayback and with registration lookup. A per-route patch would have fixed one of four | **MEASUREMENT** — PR #67 sweep |
 | 18.3.31 | `YOUNG_DOMAIN_DAYS` confirmed at **180**. Never touches Green; moves domains only between Blue and Amber. Tightening would dress insufficiency as concern | **OWNER RULING** (2026-08-26) — posture, not measurement |
 | 18.3.32 | `PIVOT_RECENT_DAYS` left at **365** knowing it produces two false Ambers; no value improves them | **OWNER RULING** (2026-08-26) — §2.7 |
 | 18.3.33 | The pivot alone denies Green and publishes as the sole finding. §2.1's false-Red licence missed the false-Amber harm | **DEFECT** — §2.7, second constituency for §2.4 |

@@ -22,10 +22,14 @@ Does a domain's current operator match the one its history belongs to? Not built
 
 > **B11 may now outrank it.** Operator continuity fixes verdicts that are *wrong*; B11 is about verdicts we cannot *produce at all* when one third party is slow. Both are open; the second was found in production and is visible to any user today.
 
-### A2. When does a rubric change invalidate cached reports?
+### A2. When does a rubric change invalidate cached reports? — **DECIDED, and deferred**
 `reports.schema_version` is **written and never read.** `serve.ts` invalidates on the 7-day TTL alone, so a rubric change does not expire anything. After the Lithium run, 12 of 17 cached reports were still serving verdicts computed by rules that no longer exist.
 
-Found while preparing the production deploy of 2026-08-27. The column exists for exactly this and nothing consumes it. **Decide: bump-and-compare, or a separate rubric version.**
+Found while preparing the production deploy of 2026-08-27. The column exists for exactly this and nothing consumes it.
+
+> **Owner ruling, 2026-08-27:** Story 19.1 does **(a)** only — the renderer tolerates a missing field and defaults to empty. Cached reports render without the new section until they expire.
+>
+> **Bumping `SCHEMA_VERSION` was explicitly rejected as a no-op**: nothing reads the column, so it would write a different integer that no code compares. Building real invalidation is right eventually and is **its own small story** — it is new logic on the serve path, and bundling it into 19.1 would land it while that path cannot reach Green at all (**B11**).
 
 ### A3. `subkind` on `Reason` — proposed, never decided
 Would make the disclosure/observation source invariant testable (§3.2). Explicitly deferred to the no-verdict story, **which decides it.** Must not be implemented on the strength of appearing in a document.
@@ -97,11 +101,30 @@ That is not hypothetical. Three live report generations immediately after the de
 
 **The corpus could not have caught this.** `corpus-verdicts.ts` replays observations recorded by a *patient 45-second* qualifier (Story 18.2 measured archive.org at ~38s/request). Every corpus domain therefore has a successful Wayback observation, and the delta gate has never once seen the live 8-second budget fail. **This is §5.1 firing on the sharpest possible example: the corpus spans verdicts, not failure modes — and this failure mode is the modal one in production.**
 
-**Do not "fix" this by raising the timeout alone.** That trades a wrong verdict for a slow page and still fails whenever archive.org is down. The real options are a decision, not a tweak:
+**Do not "fix" this by raising the timeout alone.** That trades a wrong verdict for a slow page and still fails whenever archive.org is down.
 
-- a **second establishment instrument** (certificates could corroborate *and* substitute, if crt.sh were reliable — see C1),
-- treating an unavailable archive as **§3.2's no-verdict outcome** rather than Amber (B5's fix, which this makes urgent rather than tidy),
-- caching CDX responses far more aggressively than the current 1-day TTL, since archive history changes slowly.
+> **Owner ruling, 2026-08-27: treat an unavailable load-bearing check as §3.2's NO-VERDICT outcome.**
+>
+> Not a patch to the archive route — the general answer. **Raising the timeout was explicitly rejected.**
+>
+> This makes **B5 the same story rather than a separate one**: *"Amber with no rationale"* and *"Green unreachable because a dependency stalled"* are the same event seen from two ends, and §3.2 already specifies the outcome for both. It is not yet briefed as a story.
+
+### B11a. It is four failures, not one — measured after the ruling
+
+The failure-mode sweep (PR #67) forces each collector to fail across all 49 corpus domains:
+
+| collector forced to fail | green | amber | blue | red |
+|---|---|---|---|---|
+| *(none — baseline)* | 32 | 11 | 6 | 0 |
+| `domain-identity` | 32 | 17 | **0** | 0 |
+| `dns` | **0** | 43 | 6 | 0 |
+| `ai-pivot` (Wayback) | **0** | 49 | **0** | 0 |
+
+**Green dies with Wayback and again with DNS. Blue dies with Wayback and again with the registration lookup.** Three of four verdicts each hang on a single collector completing; two collectors each take out two verdicts.
+
+This is the argument *for* the ruling rather than against it: **a per-route patch would have fixed one of four.** The no-verdict outcome covers all of them, because it is about the checks not completing rather than about which check it was.
+
+**The other candidate mitigations are not dead, only demoted to optimisations:** far more aggressive CDX caching (archive history changes slowly; the current TTL is one day) shrinks the window, and a second establishment instrument restores redundancy — but neither is now load-bearing for correctness.
 
 **Related:** this is also what makes B5 user-visible rather than theoretical. Every one of those three reports is an Amber whose findings list reads *"none worth a closer look."*
 
@@ -109,6 +132,21 @@ That is not hypothetical. Three live report generations immediately after the de
 Everything in `positive[]` publishes under a **Positive** badge, so a capture count there asserts that heavy crawling is reassuring — **exactly what §3.4.3 denies.** This is §3.4.5 surviving in the layout after being removed from the wording.
 
 **Not fixable by copy.** It needs a neutral-facts channel, i.e. a change to the `Report` shape.
+
+> **Owner ruling, 2026-08-27 — Story 19.1 builds the channel. Classification decided:**
+>
+> | Finding | Channel |
+> |---|---|
+> | Archive span | **POSITIVE only when it is the published reason for Green; NEUTRAL otherwise** |
+> | Clean threat check (*"Not listed on…"*) | **NEUTRAL** — matches what the code already says twice |
+> | Trustpilot rating | **NEUTRAL** — published, with no framing attached |
+> | Capture count · registration date · pivot observation · cert age · DMARC absent · Blue's two reasons | **NEUTRAL** |
+> | SPF present · DMARC present | POSITIVE |
+> | Threat listing | FLAGGED |
+>
+> **Section name: "What we found."** Names the act of observing, not the meaning; does not rank itself below the other two; does not imply completeness.
+>
+> Archive span is the one classification that is **context-dependent**, and deliberately so: the same fact is establishing evidence on a Green report, the disqualifier on `bolt.new`, and actively misleading on `secondlibrary.com` (§3.4.8). The assembler already knows the verdict, so this is **routing, never a rule**.
 
 ### B8. Blue's colon does what the pivot's semicolon did
 > *"Too little public footprint to assess yet: registered ~5 months ago."*
