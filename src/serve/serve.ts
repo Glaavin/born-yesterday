@@ -40,8 +40,20 @@ export interface ServeDeps {
   runBackground: (fn: () => Promise<void>) => void;
 }
 
+/**
+ * The ONE place a stored report re-enters the app, and therefore the one place
+ * an older shape has to be reconciled with the current one.
+ *
+ * `neutral` post-dates every report cached before Story 19.1. Normalising here
+ * rather than at each render site means a missing field is handled once, where
+ * the old shape actually arrives, instead of every consumer remembering.
+ * (`reports.schema_version` exists for exactly this and is never read — see
+ * `docs/open-items.md` A2. Making it work is its own story; this does not
+ * depend on it.)
+ */
 function parseReport(row: ReportRow): Report {
-  return JSON.parse(row.reportJson) as Report;
+  const parsed = JSON.parse(row.reportJson) as Report;
+  return { ...parsed, neutral: parsed.neutral ?? [] };
 }
 
 export async function serveReport(

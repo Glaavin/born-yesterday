@@ -27,7 +27,7 @@ const IND = (
   path: RubricPath = "amber-concerns",
 ): Indicator => ({ state, reasons, path });
 
-const REPORT_KEYS = ["domain", "state", "summary", "lastChecked", "flagged", "positive", "sources"];
+const REPORT_KEYS = ["domain", "state", "summary", "lastChecked", "flagged", "positive", "neutral", "sources"];
 const EDITORIAL = /\b(scam|fraud|legit|safe|trust(?:worthy)?|suspicious|fake|sketchy|dangerous)\b/i;
 
 describe("state ⇄ ReportStateKey mapping", () => {
@@ -114,30 +114,87 @@ describe("assembleReport", () => {
     expect(report.positive[0]).toEqual({ text: "Established domain — registered ~11 years ago.", source: S("RDAP", "u-rdap") });
   });
 
-  it("a Trustpilot rating never enters positive[] — we report the score, we do not adopt its verdict", () => {
-    // HOTFIX regression. `valueText` is the rating verbatim, and nothing checked
-    // its direction — so "1.8/5 (40 reviews)" published under a heading
-    // asserting the finding is reassuring. Two wrongs at once: adverse evidence
-    // presented as favourable, and it misleads in the COMPANY's favour.
-    //
-    // The fix is NOT a direction check. Judging a company from a third-party
-    // score is exactly what `reputation.ts` says we do not do ("we count and
-    // link, we don't judge"), and the intake rule prohibits adopting it.
-    // NO corpus domain carries a Trustpilot rating, so this is testable only
-    // by construction.
+  it("a Trustpilot rating publishes in NEUTRAL, whatever the score says", () => {
+    // Hotfix #64 pulled this out of positive[] because `valueText` is the
+    // rating verbatim and nothing checked its direction, so "1.8/5" published
+    // under a heading calling it reassuring. 19.1 gives it the channel it
+    // always needed. There is still NO direction check and there must not be:
+    // adopting a third party's verdict on a company is what the intake rule
+    // prohibits. Both scores land in the same place — that IS the discipline.
     for (const rating of ["1.8/5 (40 reviews)", "4.6/5 (12,000 reviews)"]) {
       const withTp: CollectorResult[] = [
         ...results,
         { collector: "reputation", ok: true, signals: [
-          sig("trustpilot", { valueText: rating, valueNum: parseFloat(rating), source: S("Trustpilot", "u-tp") }),
+          sig("trustpilot", { valueText: rating, source: S("Trustpilot", "u-tp") }),
         ]},
       ];
       const report = assembleReport("example.com", withTp, { pivot: null }, IND("amber", []), NOW);
+      expect(report.neutral?.some((f) => f.text === `Trustpilot: ${rating}.`)).toBe(true);
       expect(report.positive.some((f) => /Trustpilot/i.test(f.text))).toBe(false);
       expect(report.flagged.some((f) => /Trustpilot/i.test(f.text))).toBe(false);
-      // the LINK survives — the reader can still go and look
       expect(report.sources.some((x) => x.url === "u-tp")).toBe(true);
     }
+  });
+
+  it("a clean threat check is NEUTRAL — the code said 'information, not a strong safe' all along", () => {
+    const report = assembleReport("example.com", results, { pivot: null }, IND("amber", []), NOW);
+    expect(report.neutral?.some((f) => /Not listed on PhishTank/.test(f.text))).toBe(true);
+    expect(report.positive.some((f) => /Not listed/.test(f.text))).toBe(false);
+  });
+
+  it("archive span is POSITIVE on Green and NEUTRAL everywhere else — the same fact, routed by verdict", () => {
+    // The one context-dependent classification, and deliberate: on Green the
+    // span IS the establishing evidence; on `bolt.new` the same sentence is
+    // precisely why it is NOT Green; on `secondlibrary.com` it is misleading.
+    const archive: CollectorResult[] = [
+      ...results,
+      { collector: "ai-pivot", ok: true, signals: [
+        sig("wayback_first", { valueText: "2024-09-06", source: S("Wayback CDX", "u-cdx") }),
+        sig("wayback_snapshot_count", { valueNum: 449, source: S("Wayback CDX", "u-cdx") }),
+      ]},
+    ];
+    const amber = assembleReport("x.com", archive, { pivot: null }, IND("amber", []), NOW);
+    expect(amber.neutral?.some((f) => /Archived on the Wayback Machine since 2024/.test(f.text))).toBe(true);
+    expect(amber.positive.some((f) => /Wayback/.test(f.text))).toBe(false);
+
+    const green = assembleReport("x.com", archive, { pivot: null }, IND("green", [], "green-established-clean"), NOW);
+    expect(green.positive.some((f) => /Archived on the Wayback Machine since 2024/.test(f.text))).toBe(true);
+    expect(green.neutral?.some((f) => /Wayback/.test(f.text))).toBe(false);
+  });
+
+  it("BLUE's reasons are NEUTRAL, not flagged — they are facts we established", () => {
+    // They were rendering under a "Couldn't establish" badge, which is the
+    // opposite of what they are. Blue's meaning is carried by the pill and the
+    // summary, never by badging its own evidence as a shortfall.
+    const indicator = IND(
+      "blue",
+      [
+        { text: "Registered ~5 months ago.", source: S("RDAP", "u-rdap") },
+        { text: "3 archived captures on the Wayback Machine.", source: S("Wayback CDX", "u-cdx") },
+      ],
+      "blue-thin-footprint",
+    );
+    const report = assembleReport("x.com", results, { pivot: null }, indicator, NOW);
+    expect(report.flagged).toEqual([]);
+    expect(report.neutral?.map((f) => f.text)).toEqual(
+      expect.arrayContaining(["Registered ~5 months ago.", "3 archived captures on the Wayback Machine."]),
+    );
+  });
+
+  it("caveats split by SOURCE: observations become findings, disclosures stay in the note", () => {
+    // §3.2's two disciplines finally get two homes, and the split is structural
+    // rather than conventional — §6.2 already forbids publishing an unsourced
+    // reason as a finding, so nothing new had to be invented to tell them apart.
+    const indicator = IND("amber", [
+      { text: "Domain registered 1990-10-10.", source: S("RDAP", "u-rdap"), kind: "caveat" },
+      { text: "PhishTank was not reachable at check time.", source: null, kind: "caveat" },
+    ]);
+    const report = assembleReport("x.com", results, { pivot: null }, indicator, NOW);
+
+    expect(report.neutral?.some((f) => /Domain registered 1990/.test(f.text))).toBe(true);
+    expect(report.summary).not.toMatch(/Domain registered 1990/);
+    expect(report.summary).toMatch(/PhishTank was not reachable/);
+    expect(report.neutral?.some((f) => /not reachable/.test(f.text))).toBe(false);
   });
 
   it("the RESIDUAL is never flagged and never counted — it explains, it does not accuse", () => {
