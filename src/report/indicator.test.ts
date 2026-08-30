@@ -382,6 +382,45 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     expect(ind.state).not.toBe("green");
   });
 
+  it("the established-but-no-SPF residual cites the check it is talking about", () => {
+    // HOTFIX regression. The sentence's operative claim is about EMAIL
+    // AUTHENTICATION; it was cited to Wayback, because the source travelled with
+    // the sentence rather than with the claim. It also carried a contrastive
+    // "but", composing two clauses into an argument — the semicolon defect, in a
+    // sentence written while fixing the semicolon.
+    //
+    // Reachable when: established, SPF checked and absent, DMARC present (so the
+    // both-missing concern does not fire). ZERO of 49 corpus domains reach it —
+    // every corpus domain lacking SPF also lacks DMARC — so the delta gate can
+    // never see this.
+    const r = established([
+      sig("dns_spf", { valueText: null, source: S("DNS over HTTPS", "u-spf") }),
+    ]);
+    const ind = computeIndicator("x.com", r, noPivot, NOW);
+
+    expect(ind.state).toBe("amber");
+    const residual = ind.reasons.find((x) => x.kind === "residual")!;
+    expect(residual).toBeDefined();
+    // the citation evidences the claim the sentence actually makes
+    expect(residual.source).toEqual(S("DNS over HTTPS", "u-spf"));
+    expect(residual.source).not.toEqual(S("Wayback CDX", "u-cdx"));
+    // no contrastive connective composing two clauses
+    expect(residual.text).not.toMatch(/\bbut\b/i);
+    expect(residual.text).not.toMatch(/\bhowever\b|\bdespite\b|;/i);
+  });
+
+  it("when the SPF check did NOT complete, the residual publishes no finding at all", () => {
+    // §3.2: a check that did not complete is a DISCLOSURE about us, not a
+    // finding about the domain. The "did not complete" caveat already says it,
+    // and an unsourced reason cannot publish (§6.2).
+    const r = established([sig("dns_spf", { status: "failed", valueText: null })]);
+    const ind = computeIndicator("x.com", r, noPivot, NOW);
+
+    expect(ind.state).toBe("amber");
+    expect(ind.reasons.some((x) => x.kind === "residual")).toBe(false);
+    expect(ind.reasons.some((x) => /email-authentication lookup did not complete/.test(x.text))).toBe(true);
+  });
+
   it("a clean threat check does NOT force GREEN (not established → amber)", () => {
     const r = results([
       sig("domain_age_days", { valueNum: 200 }), // not young, but not established
