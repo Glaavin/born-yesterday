@@ -708,20 +708,46 @@ export function computeIndicator(
   // (docs/conventions.md). The third is the case 18.3 §3.2 says should become a
   // no-verdict outcome; that story is not built, so it degrades to Amber with the
   // gap disclosed rather than to a claim we cannot cite.
+  // ---- The residual. Reached only when NOTHING was flagged, so it says why the
+  // domain fell short of Green rather than what is wrong with it.
+  //
+  // EACH SENTENCE IS CITED TO EVIDENCE FOR THE CLAIM IT MAKES, not to whatever
+  // was nearby. The `established` branch previously read "Archived history is
+  // established, but we couldn't confirm the email-authentication records we
+  // look for" and cited WAYBACK — which evidences the clause that is not the
+  // point of the sentence. The citation had travelled with the sentence rather
+  // than with the claim, and the contrastive "but" composed two clauses into an
+  // argument: the semicolon defect, written while fixing the semicolon.
+  if (established) {
+    // Established and not Green with no concerns ⟹ SPF is the reason (Q6/§3.5).
+    // Two genuinely different situations hide here, and they need different
+    // channels (§3.2):
+    const spfSig = byKey.get("dns_spf");
+    if (spfChecked && spfSig?.source) {
+      // CHECKED AND ABSENT — a confirmed empty state is a FINDING (§1.1), it
+      // describes the domain, and it cites the query we actually ran.
+      return verdict("amber", [
+        { text: "No SPF email-authentication record was found.", source: spfSig.source, kind: "residual" },
+      ]);
+    }
+    // NOT CHECKED — a DISCLOSURE about our limits, not a finding about the
+    // domain. The "email-authentication lookup did not complete" caveat above
+    // already states it, in the channel built for it, and the symmetry rule
+    // (§6.2) forbids manufacturing an unsourced reason to sit beside it.
+    return verdict("amber", []);
+  }
+  // NOT ESTABLISHED. The claim is about archived history, so it cites the
+  // archive. Where the archive check did not complete there is nothing to cite:
+  // the "not available at check time" disclosure carries it instead. That is the
+  // shape §3.2 says should become a no-verdict outcome; until that story exists
+  // it degrades to Amber-with-a-disclosure rather than to an uncitable claim.
   const archiveSource = firstArchived?.source ?? byKey.get("wayback_snapshot_count")?.source ?? null;
-  // COPY DISCIPLINE, same as the Blue relabel (§6.4): this describes what WE
-  // could not determine, never what the company lacks. It is the residual — it
-  // fires only when nothing was flagged — so wording it as a deficiency of the
-  // domain would present insufficiency as concern.
-  const fallbackText = established
-    ? "Archived history is established, but we couldn't confirm the email-authentication records we look for."
-    : "We couldn't establish enough archived history to vouch for this domain yet.";
-  // THIRD CASE — the archive check did not complete. There is nothing to cite,
-  // and the SYMMETRY RULE says an unsourced reason neither publishes nor counts,
-  // so no reason is manufactured: the "not available at check time" disclosure
-  // above already states the gap, in the channel built for it. This is the shape
-  // 18.3 §3.2 says should become a no-verdict outcome; until that story exists it
-  // degrades to Amber-with-a-disclosure rather than to an uncitable claim.
   if (!checked("wayback_first") || archiveSource == null) return verdict("amber", []);
-  return verdict("amber", [{ text: fallbackText, source: archiveSource, kind: "residual" }]);
+  return verdict("amber", [
+    {
+      text: "We couldn't establish enough archived history to vouch for this domain yet.",
+      source: archiveSource,
+      kind: "residual",
+    },
+  ]);
 }

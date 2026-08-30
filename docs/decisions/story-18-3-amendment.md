@@ -544,6 +544,14 @@ This is structural, not an oversight. A domain whose DNS reliably fails is not s
 >
 > Before calibrating any constant, ask whether it **measures what its rule claims it measures**. *"Can the corpus produce a number for this?"* is the wrong test — it passes for constants that are precisely wrong.
 
+> **EXTENDED POST-STAGE-3 — what the gaps have in common.**
+>
+> Six paths have now been found that the corpus cannot exercise: certificate behaviour (§5.3), accumulation entirely, *"a failed check blocks Green"*, `THIN_SNAPSHOT_COUNT`'s failure mode, Trustpilot ratings, and the established-but-no-SPF residual branch.
+>
+> **They are not six unrelated omissions. Every one is a path that does not correspond to a verdict.** Failure modes, degraded branches, rare conjunctions — the things a report can *do* rather than the things it can *conclude*.
+>
+> That is a **property of how the corpus was built**, not an accident of which domains were chosen: it was assembled so that every branch of the rubric had a triggering candidate, which selects for outcomes and is blind to routes. **Adding domains will not fix it.** Only fixtures aimed at paths rather than outcomes will.
+
 ### 5.2 Stage 3 constant classification — ADDED POST-STAGE-2
 
 Recorded here so Stage 3 has a **written source** rather than a restated one. Each constant is classified by whether it is sound, and if so, on what basis its value rests.
@@ -709,6 +717,9 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
 | 18.3.40 | The durable argument is `sugarcrm.com` — the corpus's own designated pivot exemplar is ambiguous at every threshold — **not** "0 of 2" | **FINDING** — §2.7 |
 | 18.3.41 | *"No true positive at any window"* measures our **sampling rule**, not the signal's recall. The corpus excludes true positives by construction | **CORRECTION** — §2.7 |
 | 18.3.42 | Accumulation is now **strictly** unreachable (concern pool = 1), not merely rare. Rule and constants retained; the methodology page must say so | **CONSEQUENCE** — §3.1 |
+| 18.3.43 | Every corpus gap found so far is a path that **does not correspond to a verdict**. A property of how it was built; adding domains will not fix it | **CHARACTERIZATION** — §5.1, post-hotfix |
+| 18.3.44 | Trustpilot ratings are never published as findings. We report the score and link out; we never adopt its verdict | **HOTFIX** (2026-08-27) |
+| 18.3.45 | Twice a correction has introduced the defect it was correcting. The argument for the copy discipline being a **check**, not a convention | **PATTERN** — post-hotfix |
 | 18.3.31 | `YOUNG_DOMAIN_DAYS` confirmed at **180**. Never touches Green; moves domains only between Blue and Amber. Tightening would dress insufficiency as concern | **OWNER RULING** (2026-08-26) — posture, not measurement |
 | 18.3.32 | `PIVOT_RECENT_DAYS` left at **365** knowing it produces two false Ambers; no value improves them | **OWNER RULING** (2026-08-26) — §2.7 |
 | 18.3.33 | The pivot alone denies Green and publishes as the sole finding. §2.1's false-Red licence missed the false-Amber harm | **DEFECT** — §2.7, second constituency for §2.4 |

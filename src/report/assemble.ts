@@ -64,8 +64,23 @@ function gatherPositives(
   if (!alreadyStated.has("spf") && byKey.get("dns_spf")?.valueText != null) push("SPF email-authentication record present.", byKey.get("dns_spf")?.source);
   if (byKey.get("dns_dmarc")?.valueText != null) push("DMARC policy present.", byKey.get("dns_dmarc")?.source);
 
-  const tp = byKey.get("trustpilot");
-  if (tp?.valueText != null) push(`Trustpilot: ${tp.valueText}.`, tp.source);
+  // TRUSTPILOT IS NOT PUBLISHED HERE ANY MORE (hotfix, 2026-08-27).
+  // `push(`Trustpilot: ${tp.valueText}.`)` printed the rating VERBATIM with no
+  // check on its direction, so "1.8/5 (40 reviews)" published under a heading
+  // asserting the finding is reassuring. Two things wrong at once: adverse
+  // evidence presented as favourable — which misleads in the COMPANY's favour —
+  // and it is visibly wrong to any reader who notices.
+  //
+  // THE FIX IS NOT A DIRECTION CHECK. Deciding that 4.6 is good and 1.8 is bad
+  // would be us adopting a third party's verdict on a company's quality, which
+  // is precisely what `reputation.ts` says we do not do ("we count and link, we
+  // don't judge") and what the data-source intake rule prohibits. We report the
+  // score and link out; we never adopt it.
+  //
+  // Its destination is the NEUTRAL channel, which Story 19.1 adds. Until then it
+  // is withheld from the findings rather than published under a false heading —
+  // and the Trustpilot LINK still reaches the reader through `sources[]`, so the
+  // rating is one click away rather than lost.
 
   // SPAN LEADS, COUNT FOLLOWS AS CONTEXT (§3.4.3). The count on its own measures
   // crawler attention — `bolt.new` is ~2 years old with 449 captures — so

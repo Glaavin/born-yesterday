@@ -102,6 +102,32 @@ describe("assembleReport", () => {
     expect(report.positive[0]).toEqual({ text: "Established domain — registered ~11 years ago.", source: S("RDAP", "u-rdap") });
   });
 
+  it("a Trustpilot rating never enters positive[] — we report the score, we do not adopt its verdict", () => {
+    // HOTFIX regression. `valueText` is the rating verbatim, and nothing checked
+    // its direction — so "1.8/5 (40 reviews)" published under a heading
+    // asserting the finding is reassuring. Two wrongs at once: adverse evidence
+    // presented as favourable, and it misleads in the COMPANY's favour.
+    //
+    // The fix is NOT a direction check. Judging a company from a third-party
+    // score is exactly what `reputation.ts` says we do not do ("we count and
+    // link, we don't judge"), and the intake rule prohibits adopting it.
+    // NO corpus domain carries a Trustpilot rating, so this is testable only
+    // by construction.
+    for (const rating of ["1.8/5 (40 reviews)", "4.6/5 (12,000 reviews)"]) {
+      const withTp: CollectorResult[] = [
+        ...results,
+        { collector: "reputation", ok: true, signals: [
+          sig("trustpilot", { valueText: rating, valueNum: parseFloat(rating), source: S("Trustpilot", "u-tp") }),
+        ]},
+      ];
+      const report = assembleReport("example.com", withTp, { pivot: null }, { state: "amber", reasons: [] }, NOW);
+      expect(report.positive.some((f) => /Trustpilot/i.test(f.text))).toBe(false);
+      expect(report.flagged.some((f) => /Trustpilot/i.test(f.text))).toBe(false);
+      // the LINK survives — the reader can still go and look
+      expect(report.sources.some((x) => x.url === "u-tp")).toBe(true);
+    }
+  });
+
   it("the RESIDUAL is never flagged and never counted — it explains, it does not accuse", () => {
     // Same defect class as Blue rendering its reasons as concerns (§6.4), one
     // state over: Amber's generous default fires only when nothing was flagged,
