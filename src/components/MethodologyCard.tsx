@@ -15,7 +15,7 @@ export default function MethodologyCard({
       id={id}
       hidden={hidden}
       aria-label="How Born Yesterday works"
-      className="w-full max-w-2xl rounded-lg border border-accent-primary/40 p-6"
+      className="w-full max-w-2xl rounded-lg border border-accent-primary/40 bg-input-surface p-6"
     >
       <p className="text-ink">
         Born Yesterday checks are built entirely from public data and fixed,

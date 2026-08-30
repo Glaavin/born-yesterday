@@ -24,11 +24,11 @@ function looksLikeUrl(value: string): boolean {
  * HeroSearch — the landing input ("Investigator" style). Client Component for the
  * passive→active state; submits GET to /search, which normalizes and redirects.
  *
- * Passive (empty/invalid): mint (label-accent) border/glyph/placeholder + a filled
- * mint submit with dark text. Active (valid URL): the border and submit lock on
- * to accent-primary (pink). The submit reads "Check for flags" and keeps a fixed
- * width across states. A clear (×) button resets the input. Placeholder matches
- * the mint search glyph and clears on input; a real <label> is kept sr-only (§9).
+ * The control sits on a white surface. Border/glyph/placeholder + the filled
+ * submit are the blue accent (label-accent → accent-primary); the border deepens
+ * once the input looks like a URL. The submit reads "Check for flags" (near-white
+ * text) and keeps a fixed width across states. A clear (×) button resets the
+ * input; a real <label> is kept sr-only (§9).
  */
 export default function HeroSearch() {
   const [value, setValue] = useState("");
@@ -46,7 +46,7 @@ export default function HeroSearch() {
         Website to check for red flags
       </label>
       <div
-        className={`flex items-stretch overflow-hidden rounded-md border transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-label-accent ${
+        className={`flex items-stretch overflow-hidden rounded-md border bg-input-surface transition-colors focus-within:ring-2 focus-within:ring-inset focus-within:ring-label-accent ${
           valid
             ? "border-accent-primary"
             : "border-label-accent/60 group-hover:border-label-accent"

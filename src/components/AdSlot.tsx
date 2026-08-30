@@ -35,12 +35,12 @@ export default function AdSlot({
     <div
       data-ad-slot={id}
       data-ad-size={size}
-      className={`relative flex ${SIZES[size]} items-center justify-center overflow-hidden rounded-md bg-black/30`}
+      className={`relative flex ${SIZES[size]} items-center justify-center overflow-hidden rounded-md bg-ink/10`}
     >
       {/* Always-present label (§5). Lives inside the fixed box, so it never
           changes the reserved dimensions. "FUTURE" sits above "Advertisement"
           to read as reserved-but-empty inventory. */}
-      <div className="flex flex-col items-center gap-0.5 text-center text-xs uppercase tracking-widest text-label-accent/70">
+      <div className="flex flex-col items-center gap-0.5 text-center text-xs uppercase tracking-widest text-ink-muted">
         <span>Future</span>
         <span>Advertisement</span>
       </div>
