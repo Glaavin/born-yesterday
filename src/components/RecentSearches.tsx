@@ -21,7 +21,7 @@ export default function RecentSearches({
         {items.map((r) => (
           <li
             key={`${r.domain}:${r.generatedAt}`}
-            className="flex items-center justify-between gap-3 rounded-md border border-ink-muted/20 px-3 py-2 text-base"
+            className="flex items-center justify-between gap-3 rounded-md border border-ink-muted/20 bg-input-surface px-3 py-2 text-base"
           >
             <Link href={`/r/${encodeURIComponent(r.domain)}`} className="truncate text-ink hover:text-accent-primary">
               {r.domain}
