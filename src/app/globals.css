@@ -20,32 +20,31 @@
 
   /* ---- Color tokens (§8.2) — flat colors ----
      Each maps into Tailwind's --color-* namespace. */
-  /* RETONE 2026-07-20b: values swapped to the owner's retoned palette (pink
-     accent / green positive / mint labels / azure header over dark teal).
-     NAMING CONVENTION (Story 18.1): token names describe ROLE, never colour —
-     the palette is expected to change again during skin exploration, and names
-     must survive it. Do NOT introduce a token named for its current value.
-     AA ratios were computed against the OLD navy surface-body and are marked
-     pending: the new dark-teal body (#0c4744/#062c2d) is comparably dark, so
-     light accents still clear AA, but a formal re-verify is owed to §8.2. */
-  --color-wordmark-born: #ff5c9a; /* "BORN" + tagline + egg fill (currently pink) */
-  --color-wordmark-tech: #45c8ff;  /* ".TECH" / mascot poles (currently azure, decorative) */
-  --color-accent-primary: #ff4f93;    /* counter, report title, card border, methodology link (currently pink) */
-  --color-link-default: #ff6fa8;     /* nav links (currently pink) */
-  --color-label-accent: #83f0c4;     /* labels, section accents, search hover (currently mint / aqua-green) */
-  --color-flag-positive: #56dd86;  /* positive findings — GREEN */
-  --color-flag-negative: #ff5f88;  /* flagged data — pink-red */
-  --color-input-surface: #eaffff;  /* input field (held — no near-white in palette) */
-  --color-ink: #e9f1f2;            /* primary body copy — light, AA on dark-teal body */
-  --color-ink-muted: #99b7b3;      /* secondary copy / captions / faint row borders — muted teal */
+  /* RETONE 2026-08-29 (Story #66): "Fresh Field" — LIGHT MODE. Light-blue ground,
+     deep-blue masthead, blue accent (CTA / tagline / counter / link all unified to
+     blue), red-orange kept only for the BORN wordmark and the Red-flags verdict,
+     green for positive. NAMING CONVENTION (Story 18.1): names describe ROLE, never
+     colour — the palette may change again, names must survive it.
+     `calc` marks values extrapolated in-family (palette lacked that step/semantic).
+     A fresh WCAG AA pass is owed for the dark→light flip (§10 pre-launch; tracked). */
+  --color-wordmark-born: #e54b31; /* BORN egg / mascot fill — matches born-text.svg red-orange */
+  --color-wordmark-tech: #37599e;  /* mascot flag-poles — visible-on-light blue (TECH wordmark itself is baked SVG) */
+  --color-accent-primary: #37599e;    /* counter, report title, card border, methodology link, tagline, CTA — blue */
+  --color-link-default: #e4efff;     /* nav links on the blue masthead — near-white */
+  --color-label-accent: #37599e;     /* labels, section accents, "Recently checked" heading, search accents — blue */
+  --color-flag-positive: #5e9a3c;  /* positive findings — green (readable on light) */
+  --color-flag-negative: #d8402a;  /* flagged data — red-orange */
+  --color-input-surface: #ffffff;  /* input / card / row surface — white on the light-blue ground */
+  --color-ink: #23345a;            /* primary body copy — dark navy on light (calc) */
+  --color-ink-muted: #5e6a82;      /* secondary copy / captions / faint borders (calc) */
 
   /* ---- Indicator (Skepticism Indicator pill) tokens (§4.1 / §8.2) ----
      Dedicated signal colors, decoupled from accent/wordmark usage. Each is AA
      (≥4.5:1) as pill TEXT on --surface-body. */
-  --color-indicator-checks-out: #56dd86; /* "Checks out" (currently green, matches mockup pill) */
-  --color-indicator-concerns: #ff5f88; /* "Some concerns" (currently pink per mockup) */
-  --color-indicator-red-flags: #ff2f5c;   /* "Red flags found" (currently deeper crimson, kept distinct from the some-concerns pill; labels also carry meaning in words, §4) */
-  --color-indicator-too-new: #3fb0f2;  /* "Too new to tell" (currently azure, matches masthead) */
+  --color-indicator-checks-out: #5e9a3c; /* "Checks out" — green */
+  --color-indicator-concerns: #c47f1a; /* "Some concerns" — amber (calc; palette has no amber) */
+  --color-indicator-red-flags: #d8402a;   /* "Red flags found" — red-orange (the deliberate red pop) */
+  --color-indicator-too-new: #37599e;  /* "Too new to tell" — blue */
 
   /* ---- Gradient tokens (§8.2) ----
      Three §8.2 tokens are gradients, not flat colors. Each is kept as paired
@@ -55,10 +54,10 @@
   /* Deep navy — masthead/header gradient top. ADDED beyond the owner's 10-color
      palette (palette is integrated but not the whole system). Lets the band read
      dark-navy at top → royal indigo lower down, matching the masthead reference. */
-  --color-surface-header-deep: #071233;
-  --color-surface-header-from: #1670cc; /* mid azure */
-  --color-surface-header-to: #2ba6f5;   /* bright azure — brightest, at the bottom */
-  /* Hold navy through the top third, then brighten to azure toward the wordmark. */
+  --color-surface-header-deep: #24406f; /* deep blue (top) */
+  --color-surface-header-from: #2e4c86; /* mid blue */
+  --color-surface-header-to: #37599e;   /* Fresh Field blue — bottom of the masthead */
+  /* Deep blue at top, brightening to Fresh Field blue toward the wordmark. */
   --gradient-surface-header: linear-gradient(
     180deg,
     var(--color-surface-header-deep) 0%,
@@ -67,12 +66,12 @@
     var(--color-surface-header-to) 100%
   );
 
-  --color-surface-body-from: #0c4744;   /* page background — teal (top) */
-  --color-surface-body-to: #062c2d;     /* darker teal (bottom) */
+  --color-surface-body-from: #eff5ff;   /* page background — light (top) */
+  --color-surface-body-to: #e4efff;     /* light blue (bottom) — palette's lightest color */
   --gradient-surface-body: linear-gradient(180deg, var(--color-surface-body-from), var(--color-surface-body-to));
 
-  --color-wordmark-yesterday-from: #45de79;  /* "YESTERDAY" (currently green; art is baked SVG) */
-  --color-wordmark-yesterday-to: #8ff0a6;
+  --color-wordmark-yesterday-from: #6ba544;  /* "YESTERDAY" green — matches yesterday-text.svg */
+  --color-wordmark-yesterday-to: #8fc96a;
   --gradient-wordmark-yesterday: linear-gradient(180deg, var(--color-wordmark-yesterday-from), var(--color-wordmark-yesterday-to));
 
   /* ---- Type scale (--text-*) ----
@@ -96,10 +95,10 @@
 }
 
 /* The page (html) sits BEHIND the body gradient — it's what shows in the
-   overscroll/rubber-band gutter at the very top and bottom. Flat indigo (the
-   masthead's royal-indigo stop) instead of the browser-default white. */
+   overscroll/rubber-band gutter at the very top and bottom. Matches the light
+   body ground so the gutter reads clean in light mode. */
 html {
-  background: var(--color-surface-header-to);
+  background: var(--color-surface-body-to);
   /* Clip horizontal overflow at the scroll-container level so nothing can
      produce a side-to-side wiggle on mobile — the search-hover halo
      (inset:-60px) otherwise pokes ~36px past the viewport edge. `clip` (not
