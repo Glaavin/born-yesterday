@@ -32,8 +32,8 @@
   --color-accent-primary: #37599e;    /* counter, report title, card border, methodology link, tagline, CTA — blue */
   --color-link-default: #e4efff;     /* nav links on the blue masthead — near-white */
   --color-label-accent: #37599e;     /* labels, section accents, "Recently checked" heading, search accents — blue */
-  --color-flag-positive: #5e9a3c;  /* positive findings — green (readable on light) */
-  --color-flag-negative: #d8402a;  /* flagged data — red-orange */
+  --color-flag-positive: #48752e;  /* positive findings — green (AA-deepened for text on light, #72) */
+  --color-flag-negative: #c03723;  /* flagged data — red-orange (AA-deepened for text on light, #72) */
   --color-input-surface: #ffffff;  /* input / card / row surface — white on the light-blue ground */
   --color-ink: #23345a;            /* primary body copy — dark navy on light (calc) */
   --color-ink-muted: #5e6a82;      /* secondary copy / captions / faint borders (calc) */
@@ -41,9 +41,9 @@
   /* ---- Indicator (Skepticism Indicator pill) tokens (§4.1 / §8.2) ----
      Dedicated signal colors, decoupled from accent/wordmark usage. Each is AA
      (≥4.5:1) as pill TEXT on --surface-body. */
-  --color-indicator-checks-out: #5e9a3c; /* "Checks out" — green */
-  --color-indicator-concerns: #c47f1a; /* "Some concerns" — amber (calc; palette has no amber) */
-  --color-indicator-red-flags: #d8402a;   /* "Red flags found" — red-orange (the deliberate red pop) */
+  --color-indicator-checks-out: #48752e; /* "Checks out" — green (AA-deepened, #72) */
+  --color-indicator-concerns: #925f13; /* "Some concerns" — amber (calc; AA-deepened, #72) */
+  --color-indicator-red-flags: #c03723;   /* "Red flags found" — red-orange, the deliberate red pop (AA-deepened, #72) */
   --color-indicator-too-new: #37599e;  /* "Too new to tell" — blue */
 
   /* ---- Gradient tokens (§8.2) ----
