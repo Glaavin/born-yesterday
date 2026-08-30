@@ -86,6 +86,23 @@ describe("serveReport", () => {
     expect(collect).not.toHaveBeenCalled();
   });
 
+  it("a report cached BEFORE the neutral channel existed still serves — normalised on the way in", () => {
+    // `reports.schema_version` is written and never read (docs/open-items.md
+    // A2), so nothing regenerates an old shape. Normalising in `parseReport` —
+    // the one place a stored report re-enters the app — means a missing field
+    // is handled once, where the old shape actually arrives, rather than by
+    // every consumer remembering to.
+    const legacy = JSON.parse(JSON.stringify(aReport()));
+    delete legacy.neutral;
+    expect("neutral" in legacy).toBe(false);
+    return (async () => {
+      const { deps } = makeDeps({ getReport: async () => aRow({ reportJson: JSON.stringify(legacy) }) });
+      const out = await serveReport("example.com", { sessionKey: "s" }, deps);
+      expect(out.state).toBe("served");
+      expect(out.report!.neutral).toEqual([]);
+    })();
+  });
+
   it("serve-fresh: cached + fresh → served, NO collect/persist/quota", async () => {
     const { deps, collect, persist, incrementQuota } = makeDeps({ getReport: async () => aRow() });
     const r = await serveReport("x.com", { sessionKey: "k" }, deps);
