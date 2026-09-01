@@ -224,7 +224,9 @@ function everyDomainAlreadyFails(domains: string[], obs: Map<string, Obs>, piv: 
 }
 
 const fmt = (t: Record<string, number>): string =>
-  (["green", "amber", "blue", "red"] as const).map((k) => `${k} ${String(t[k] ?? 0).padStart(2)}`).join("  ");
+  (["green", "amber", "blue", "red", "no-verdict"] as const)
+    .map((k) => `${k} ${String(t[k] ?? 0).padStart(2)}`)
+    .join("  ");
 
 function tally(domains: string[], obs: Map<string, Obs>, piv: Map<string, Obs>, fail: string | null): Record<string, number> {
   const out: Record<string, number> = {};
@@ -234,7 +236,11 @@ function tally(domains: string[], obs: Map<string, Obs>, piv: Map<string, Obs>, 
     let results = build(o, piv.get(d));
     if (fail) results = failCollector(results, fail);
     const ind = computeIndicator(d, results, derive(results, NOW), NOW);
-    out[ind.state] = (out[ind.state] ?? 0) + 1;
+    // Story 21: an undecidable outcome is NOT the state the rubric happened to
+    // compute. Counting it as Amber would have this instrument report the exact
+    // misreading the story exists to remove.
+    const key = ind.undecided ? "no-verdict" : ind.state;
+    out[key] = (out[key] ?? 0) + 1;
   }
   return out;
 }
@@ -259,7 +265,8 @@ function main() {
     seen.set(ind.path, (seen.get(ind.path) ?? 0) + 1);
     console.log(JSON.stringify({
       domain: d,
-      state: ind.state,
+      state: ind.undecided ? "no-verdict" : ind.state,
+      undecided: ind.undecided,
       path: ind.path,
       reasons: ind.reasons.map((r) => ({ kind: r.kind ?? "main", text: r.text })),
     }));

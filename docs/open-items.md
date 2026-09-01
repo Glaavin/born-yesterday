@@ -31,8 +31,12 @@ Found while preparing the production deploy of 2026-08-27. The column exists for
 >
 > **Bumping `SCHEMA_VERSION` was explicitly rejected as a no-op**: nothing reads the column, so it would write a different integer that no code compares. Building real invalidation is right eventually and is **its own small story** — it is new logic on the serve path, and bundling it into 19.1 would land it while that path cannot reach Green at all (**B11**).
 
-### A3. `subkind` on `Reason` — proposed, never decided
-Would make the disclosure/observation source invariant testable (§3.2). Explicitly deferred to the no-verdict story, **which decides it.** Must not be implemented on the strength of appearing in a document.
+### A3. ~~`subkind` on `Reason`~~ — **CLOSED (Story 21)**
+Would have made the disclosure/observation source invariant testable (§3.2). Deferred to the no-verdict story, **which has now decided it.**
+
+> **Closed, and §3.2 predicted which half would survive.** Story 19.1's neutral channel made the invariant **structural**: sourced observations become findings, unsourced disclosures stay in the note, and §6.2 already forbids publishing an unsourced reason. **No field needed.**
+>
+> The residue — prose that carries a source but describes *our* limits — is what §3.2 itself said no type could catch. It is logged against `docs/testing-recommendations.md` recommendation 3 (invariant assertions over output), not left here as a half-dead item.
 
 ### A4. Re-privatize the repo before launch
 Tracked as issue #6. Public since 2026-06-18 for pre-release.
@@ -69,10 +73,16 @@ B3 left the concern pool with **one** member, so `concerns.length` can never rea
 
 **The methodology page must say this.** A published rubric describing a Red route nobody can reach is not publishable. **Reasoning:** §3.1, §2.7.
 
-### B5. Amber with no rationale at all
+### B5. ~~Amber with no rationale at all~~ — **FIXED (Story 21)**, and it was the same problem as B11
 When the archive check fails, the domain falls to Amber carrying **no main reason** — an unsourced one would break the §6.2 symmetry rule, so none is manufactured. `github.com` and `kexp.org` do this in the corpus: *"Some concerns"* beside *"none worth a closer look."*
 
-Honest but thin. **§3.2's no-verdict outcome is the intended fix**, and these are its named cases. **Reasoning:** §3.4.9.
+Honest but thin. **§3.2's no-verdict outcome was the intended fix**, and these were its named cases.
+
+> **Fixed by Story 21, and the way it was fixed is the evidence it was right.**
+>
+> The no-verdict predicate was derived from a completely different question — *"can we tell the verdicts apart?"* — and it fires on **exactly** `github.com` and `kexp.org`, the two domains that produced this shape. **Two independently-derived rules converging on the same two cases is not coincidence.**
+>
+> **B5 and B11 were one problem seen from two ends:** *"Amber with no rationale"* is what it looks like to a reader; *"Green unreachable because a dependency stalled"* is what it looks like in the sweep. Both are now a no-verdict.
 
 ### B6. A hyped young domain would miss Blue and land in Amber
 `THIN_SNAPSHOT_COUNT` is rescued by §5.2's argument that *"a young domain has had no time to accumulate captures regardless of popularity."* **That is false at the margin:** `bolt.new` accumulated 0.59 daily-collapsed captures a day — five in nine days.
@@ -103,6 +113,8 @@ That is not hypothetical. Three live report generations immediately after the de
 
 **Do not "fix" this by raising the timeout alone.** That trades a wrong verdict for a slow page and still fails whenever archive.org is down.
 
+> **BUILT — Story 21 (2026-08-27).** The trigger shipped is a **conjunct-level reachability predicate**, not the load-bearing set this ruling assumed: *load-bearing turned out not to be a stable property of a check.* See §3.2's post-Story-21 correction and B5 above. **The other half of B11 — whether Green needs a second establishment instrument — remains open and is a separate decision.**
+>
 > **Owner ruling, 2026-08-27: treat an unavailable load-bearing check as §3.2's NO-VERDICT outcome.**
 >
 > Not a patch to the archive route — the general answer. **Raising the timeout was explicitly rejected.**
@@ -127,6 +139,24 @@ This is the argument *for* the ruling rather than against it: **a per-route patc
 **The other candidate mitigations are not dead, only demoted to optimisations:** far more aggressive CDX caching (archive history changes slowly; the current TTL is one day) shrinks the window, and a second establishment instrument restores redundancy — but neither is now load-bearing for correctness.
 
 **Related:** this is also what makes B5 user-visible rather than theoretical. Every one of those three reports is an Amber whose findings list reads *"none worth a closer look."*
+
+### B12. The archive check fails more than half the time — measured
+**Found by Story 21's instrumentation on its first run, 2026-08-27.**
+
+§3.2's design constraint for no-verdict: *"this should fire rarely. If it fires often, that is a symptom — timeouts too tight, or an unreliable dependency — and the fix is upstream, not a better failure message."*
+
+`pnpm tsx scripts/no-verdict-rate.ts 30`, against production history:
+
+| load-bearing check | ok | failed |
+|---|---|---|
+| `dns_spf` | 32 | 0 |
+| `domain_age_days` | 33 | 0 |
+| **`wayback_first`** | **5** | **6** |
+| **`wayback_snapshot_count`** | **6** | **6** |
+
+**The archive check failed on more than half its attempts across 30 days.** Small n — there is almost no traffic — but the split is stark and it is the *only* check failing at all.
+
+**So the answer to §3.2's question is: it will fire often, and that is the symptom §3.2 said to read it as.** Story 21 makes the failure honest rather than misleading; it does not make it rare. The upstream fix is the other half of B11 — a second establishment instrument, or far more aggressive CDX caching — and **neither is in Story 21's scope.**
 
 ### B7. The layout still argues where the prose no longer does
 Everything in `positive[]` publishes under a **Positive** badge, so a capture count there asserts that heavy crawling is reassuring — **exactly what §3.4.3 denies.** This is §3.4.5 surviving in the layout after being removed from the wording.
