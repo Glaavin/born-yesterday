@@ -24,6 +24,14 @@ export type MascotState =
   | "result-red"
   | "result-blue"
   | "limit-reached"
+  // Story 21. Deliberately NOT "error": `error` is invalid input, where the
+  // reader did something wrong. This is US falling short, and the difference
+  // between "we failed" and "we're still trying" is most of the difference
+  // between a product that seems broken and one that seems careful.
+  // Art is Beryllium work — every state currently shares one asset, so the
+  // mascot does not yet indicate anything. The state name is wired correctly
+  // so the art has somewhere to land.
+  | "checking-again"
   | "error";
 
 export default function Mascot({
