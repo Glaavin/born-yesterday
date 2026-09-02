@@ -130,7 +130,23 @@ export async function GET(req: Request) {
     // calls at a host that just refused twice is impolite and answers nothing —
     // a refusal is an answer, not an obstacle.
     case "burst": {
-      for (let i = 1; i <= 14; i++) {
+      // CHUNKED, because production CDX latency turns out to be ~13.6s per call
+      // and 14 of those is ~3.5 minutes — past any function limit. `from`/`count`
+      // let the sequence be walked across invocations.
+      //
+      // CAVEAT ON THE MEASUREMENT, stated because it bounds what the result can
+      // mean: a rate limiter keys on the calling IP, and consecutive invocations
+      // are not guaranteed to share an egress IP. Same region and seconds apart
+      // makes it very likely, not certain. A trip observed here is real; a clean
+      // run is weaker evidence than an uninterrupted burst would have been.
+      //
+      // The artificial 1.2s spacing is dropped inside the burst: the call's own
+      // ~13.6s is already far longer, so adding to it would model a politer
+      // client than the bisect finder actually is.
+      const url = new URL(req.url);
+      const from = Math.max(1, Number(url.searchParams.get("from") ?? 1));
+      const count = Math.min(4, Math.max(1, Number(url.searchParams.get("count") ?? 3)));
+      for (let i = from; i < from + count && i <= 14; i++) {
         const p = await probe("3-bisect-burst", i, CDX("wikipedia.org", 5));
         out.push(p);
         // WHERE it trips is the number that sizes W1's politeness budget.
@@ -138,9 +154,8 @@ export async function GET(req: Request) {
           note = `first non-200 at call ${i} (status ${p.status})`;
           break;
         }
-        await sleep(SPACING_MS);
       }
-      if (!note) note = "14/14 clean";
+      if (!note) note = `calls ${from}-${from + out.length - 1} clean`;
       break;
     }
 
