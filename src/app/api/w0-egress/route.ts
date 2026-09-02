@@ -35,6 +35,18 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+/**
+ * One STEP per invocation, selected by `?step=`. The whole battery in a single
+ * request is ~28 calls and well over a minute of wall-clock; the function
+ * completed (the platform logged a 200) but the response never reached the
+ * client. Splitting it also makes each step independently reportable and is
+ * politer — nothing about the measurement needs one long-lived request.
+ *
+ * The BURST is the exception that must stay in one invocation: it tests a
+ * rate limiter, which keys on the calling IP over time, so its calls have to
+ * share one egress rather than being spread across instances.
+ */
+export const maxDuration = 60;
 
 const TIMEOUT_MS = 30_000;
 const UA = "BornYesterdayBot/1.0 (+https://bornyesterday.tech/about-bot)";
@@ -92,67 +104,81 @@ const CC = (index: string, d: string) =>
 /** Monthly Common Crawl indexes — the continuity mechanism's real access pattern. */
 const CC_INDEXES = ["CC-MAIN-2025-33", "CC-MAIN-2025-26", "CC-MAIN-2025-18", "CC-MAIN-2025-13", "CC-MAIN-2025-05"];
 
-export async function GET() {
+export async function GET(req: Request) {
   if (process.env.BY_W0_TEST !== "1") {
     return new NextResponse("Not found", { status: 404 });
   }
 
+  const step = new URL(req.url).searchParams.get("step") ?? "";
   const out: Probe[] = [];
   const startedAt = new Date().toISOString();
+  let note = "";
 
-  // ---- 1 & 2: Wayback singles ----
-  out.push(await probe("1-cdx-single", 1, CDX("stripe.com")));
-  await sleep(SPACING_MS);
-  out.push(await probe("2-availability", 1, AVAIL("stripe.com")));
-  await sleep(SPACING_MS);
-
-  // ---- 3: the bisect burst — SKIP CONDITION FIRST ----
-  // Fourteen more calls at a host that just refused twice is impolite and
-  // answers nothing. A refusal is an answer, not an obstacle.
-  const singlesRefused = out.slice(0, 2).every((p) => p.status === 429);
-  let burstNote = "";
-  if (singlesRefused) {
-    burstNote = "burst skipped, singles refused (both 429)";
-  } else {
-    for (let i = 1; i <= 14; i++) {
-      const p = await probe("3-bisect-burst", i, CDX("wikipedia.org", 5));
-      out.push(p);
-      // Record WHERE it trips — that number sizes W1's politeness budget.
-      if (p.status !== 200) {
-        burstNote = `first non-200 at call ${i} (status ${p.status})`;
-        break;
-      }
+  switch (step) {
+    // ---- 1 & 2: Wayback singles ----
+    case "singles":
+      out.push(await probe("1-cdx-single", 1, CDX("stripe.com")));
       await sleep(SPACING_MS);
+      out.push(await probe("2-availability", 1, AVAIL("stripe.com")));
+      note = out.every((p) => p.status === 429)
+        ? "BOTH SINGLES REFUSED (429) — do not run step=burst"
+        : "singles did not both 429 — burst is in scope";
+      break;
+
+    // ---- 3: the bisect burst ----
+    // The caller must have run `singles` first and honoured its note. Fourteen
+    // calls at a host that just refused twice is impolite and answers nothing —
+    // a refusal is an answer, not an obstacle.
+    case "burst": {
+      for (let i = 1; i <= 14; i++) {
+        const p = await probe("3-bisect-burst", i, CDX("wikipedia.org", 5));
+        out.push(p);
+        // WHERE it trips is the number that sizes W1's politeness budget.
+        if (p.status !== 200) {
+          note = `first non-200 at call ${i} (status ${p.status})`;
+          break;
+        }
+        await sleep(SPACING_MS);
+      }
+      if (!note) note = "14/14 clean";
+      break;
     }
-    if (!burstNote) burstNote = "14/14 clean";
-  }
 
-  // ---- 4: Common Crawl ----
-  await sleep(SPACING_MS);
-  out.push(await probe("4a-cc-latest", 1, CC(CC_INDEXES[0], "stripe.com")));
-  await sleep(SPACING_MS);
-  out.push(await probe("4a-cc-latest", 2, CC(CC_INDEXES[0], "masshist.org")));
-  for (let i = 0; i < CC_INDEXES.length; i++) {
-    await sleep(SPACING_MS);
-    out.push(await probe("4b-cc-monthly", i + 1, CC(CC_INDEXES[i], "masshist.org")));
-  }
+    // ---- 4: Common Crawl ----
+    case "cc":
+      out.push(await probe("4a-cc-latest", 1, CC(CC_INDEXES[0], "stripe.com")));
+      await sleep(SPACING_MS);
+      out.push(await probe("4a-cc-latest", 2, CC(CC_INDEXES[0], "masshist.org")));
+      for (let i = 0; i < CC_INDEXES.length; i++) {
+        await sleep(SPACING_MS);
+        out.push(await probe("4b-cc-monthly", i + 1, CC(CC_INDEXES[i], "masshist.org")));
+      }
+      break;
 
-  // ---- 5: registry path — direct vs middleman ----
-  await sleep(SPACING_MS);
-  out.push(await probe("5a-iana-bootstrap", 1, "https://data.iana.org/rdap/dns.json"));
-  // Both .com deliberately. The bootstrap maps .com/.net to Verisign and .org to
-  // Public Interest Registry, so a mixed pair would compare two different
-  // registries rather than direct-vs-middleman. Keeping the registry constant is
-  // what makes the 4× audit-machine finding testable.
-  for (const d of ["stripe.com", "github.com"]) {
-    await sleep(SPACING_MS);
-    out.push(await probe("5b-rdap-direct", 1, `https://rdap.verisign.com/com/v1/domain/${d}`, "application/rdap+json"));
-    await sleep(SPACING_MS);
-    out.push(await probe("5c-rdap-org", 1, `https://rdap.org/domain/${d}`, "application/rdap+json"));
+    // ---- 5: registry path — direct vs middleman ----
+    // Both .com deliberately: the bootstrap maps .com/.net to Verisign and .org
+    // to Public Interest Registry, so a mixed pair would compare two registries
+    // rather than direct-vs-middleman. Holding the registry constant is what
+    // makes the audit machine's 4x finding testable.
+    case "rdap":
+      out.push(await probe("5a-iana-bootstrap", 1, "https://data.iana.org/rdap/dns.json"));
+      for (const d of ["stripe.com", "github.com"]) {
+        await sleep(SPACING_MS);
+        out.push(await probe("5b-rdap-direct", 1, `https://rdap.verisign.com/com/v1/domain/${d}`, "application/rdap+json"));
+        await sleep(SPACING_MS);
+        out.push(await probe("5c-rdap-org", 1, `https://rdap.org/domain/${d}`, "application/rdap+json"));
+      }
+      break;
+
+    default:
+      return NextResponse.json(
+        { test: "W0 production egress", steps: ["singles", "burst", "cc", "rdap"], usage: "?step=singles" },
+        { headers: { "cache-control": "no-store, max-age=0" } },
+      );
   }
 
   return NextResponse.json(
-    { test: "W0 production egress", startedAt, finishedAt: new Date().toISOString(), burstNote, probes: out },
+    { test: "W0 production egress", step, startedAt, finishedAt: new Date().toISOString(), note, probes: out },
     { headers: { "cache-control": "no-store, max-age=0" } },
   );
 }
