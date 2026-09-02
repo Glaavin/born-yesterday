@@ -105,7 +105,17 @@ function build(o: Obs, pivot: Obs | undefined): CollectorResult[] {
       sig("reddit_search", "ok", "Search Reddit for mentions", null, "reddit"),
     ]},
     { collector: "ai-pivot", ok: wbOk, signals: [
-      sig("wayback_snapshot_count", wbSt, snaps != null ? String(snaps) : null, snaps, wbOk ? "cdx" : null),
+      // B12: the hot path publishes a count only when EXACT (<5 rows). The
+      // observations hold full counts, so this models what production would now
+      // emit rather than what 18.2 happened to record.
+      sig(
+        "wayback_snapshot_count",
+        snaps != null && snaps < 5 ? "ok" : wbOk ? "not_attempted" : "failed",
+        snaps != null && snaps < 5 ? String(snaps) : null,
+        snaps != null && snaps < 5 ? snaps : null,
+        snaps != null && snaps < 5 ? "cdx" : null,
+      ),
+      sig("wayback_thin_archive", wbSt, snaps == null ? null : snaps < 5 ? "Thin" : "Not thin", null, wbOk ? "cdx" : null),
       sig("wayback_first", wbSt, wbOk ? (wb.first ?? null) : null, null, wbOk ? "cdx" : null),
       sig("wayback_last", wbSt, wbOk ? (wb.last ?? null) : null, null, wbOk ? "cdx" : null),
       sig("ai_language_first_seen", aiSt, onset, null, onset ? "wayback-snap" : null),

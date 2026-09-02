@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import type { CollectorResult, Signal, SignalSource } from "../signals/types";
 import { derive, type Derivations } from "./derive";
-import { computeIndicator, PIVOT_ESTABLISHED_DAYS, ESTABLISHED_ARCHIVE_SPAN_DAYS, RUBRIC_PATHS, type RubricPath } from "./indicator";
+import { computeIndicator, PIVOT_ESTABLISHED_DAYS, ESTABLISHED_ARCHIVE_SPAN_DAYS, RUBRIC_PATHS, THIN_SNAPSHOT_COUNT, type RubricPath } from "./indicator";
+import { THIN_PROBE_LIMIT } from "../signals/wayback";
 
 const NOW = Math.floor(Date.parse("2026-06-26T00:00:00Z") / 1000);
 const daysAgoSec = (d: number) => NOW - d * 86400;
@@ -27,7 +28,7 @@ const results = (signals: Signal[]): CollectorResult[] => [{ collector: "t", sig
 const CHECKED_KEYS = [
   "domain_registration_date", "domain_age_days", "registrar",
   "dns_spf", "dns_dmarc", "dns_a", "dns_mx", "hosting_provider",
-  "wayback_snapshot_count", "wayback_first", "trustpilot", "phishtank_listed", "urlhaus_listed",
+  "wayback_snapshot_count", "wayback_thin_archive", "wayback_first", "trustpilot", "phishtank_listed", "urlhaus_listed",
 ];
 const checkedBaseline = (...overrides: Signal[]): CollectorResult[] => {
   const by = new Map(overrides.map((o) => [o.key, o]));
@@ -91,6 +92,7 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     const r = checkedBaseline(
       sig("domain_age_days", { valueNum: 30 }),
       sig("wayback_snapshot_count", { valueNum: 1, source: S("Wayback CDX", "u-cdx") }),
+        sig("wayback_thin_archive", { valueText: "Thin", source: S("Wayback CDX", "u-cdx") }),
       sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
     );
     const ind = computeIndicator("x.com", r, noPivot, NOW);
@@ -106,7 +108,7 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     const r = checkedBaseline(
       sig("domain_age_days", { valueNum: 30 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
-      sig("wayback_snapshot_count", { status: "failed" }),
+      sig("wayback_snapshot_count", { status: "failed" }), sig("wayback_thin_archive", { status: "failed" }),
     );
     const ind = computeIndicator("x.com", r, noPivot, NOW);
 
@@ -125,6 +127,7 @@ describe("computeIndicator (the locked rubric, in order)", () => {
       sig("domain_age_days", { valueNum: 30 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
       sig("wayback_snapshot_count", { valueNum: 0, valueText: "0", source: S("Wayback CDX", "u-cdx") }),
+      sig("wayback_thin_archive", { valueText: "Thin", source: S("Wayback CDX", "u-cdx") }),
     );
     const ind = computeIndicator("x.com", r, noPivot, NOW);
 
@@ -140,6 +143,7 @@ describe("computeIndicator (the locked rubric, in order)", () => {
       sig("domain_age_days", { valueNum: 30 }),
       sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
       sig("wayback_snapshot_count", { valueNum: 1, source: S("Wayback CDX", "u-cdx") }),
+        sig("wayback_thin_archive", { valueText: "Thin", source: S("Wayback CDX", "u-cdx") }),
     );
     const ind = computeIndicator("x.com", r, noPivot, NOW);
     expect(ind.reasons.filter((x) => x.kind !== "caveat").map((x) => x.text).join(" ")).not.toMatch(/review/i);
@@ -469,6 +473,7 @@ describe("rubric-path coverage", () => {
         sig("domain_age_days", { valueNum: 30 }),
         sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
         sig("wayback_snapshot_count", { valueNum: 1, source: CDX }),
+        sig("wayback_thin_archive", { valueText: "Thin", source: CDX }),
       ),
     },
     "green-established-clean": { results: established() },
@@ -490,7 +495,7 @@ describe("rubric-path coverage", () => {
       results: established([sig("dns_spf", { status: "failed", valueText: null })]),
     },
     "amber-no-reason-archive-unchecked": {
-      results: established([sig("wayback_first", { status: "failed" }), sig("wayback_snapshot_count", { status: "failed" })]),
+      results: established([sig("wayback_first", { status: "failed" }), sig("wayback_snapshot_count", { status: "failed" }), sig("wayback_thin_archive", { status: "failed" })]),
     },
   };
 
@@ -528,7 +533,7 @@ describe("no-verdict (Story 21)", () => {
     // Green denied by an unknown conjunct. This is B11 and B5's `github.com`.
     const ind = computeIndicator(
       "x.com",
-      established([sig("wayback_first", { status: "failed" }), sig("wayback_snapshot_count", { status: "failed" })]),
+      established([sig("wayback_first", { status: "failed" }), sig("wayback_snapshot_count", { status: "failed" }), sig("wayback_thin_archive", { status: "failed" })]),
       noPivot,
       NOW,
     );
@@ -574,7 +579,7 @@ describe("no-verdict (Story 21)", () => {
       "x.com",
       established([
         sig("wayback_first", { status: "failed" }),
-        sig("wayback_snapshot_count", { status: "failed" }),
+        sig("wayback_snapshot_count", { status: "failed" }), sig("wayback_thin_archive", { status: "failed" }),
         sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }),
         sig("dns_spf", { valueText: null, source: S("DNS over HTTPS", "u-spf") }),
         sig("dns_dmarc", { valueText: null, source: S("DNS over HTTPS", "u-dmarc") }),
@@ -592,7 +597,7 @@ describe("no-verdict (Story 21)", () => {
       "x.com",
       established([
         sig("wayback_first", { status: "failed" }),
-        sig("wayback_snapshot_count", { status: "failed" }),
+        sig("wayback_snapshot_count", { status: "failed" }), sig("wayback_thin_archive", { status: "failed" }),
         sig("dns_spf", { status: "failed" }),
         sig("phishtank_listed", { valueText: "Listed", source: S("PhishTank", "u-pt") }),
       ]),
@@ -619,6 +624,7 @@ describe("no-verdict (Story 21)", () => {
         sig("domain_age_days", { valueNum: 30 }),
         sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
         sig("wayback_snapshot_count", { valueNum: 2, source: S("Wayback CDX", "u-cdx") }),
+        sig("wayback_thin_archive", { valueText: "Thin", source: S("Wayback CDX", "u-cdx") }),
         sig("wayback_first", { status: "failed" }),
         sig("dns_spf", { valueText: "v=spf1 ~all", source: S("DNS over HTTPS", "u-spf") }),
       ),
@@ -640,6 +646,7 @@ describe("no-verdict (Story 21)", () => {
       established([
         sig("wayback_first", { valueText: old, source: S("Wayback CDX", "u-cdx") }),
         sig("wayback_snapshot_count", { valueNum: 2, source: S("Wayback CDX", "u-cdx") }),
+        sig("wayback_thin_archive", { valueText: "Thin", source: S("Wayback CDX", "u-cdx") }),
         sig("domain_age_days", { status: "failed" }),
       ]),
       noPivot,
@@ -666,5 +673,15 @@ describe("no-verdict (Story 21)", () => {
     );
     expect(ind.state).toBe("green");
     expect(ind.undecided).toBeNull();
+  });
+});
+
+describe("the thinness probe and the thinness threshold stay in step", () => {
+  it("the CDX probe is wide enough to decide THIN_SNAPSHOT_COUNT exactly", () => {
+    // `signals/` must not import from `report/`, so this coupling cannot be
+    // expressed in a type — it is enforced here instead. If the probe were
+    // narrower than the threshold, "fewer than N rows came back" would stop
+    // answering "count < N" and the collector would be guessing.
+    expect(THIN_PROBE_LIMIT).toBeGreaterThanOrEqual(THIN_SNAPSHOT_COUNT);
   });
 });
