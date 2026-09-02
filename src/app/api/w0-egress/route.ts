@@ -25,6 +25,12 @@ import { NextResponse } from "next/server";
  *
  * SHAPE: deliberately close to what W8 (source health) will need — ping a
  * source, record status and latency, report. W8 is NOT built here.
+ *
+ * PATH NOTE: this lived at `api/_w0` and was silently unroutable. In the App
+ * Router an underscore-prefixed folder is a PRIVATE folder — opted out of
+ * routing, along with everything under it — so the route returned the 404 it
+ * returns when the env gate is closed, and the two are indistinguishable from
+ * outside. Do not rename it back.
  */
 
 export const dynamic = "force-dynamic";
