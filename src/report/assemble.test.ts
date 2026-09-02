@@ -25,7 +25,7 @@ const IND = (
   state: Indicator["state"],
   reasons: Indicator["reasons"],
   path: RubricPath = "amber-concerns",
-): Indicator => ({ state, reasons, path });
+): Indicator => ({ state, reasons, path, undecided: null });
 
 const REPORT_KEYS = ["domain", "state", "summary", "lastChecked", "flagged", "positive", "neutral", "sources"];
 const EDITORIAL = /\b(scam|fraud|legit|safe|trust(?:worthy)?|suspicious|fake|sketchy|dangerous)\b/i;

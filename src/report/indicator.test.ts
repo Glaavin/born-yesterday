@@ -514,3 +514,157 @@ describe("rubric-path coverage", () => {
     expect(Object.keys(PATHS).sort()).toEqual([...RUBRIC_PATHS].sort());
   });
 });
+
+/**
+ * STORY 21 — the no-verdict predicate.
+ *
+ * The unit is the CONJUNCT, not the check: a state is undecidable when it was
+ * denied by an UNKNOWN conjunct while every conjunct we could evaluate held.
+ * Denied by a FALSE conjunct is a conclusion; denied by an unknown one is a gap
+ * wearing a conclusion's clothes.
+ */
+describe("no-verdict (Story 21)", () => {
+  it("archive unknown while SPF holds and nothing is flagged → NO VERDICT", () => {
+    // Green denied by an unknown conjunct. This is B11 and B5's `github.com`.
+    const ind = computeIndicator(
+      "x.com",
+      established([sig("wayback_first", { status: "failed" }), sig("wayback_snapshot_count", { status: "failed" })]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.undecided).not.toBeNull();
+    expect(ind.undecided!.map((u) => u.blocked)).toContain("green");
+    expect(ind.undecided!.flatMap((u) => u.unknown)).toContain("wayback_first");
+  });
+
+  it("SPF unknown while the archive establishes and nothing is flagged → NO VERDICT", () => {
+    const ind = computeIndicator("x.com", established([sig("dns_spf", { status: "failed" })]), noPivot, NOW);
+    expect(ind.undecided!.map((u) => u.blocked)).toContain("green");
+  });
+
+  it("SPF CHECKED AND ABSENT → a verdict, not a gap — denied by a FALSE conjunct", () => {
+    // The distinction the whole predicate rests on. Same state denied, opposite
+    // meaning: here we looked and there was no record.
+    const ind = computeIndicator(
+      "x.com",
+      established([sig("dns_spf", { valueText: null, source: S("DNS over HTTPS", "u-dns") })]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.undecided).toBeNull();
+    expect(ind.state).toBe("amber");
+  });
+
+  it("a SHORT but KNOWN span → a verdict — bolt.new must keep publishing", () => {
+    const recent = new Date((NOW - 200 * 86400) * 1000).toISOString().slice(0, 10);
+    const ind = computeIndicator(
+      "x.com",
+      established([sig("wayback_first", { valueText: recent, source: S("Wayback CDX", "u-cdx") })]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.undecided).toBeNull();
+  });
+
+  it("archive unknown but a REAL sourced concern → a verdict. Case C, and it is why a static set fails", () => {
+    // Amber is supported by evidence, not produced by the gap. A named
+    // "load-bearing set" containing the archive check would have suppressed a
+    // correct, sourced Amber here.
+    const ind = computeIndicator(
+      "x.com",
+      established([
+        sig("wayback_first", { status: "failed" }),
+        sig("wayback_snapshot_count", { status: "failed" }),
+        sig("dns_a", { valueText: "1.2.3.4", source: S("DNS over HTTPS", "u-a") }),
+        sig("dns_spf", { valueText: null, source: S("DNS over HTTPS", "u-spf") }),
+        sig("dns_dmarc", { valueText: null, source: S("DNS over HTTPS", "u-dmarc") }),
+      ]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.undecided).toBeNull();
+    expect(ind.state).toBe("amber");
+    expect(ind.reasons.some((r) => /No SPF or DMARC/.test(r.text))).toBe(true);
+  });
+
+  it("RED SURVIVES a load-bearing failure — precedence, and it is the whole point", () => {
+    const ind = computeIndicator(
+      "x.com",
+      established([
+        sig("wayback_first", { status: "failed" }),
+        sig("wayback_snapshot_count", { status: "failed" }),
+        sig("dns_spf", { status: "failed" }),
+        sig("phishtank_listed", { valueText: "Listed", source: S("PhishTank", "u-pt") }),
+      ]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.state).toBe("red");
+    expect(ind.undecided).toBeNull();
+  });
+
+  it("a state BELOW the verdict does not suppress it — Blue fires, Green unknowable, still Blue", () => {
+    // Precedence is Red → Blue → Green → Amber. Blue fires on known evidence, so
+    // Green being unknowable is irrelevant: it could not have won. Without the
+    // precedence filter a correct Blue would be suppressed by a state beneath it.
+    //
+    // Note this needs Green genuinely undecidable, which is why `wayback_first`
+    // fails while `wayback_snapshot_count` succeeds — they are DIFFERENT signals.
+    // An earlier version of this test set a short-but-known span, which left
+    // Green denied by a FALSE conjunct and exercised nothing. Mutation-testing
+    // the precedence filter is what caught it.
+    const ind = computeIndicator(
+      "x.com",
+      checkedBaseline(
+        sig("domain_age_days", { valueNum: 30 }),
+        sig("domain_registration_date", { valueNum: daysAgoSec(30), source: S("RDAP", "u-rdap") }),
+        sig("wayback_snapshot_count", { valueNum: 2, source: S("Wayback CDX", "u-cdx") }),
+        sig("wayback_first", { status: "failed" }),
+        sig("dns_spf", { valueText: "v=spf1 ~all", source: S("DNS over HTTPS", "u-spf") }),
+      ),
+      noPivot,
+      NOW,
+    );
+    expect(ind.state).toBe("blue");
+    expect(ind.undecided).toBeNull();
+  });
+
+  it("a state ABOVE the verdict DOES suppress it — the secondlibrary.com shape", () => {
+    // The converse, and it is why the filter is a rank comparison rather than
+    // "ignore everything else". A 13-year span with 2 captures reaches Green,
+    // while Blue — which outranks it — is unknowable because the registration
+    // lookup failed. Story 18: a clean bill is not certified on a thin footprint.
+    const old = new Date((NOW - 4600 * 86400) * 1000).toISOString().slice(0, 10);
+    const ind = computeIndicator(
+      "x.com",
+      established([
+        sig("wayback_first", { valueText: old, source: S("Wayback CDX", "u-cdx") }),
+        sig("wayback_snapshot_count", { valueNum: 2, source: S("Wayback CDX", "u-cdx") }),
+        sig("domain_age_days", { status: "failed" }),
+      ]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.state).toBe("green");
+    expect(ind.undecided).not.toBeNull();
+    expect(ind.undecided!.map((u) => u.blocked)).toContain("blue");
+  });
+
+  it("threat feeds unreachable do NOT make everything undecidable", () => {
+    // Red-by-listing is a disjunctive POSITIVE trigger: an unreachable feed
+    // leaves it unfired rather than denied, and the "not independently cleared"
+    // disclosure already says so. The feeds are key-gated and routinely not
+    // attempted, so including them would make every report a no-verdict.
+    const ind = computeIndicator(
+      "x.com",
+      established([
+        sig("phishtank_listed", { status: "not_attempted" }),
+        sig("urlhaus_listed", { status: "failed" }),
+      ]),
+      noPivot,
+      NOW,
+    );
+    expect(ind.state).toBe("green");
+    expect(ind.undecided).toBeNull();
+  });
+});

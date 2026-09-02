@@ -15,6 +15,14 @@ import { THREAT_LISTED } from "../signals/threats";
  */
 
 export type IndicatorState = "green" | "amber" | "red" | "blue";
+
+/**
+ * Story 18's precedence chain, in order. Written down because Story 21 needs to
+ * ask "could this state have outranked the one that fired?" — a question the
+ * chain answered implicitly through the ORDER OF RETURNS, which is not
+ * something another rule can consult.
+ */
+export const PRECEDENCE: readonly IndicatorState[] = ["red", "blue", "green", "amber"];
 export interface Reason {
   text: string;
   source: SignalSource | null;
@@ -76,11 +84,34 @@ export const RUBRIC_PATHS: readonly RubricPath[] = [
   "amber-no-reason-archive-unchecked",
 ];
 
+/**
+ * A verdict we could not reach, and which state's conjunct we could not settle
+ * (Story 21, amendment §3.2).
+ *
+ * `blocked` is the state that was denied by an UNKNOWN conjunct rather than a
+ * false one; `unknown` names the signals whose status made it unknowable, so
+ * the copy and the instrumentation can both say which check fell short.
+ */
+export interface Undecided {
+  blocked: IndicatorState;
+  unknown: string[];
+}
+
 export interface Indicator {
   state: IndicatorState;
   reasons: Reason[];
   /** Diagnostic; see `RubricPath`. Never rendered. */
   path: RubricPath;
+  /**
+   * NON-NULL ⇒ NO VERDICT. `state` still holds whatever the rubric produced,
+   * because the four-state contract is unchanged and callers that only want a
+   * label keep working — but a caller that publishes must not publish it.
+   *
+   * This says we concluded NOTHING. It is not a fifth state and does not belong
+   * on the severity ladder; it sits beside `limit-reached` and `error` in
+   * design-system §4.1.
+   */
+  undecided: Undecided[] | null;
 }
 
 /* ============================================================================
@@ -404,11 +435,53 @@ export function computeIndicator(
   // A `subkind` field would make the distinction enforceable rather than
   // conventional; proposed, deliberately not built here.
   const caveats: Reason[] = [];
+  // ---- Story 21: the no-verdict predicate. Declared here, applied in
+  // `verdict()` below, and populated once every input has been read. ----
+  const undecided: Undecided[] = [];
+
+  /**
+   * WHY THIS IS APPLIED AT EVERY RETURN RATHER THAN AS AN EARLY CHECK, and
+   * please do not hoist it:
+   *
+   * §3.2 says no-verdict is evaluated "after Red". **Red is not one position.**
+   * The chain runs red-listing → Blue → red-accumulation → Green → Amber, so an
+   * early check placed after the listing branch would silently preempt
+   * `red-accumulation`. That path is unreachable today (the concern pool has one
+   * member, §3.1) and becomes reachable the moment the pool grows — a latent
+   * suppression of a Red, which is the one outcome that must survive.
+   *
+   * Applying it inside the single constructor makes the ordering safe BY
+   * CONSTRUCTION: no return site can bypass it, and Red is exempted wherever
+   * Red is produced rather than wherever it happens to sit in the chain.
+   */
   const verdict = (path: RubricPath, state: IndicatorState, reasons: Reason[]): Indicator => ({
     state,
     reasons: [...reasons, ...caveats],
     path,
+    // RED SURVIVES. A threat listing is material, sourced, and independent of
+    // whatever else failed; withholding it because something else fell over
+    // would be worse than publishing it.
+    //
+    // AND ONLY A STATE THAT COULD HAVE OUTRANKED THIS ONE MATTERS. Found while
+    // building: precedence is Red → Blue → Green → Amber, so if Blue fired on
+    // known evidence, Green being undecidable is irrelevant — Green could not
+    // have won anyway. Without this, a correct Blue would be suppressed by an
+    // unknowable state that sits beneath it.
+    //
+    // The converse is real and must convert: `secondlibrary.com` has a 13-year
+    // span and 2 captures, so with a failed registration lookup it reaches Green
+    // while Blue — which outranks it — is unknowable. We genuinely cannot tell
+    // those apart, and Story 18's precedence says a clean bill is not certified
+    // on a thin footprint.
+    undecided: outranking(state),
   });
+
+  /** Undecidable states that sit ABOVE `state` in the precedence chain. */
+  const outranking = (state: IndicatorState): Undecided[] | null => {
+    if (state === "red") return null;
+    const hits = undecided.filter((u) => PRECEDENCE.indexOf(u.blocked) < PRECEDENCE.indexOf(state));
+    return hits.length ? hits : null;
+  };
 
   const reg = byKey.get("domain_registration_date");
   const ageDays = num(byKey.get("domain_age_days"));
@@ -518,6 +591,56 @@ export function computeIndicator(
     });
   }
 
+  // ---- STORY 21: can we tell the verdicts apart at all? ----
+  //
+  // THE UNIT IS THE CONJUNCT, NOT THE CHECK. A named "load-bearing set" was the
+  // obvious design and it does not work, because load-bearing is not a stable
+  // property of a check — it depends on what the OTHER checks found:
+  //
+  //   · `dns_spf` fails on a 3-day-old domain with no captures → Blue fires
+  //     correctly. Both its conjuncts are intact. The failure changed nothing.
+  //   · `dns_spf` fails on a domain archived since 1998 → Green is unreachable,
+  //     and the Amber we emit is an artifact of the gap.
+  //   · `wayback_first` fails on a domain with no SPF and no DMARC → the concern
+  //     fires and Amber is supported by EVIDENCE, not produced by the gap.
+  //     So not even the archive check is unconditionally load-bearing.
+  //
+  // Worth keeping straight, because the two look alike and are not: archive span
+  // (§19.1) is context-dependent in what the fact MEANS, which needs a human.
+  // This is context-dependent in REACHABILITY, which is mechanical — a predicate
+  // decides it. One needs judgement; the other needs code.
+  //
+  // THE RULE: a state is undecidable when it was denied by an UNKNOWN conjunct
+  // while every conjunct we could evaluate held. Denied by a FALSE conjunct is a
+  // conclusion; denied by an unknown one is a gap wearing a conclusion's clothes.
+  //
+  // RED IS DELIBERATELY EXCLUDED. Red-by-listing is a disjunctive POSITIVE
+  // trigger, not a conjunction we failed to satisfy: an unreachable feed does
+  // not deny it, it merely leaves it unfired, and the "not independently
+  // cleared" disclosure already says so. Including it would make every report
+  // undecidable, since the feeds are key-gated and routinely not attempted.
+  // §3.2's own framing is "distinguish Blue from Green from Amber".
+  // Red-by-accumulation needs no entry either: `concerns.length` is computed
+  // only from checks that completed, so it is never unknown.
+  //
+  // A COUNT IS DELIBERATELY ABSENT (owner ruling, 2026-08-27 — §3.2 recorded a
+  // CONFLATION, not a deferral). A count asks "is this report thin?"; this asks
+  // "can we tell the verdicts apart?" A sparse but sound report should publish.
+  // The array shape is kept so a count could join as one more entry if a real
+  // trigger ever appears — which is what §3.2's implementation constraint asked
+  // for, satisfied without shipping a number calibrated against nothing.
+  const undecidableFor = (
+    blocked: IndicatorState,
+    conjuncts: { known: boolean; holds: boolean; signal: string }[],
+  ): void => {
+    const unknown = conjuncts.filter((c) => !c.known);
+    // Denied by an unknown conjunct, AND nothing we could actually evaluate
+    // ruled the state out anyway.
+    if (unknown.length && conjuncts.every((c) => !c.known || c.holds)) {
+      undecided.push({ blocked, unknown: unknown.map((c) => c.signal) });
+    }
+  };
+
   // ---- 1) On a threat list → RED (a single authoritative sourced signal). ----
   const listings: Reason[] = [];
   if (listed(pt)) listings.push({ text: "Listed on PhishTank (public phishing feed).", source: pt!.source });
@@ -626,6 +749,23 @@ export function computeIndicator(
   // archive depth. The check still runs and still publishes; it no longer gates.
   const young = ageChecked && ageDays != null && ageDays < YOUNG_DOMAIN_DAYS;
   const thinArchive = archiveChecked && snapshots != null && snapshots < THIN_SNAPSHOT_COUNT;
+
+  // Populate the predicate HERE: every conjunct it reads is now settled, and
+  // this sits before the first non-Red return so no return site can escape it.
+  // Note Green's two archive conjuncts read DIFFERENT signals — `wayback_first`
+  // for the span, `wayback_snapshot_count` for thinness. They co-fail in
+  // practice (one CDX call) but they are not the same fact, and the predicate
+  // names signals rather than collectors so it stays true if that ever changes.
+  undecidableFor("green", [
+    { known: checked("wayback_first"), holds: longArchiveSpan, signal: "wayback_first" },
+    { known: spfChecked, holds: spf, signal: "dns_spf" },
+    { known: true, holds: concerns.length === 0, signal: "concerns" },
+  ]);
+  undecidableFor("blue", [
+    { known: ageChecked, holds: young, signal: "domain_age_days" },
+    { known: archiveChecked, holds: thinArchive, signal: "wayback_snapshot_count" },
+  ]);
+
   if (young && thinArchive) {
     const blueReasons: Reason[] = [
       {

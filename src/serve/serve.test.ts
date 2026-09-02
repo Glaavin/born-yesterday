@@ -86,6 +86,7 @@ describe("sessionKey (§10 — no PII)", () => {
 function makeDeps(over: Partial<ServeDeps> = {}) {
   const collect = vi.fn(async (domain: string) => ({ report: aReport(domain), signals: [aSignal] }));
   const persist = vi.fn(async () => {});
+  const persistAttempt = vi.fn(async () => {});
   const incrementQuota = vi.fn(async () => 1);
   const bg: Array<Promise<void>> = [];
   const deps: ServeDeps = {
@@ -94,10 +95,11 @@ function makeDeps(over: Partial<ServeDeps> = {}) {
     incrementQuota: over.incrementQuota ?? incrementQuota,
     collect: over.collect ?? collect,
     persist: over.persist ?? persist,
+    persistAttempt: over.persistAttempt ?? persistAttempt,
     now: over.now ?? (() => NOW),
     runBackground: over.runBackground ?? ((fn) => void bg.push(fn())),
   };
-  return { deps, collect, persist, incrementQuota, bg };
+  return { deps, collect, persist, persistAttempt, incrementQuota, bg };
 }
 
 describe("serveReport", () => {
@@ -106,6 +108,52 @@ describe("serveReport", () => {
     const r = await serveReport("not a domain", { sessionKey: "k" }, deps);
     expect(r.state).toBe("error");
     expect(collect).not.toHaveBeenCalled();
+  });
+
+  it("NO VERDICT: no report row is written, and the attempt still is", async () => {
+    // `reports` caches VERDICTS and there is not one. A seven-day TTL would
+    // freeze a transient failure for a week — the B11 scenario — and
+    // `schema_version` is written but never read (A2), so there is no
+    // invalidation to lean on. Not writing is the only reliable answer.
+    const undecidedCollect = vi.fn(async (domain: string) => ({
+      report: aReport(domain),
+      signals: [aSignal],
+      undecided: [{ blocked: "green" as const, unknown: ["wayback_first"] }],
+    }));
+    const { deps, persist, persistAttempt } = makeDeps({ collect: undecidedCollect });
+    const r = await serveReport("x.com", { sessionKey: "k" }, deps);
+
+    expect(r.state).toBe("no-verdict");
+    expect(r.report).toBeUndefined();
+    expect(persist).not.toHaveBeenCalled();
+    // History IS recorded — "we attempted these checks and they failed" is what
+    // the append-only record is for, and it is the only trace this leaves.
+    expect(persistAttempt).toHaveBeenCalledWith("x.com", [aSignal], NOW);
+  });
+
+  it("NO VERDICT: the visitor is not charged a daily check", async () => {
+    // Tier 1 (#76) established that a failed report charges no quota. This is
+    // the same category one path over: they asked for a report and did not get
+    // one. Charging would repeat the defect Tier 1 just fixed.
+    const undecidedCollect = vi.fn(async (domain: string) => ({
+      report: aReport(domain),
+      signals: [aSignal],
+      undecided: [{ blocked: "green" as const, unknown: ["dns_spf"] }],
+    }));
+    const { deps, incrementQuota } = makeDeps({ collect: undecidedCollect });
+    await serveReport("x.com", { sessionKey: "k" }, deps);
+    expect(incrementQuota).not.toHaveBeenCalled();
+  });
+
+  it("NO VERDICT names which states were unknowable, for the copy and the instrumentation", async () => {
+    const undecidedCollect = vi.fn(async (domain: string) => ({
+      report: aReport(domain),
+      signals: [aSignal],
+      undecided: [{ blocked: "blue" as const, unknown: ["domain_age_days"] }],
+    }));
+    const { deps } = makeDeps({ collect: undecidedCollect });
+    const r = await serveReport("x.com", { sessionKey: "k" }, deps);
+    expect(r.undecided).toEqual([{ blocked: "blue", unknown: ["domain_age_days"] }]);
   });
 
   it("a report cached BEFORE the neutral channel existed still serves — normalised on the way in", () => {

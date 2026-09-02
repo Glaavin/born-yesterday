@@ -284,6 +284,14 @@ A failed or not-attempted check cannot satisfy `fewSnaps` or any other condition
 
 **This is a proposal, not a decision.** It is scheduled into the no-verdict story because that is the next work generating disclosure caveats in volume, and whoever builds that story decides it. It must not be implemented on the strength of appearing in this document.
 
+> **DECIDED POST-STORY-21 — CLOSED, and this document predicted which half would survive.**
+>
+> **Story 19.1's neutral channel made the source invariant structural**: sourced observations route to a findings channel, unsourced disclosures stay in the note, and §6.2 already forbids publishing an unsourced reason as a finding. **The invariant is now enforced by construction and needs no field.**
+>
+> What remains is prose that carries a source but describes *our* limits — and this section already said a type cannot catch that. The residue is an **invariant assertion over output** (`docs/testing-recommendations.md`, recommendation 3), not a `subkind`.
+>
+> **A3 is closed rather than left half-dead in the register.**
+
 This bounds the cost of the rule. Without the caveat, a domain falling through to Amber because its archive check failed would read as *"some concerns"* about a domain whose thinness we simply could not verify — trading a false Blue for a false Amber, and Amber is the one implying concern. The caveat means the reader sees both the verdict and the reason to discount it.
 
 **Beyond that threshold: no verdict at all.**
@@ -295,6 +303,38 @@ This also gives Blue its meaning back. Blue becomes purely *"we checked and foun
 **Threshold: a simple count, for now.** Story 19 calibration will find the right shape. Not all failed checks are equal — losing the registration date is foundational (`masshist.org` demonstrated a single RDAP timeout hollowing out a report) while losing Trustpilot costs almost nothing — so the eventual answer is likely a load-bearing set with a count on top.
 
 **Implementation constraint:** express the threshold as a **predicate that currently happens to be a count**, not a bare integer comparison. If calibration finds registration and archive are load-bearing, that must be an extension rather than a rewrite.
+
+> **CORRECTED POST-STORY-21 — the count was a CONFLATION, not a deferral.**
+>
+> Both proposals above are wrong, and in different ways.
+>
+> **The count asked a question that does not need answering.** A count asks *"is this report thin?"*; the rule needs to ask *"can we tell the verdicts apart?"* **A sparse but sound report should publish** — if every peripheral check fails while archive, SPF and registration hold, the verdict is correct and the report is merely short. The count also had no trigger, nothing to calibrate against, and a corpus that cannot exercise it, so it would have shipped a number that looked calibrated and was not.
+>
+> **This is recorded as a conflation rather than a deferral deliberately.** "Deferred" implies it is still owed. It is not: the question dissolved.
+>
+> **The load-bearing SET is also wrong, and the reason generalises.** *Load-bearing is not a stable property of a check.* It depends on what the **other** checks found:
+>
+> - `dns_spf` fails on a 3-day-old domain with no captures → **Blue fires correctly.** Both its conjuncts are intact.
+> - `dns_spf` fails on a domain archived since 1998 → **Green is unreachable** and the Amber we emit is an artifact.
+> - `wayback_first` fails on a domain with no SPF and no DMARC → **the concern fires and Amber is supported by evidence.** So **not even the archive check is unconditionally load-bearing** — a named set containing it would have suppressed a correct, sourced Amber.
+>
+> **The unit is the CONJUNCT, not the check.** The rule: *a state is undecidable when it was denied by an **unknown** conjunct while every conjunct we could evaluate held.* Denied by a **false** conjunct is a conclusion; denied by an unknown one is a gap wearing a conclusion's clothes.
+>
+> **A distinction worth keeping, because the two look alike and are not.** Archive span (§19.1) is context-dependent in what the fact **means** — that needs a human. This is context-dependent in **reachability** — that needs a predicate. One is a judgment; the other is code.
+>
+> **§3.2's implementation constraint is still honoured.** The predicate is an array of causes, so a count could join as one more entry if a real trigger ever appears. It was not shipped, rather than shipped uncalibrated.
+
+> **CORRECTED POST-STORY-21 — "after Red" does not compose, because Red is not one position.**
+>
+> The chain runs `red-listing → Blue → red-accumulation → Green → Amber`. A no-verdict check placed after the listing branch **silently preempts `red-accumulation`** — unreachable today (§3.1), and a suppressed Red the moment the concern pool grows.
+>
+> **Resolution: evaluate at the end and convert**, inside the single `verdict()` constructor. Ordering-safe by construction: no return site can bypass it, and Red is exempted wherever Red is *produced* rather than wherever it happens to sit.
+>
+> **And only a state that could have OUTRANKED the verdict counts** — found while building. If Blue fires on known evidence, Green being unknowable is irrelevant; without the rank comparison a correct Blue is suppressed by a state beneath it. The converse is real: `secondlibrary.com` (13-year span, 2 captures) reaches Green while Blue is unknowable, and those genuinely cannot be told apart.
+
+> **CORRECTED POST-STORY-21 — RED-BY-LISTING IS EXCLUDED FROM THE PREDICATE, deliberately.**
+>
+> An unreachable threat feed does not **deny** Red — Red-by-listing is a disjunctive **positive** trigger, so a failed feed leaves it unfired, and the *"not independently cleared"* disclosure already says so. Including it would make **every** report a no-verdict, because the feeds are key-gated and routinely not attempted. §3.2's own framing is *"distinguish Blue from Green from Amber."*
 
 **Caching:** a no-verdict outcome is **not cached**. `reports` caches verdicts and there is not one; a seven-day cache would make a transient failure sticky. Do not write a report row.
 
@@ -727,6 +767,14 @@ The sharpest instance was verdict-bearing: `parseAnswers → []` on a malformed 
 | 18.3.50 | Cached reports: the renderer tolerates a missing field. **Bumping `SCHEMA_VERSION` rejected as a no-op** — nothing reads it. Real invalidation is its own story | **OWNER RULING** (2026-08-27) — A2 |
 | 18.3.51 | **B11: an unavailable load-bearing check produces §3.2's NO-VERDICT outcome**, not a misleading Amber. Raising the timeout rejected. Merges B5 into the same story | **OWNER RULING** (2026-08-27) — the general answer, not a per-route patch |
 | 18.3.52 | B11 is **four** single points of failure, not one: Green dies with Wayback and with DNS; Blue with Wayback and with registration lookup. A per-route patch would have fixed one of four | **MEASUREMENT** — PR #67 sweep |
+| 18.3.53 | The no-verdict trigger is a **conjunct-level reachability predicate**: undecidable when a state was denied by an UNKNOWN conjunct while every evaluable conjunct held | **OWNER RULING** (2026-08-27) — Story 21 |
+| 18.3.54 | **Load-bearing is not a stable property of a check.** Not even the archive check — a domain with a sourced concern publishes correctly whether or not Green was reachable | **PRINCIPLE** — Story 21, case C |
+| 18.3.55 | Context-dependent in **meaning** (§19.1 archive span) needs a human; context-dependent in **reachability** (Story 21) needs a predicate. They look alike and are not | **DISTINCTION** — Story 21 |
+| 18.3.56 | The §3.2 count was a **CONFLATION, not a deferral** — it asked "is this report thin?", the rule needs "can we tell the verdicts apart?". Not owed | **CORRECTION** — Story 21 |
+| 18.3.57 | "After Red" does not compose — **Red is not one position**. Evaluate at the end and convert, inside the single constructor | **CORRECTION** — Story 21 |
+| 18.3.58 | Only a state that could have **outranked** the verdict suppresses it. Found while building; without it a correct Blue is suppressed by a state beneath it | **CORRECTION** — Story 21 |
+| 18.3.59 | **A3 CLOSED.** 19.1 made the source invariant structural; the prose-discipline residue is an invariant assertion over output, not a `subkind` | **DECIDED** — Story 21 |
+| 18.3.60 | **B5 and B11 are one problem.** Two independently-derived rules converge on the same two corpus domains — `github.com` and `kexp.org` | **CONVERGENCE** — Story 21 |
 | 18.3.31 | `YOUNG_DOMAIN_DAYS` confirmed at **180**. Never touches Green; moves domains only between Blue and Amber. Tightening would dress insufficiency as concern | **OWNER RULING** (2026-08-26) — posture, not measurement |
 | 18.3.32 | `PIVOT_RECENT_DAYS` left at **365** knowing it produces two false Ambers; no value improves them | **OWNER RULING** (2026-08-26) — §2.7 |
 | 18.3.33 | The pivot alone denies Green and publishes as the sole finding. §2.1's false-Red licence missed the false-Amber harm | **DEFECT** — §2.7, second constituency for §2.4 |

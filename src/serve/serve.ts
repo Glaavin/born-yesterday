@@ -2,6 +2,7 @@ import { normalizeDomain } from "../lib/domain";
 import type { Report } from "../components/report-state";
 import type { ReportRow } from "../db/schema";
 import type { Signal } from "../signals/types";
+import type { Undecided } from "../report/indicator";
 import { isFresh } from "./freshness";
 import { decideServe } from "./decide";
 import { SEARCH_LIMIT_PER_DAY, utcDay } from "./quota";
@@ -14,13 +15,21 @@ import { SEARCH_LIMIT_PER_DAY, utcDay } from "./quota";
  * shared reports viewable (§11). signal_history is APPEND-ONLY (persist, §3).
  */
 
-export type ServeState = "served" | "stale" | "refreshing" | "limit-reached" | "error";
+/**
+ * `no-verdict` (Story 21) is NOT a fifth verdict. It sits here beside
+ * `limit-reached` and `error` — design-system §4.1's non-verdict outcomes —
+ * because it says we concluded nothing, not that we concluded something mild.
+ */
+export type ServeState = "served" | "stale" | "refreshing" | "limit-reached" | "error" | "no-verdict";
 export type Freshness = "fresh" | "stale" | "new" | "none";
 
 export interface ServeResult {
   state: ServeState;
   report?: Report;
   freshness: Freshness;
+  /** Set only on `no-verdict`: which states we could not rule in or out, and
+   *  which checks left them unknowable. Drives the copy and the instrumentation. */
+  undecided?: Undecided[];
 }
 
 export interface RequestMeta {
@@ -40,8 +49,15 @@ export interface ServeDeps {
   getReport: (domain: string) => Promise<ReportRow | null>;
   getQuota: (sessionKey: string, day: string) => Promise<number>;
   incrementQuota: (sessionKey: string, day: string) => Promise<number>;
-  /** Generate a report + the signals to append. */
-  collect: (domain: string, nowSec: number) => Promise<{ report: Report; signals: Signal[] }>;
+  /** Generate a report + the signals to append. `undecided` non-null means the
+   *  rubric could not tell the verdicts apart — there is no report to publish,
+   *  though the attempt is still worth recording. */
+  collect: (
+    domain: string,
+    nowSec: number,
+  ) => Promise<{ report: Report; signals: Signal[]; undecided?: Undecided[] | null }>;
+  /** Record the ATTEMPT only — history, no report row (Story 21). */
+  persistAttempt: (domain: string, signals: Signal[], nowSec: number) => Promise<void>;
   /** Persist (getOrCreateDomain + saveReport + appendSignalHistory). */
   persist: (domain: string, report: Report, signals: Signal[], nowSec: number) => Promise<void>;
   now: () => number; // epoch SECONDS
@@ -115,6 +131,25 @@ export async function serveReport(
       let report: Report;
       try {
         const generated = await deps.collect(domain, nowSec);
+        if (generated.undecided && generated.undecided.length) {
+          // NO VERDICT (Story 21). Three things follow, and all three are the
+          // point rather than side-effects:
+          //
+          //  · NOT CACHED. `reports` caches verdicts and there is not one. A
+          //    seven-day TTL would freeze a transient failure for a week —
+          //    exactly the B11 scenario — and `schema_version` is written but
+          //    never read (A2), so there is no invalidation to lean on. Not
+          //    writing is the only reliable answer.
+          //  · NO QUOTA. The visitor asked for a report and did not get one.
+          //    Tier 1 (#76) established this for a failed collect; charging here
+          //    would repeat the defect it just fixed, one path over.
+          //  · HISTORY STILL RECORDED. "We attempted these checks on this date
+          //    and they failed" is what the append-only record is for, and it is
+          //    the only trace a no-verdict leaves — so it is also the
+          //    instrumentation (`scripts/no-verdict-rate.ts`).
+          await deps.persistAttempt(domain, generated.signals, nowSec);
+          return { state: "no-verdict", freshness: "none", undecided: generated.undecided };
+        }
         await deps.persist(domain, generated.report, generated.signals, nowSec);
         report = generated.report;
       } catch {

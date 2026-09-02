@@ -5,7 +5,7 @@ import { socketWhois } from "../signals/whois";
 import { socketTlsConnect } from "../signals/tls";
 import { collectAll } from "../report/collect-all";
 import { derive } from "../report/derive";
-import { computeIndicator } from "../report/indicator";
+import { computeIndicator, type Undecided } from "../report/indicator";
 import { assembleReport, KEY_TO_STATE } from "../report/assemble";
 import { signalsToHistory } from "../signals/types";
 import { SCHEMA_VERSION } from "../db/schema";
@@ -42,7 +42,7 @@ const resolveHost = async (host: string): Promise<string[]> => {
 export async function realCollect(
   domain: string,
   nowSec: number,
-): Promise<{ report: Report; signals: Signal[] }> {
+): Promise<{ report: Report; signals: Signal[]; undecided: Undecided[] | null }> {
   const results = await collectAll(
     domain,
     {
@@ -62,7 +62,19 @@ export async function realCollect(
   const indicator = computeIndicator(domain, results, derivations, nowSec);
   const report = assembleReport(domain, results, derivations, indicator, nowSec);
   const signals = results.flatMap((r) => r.signals);
-  return { report, signals };
+  // Carried OUT of collect rather than thrown: collectors are non-throwing by
+  // design, so Tier 1's catch path never sees this. The caller decides.
+  return { report, signals, undecided: indicator.undecided };
+}
+
+/** Record the attempt: ensure the domain and APPEND history — no report row. */
+export async function realPersistAttempt(
+  domain: string,
+  signals: Signal[],
+  nowSec: number,
+): Promise<void> {
+  await getOrCreateDomain(domain);
+  await appendSignalHistory(signalsToHistory(domain, signals, nowSec));
 }
 
 /** Persist: ensure the domain, upsert the report (expires = now + TTL), APPEND history. */
@@ -93,6 +105,7 @@ export function buildServeDeps(runBackground: (fn: () => Promise<void>) => void)
     incrementQuota: incrementSessionQuota,
     collect: realCollect,
     persist: realPersist,
+    persistAttempt: realPersistAttempt,
     now: () => Math.floor(Date.now() / 1000),
     runBackground,
   };

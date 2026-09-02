@@ -88,13 +88,13 @@ function FindingItem({ kind, finding }: { kind: FindingKind; finding: Finding })
   );
 }
 
-/** Centered status screen for the error / limit-reached states. */
+/** Centered status screen for the non-verdict outcomes (design-system §4.1). */
 function StatusScreen({
   mascot,
   title,
   children,
 }: {
-  mascot: "error" | "limit-reached";
+  mascot: "error" | "limit-reached" | "checking-again";
   title: string;
   children: React.ReactNode;
 }) {
@@ -139,6 +139,28 @@ export default async function ReportPage({
       <StatusScreen mascot="error" title="That doesn’t look like a site we can check">
         Enter a domain like <span className="text-ink">stripe.com</span> — no “http://”, no path
         needed.
+      </StatusScreen>
+    );
+  }
+
+  // NO VERDICT (Story 21) — we concluded nothing, and say so.
+  //
+  // EVERY WORD HERE IS ABOUT US, NEVER THE DOMAIN. "This domain couldn't be
+  // reached" or "no data available for this site" would transfer our failure
+  // onto the subject: inaccurate, and for a company being checked, adverse —
+  // the L-10 class of error in a new place. Same discipline as the Blue relabel
+  // and the semicolon pass.
+  //
+  // It must also read as EFFORT, not error, because it lands disproportionately
+  // on first impressions: a returning visitor hitting a cached report never sees
+  // it, so the people most likely to see it have no prior experience of the
+  // product working.
+  if (result.state === "no-verdict") {
+    return (
+      <StatusScreen mascot="checking-again" title="We couldn’t finish checking this one">
+        A source we rely on didn’t answer in time, so we’d only be guessing. Nothing here is a
+        finding about <span className="text-ink">{input}</span> — it’s about our checks, not the
+        site. Reload in a minute and we’ll try again; this usually clears on its own.
       </StatusScreen>
     );
   }
