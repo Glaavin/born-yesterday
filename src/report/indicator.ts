@@ -2,6 +2,7 @@ import type { CollectorResult, Signal, SignalSource } from "../signals/types";
 import { signalsByKey } from "./signals";
 import { humanAge, type Derivations } from "./derive";
 import { THREAT_LISTED } from "../signals/threats";
+import { CC_THRESHOLD_LABEL } from "../signals/common-crawl";
 
 /**
  * Draft four-state Skepticism Indicator (mvp-spec §2E) — a PUBLISHABLE rubric:
@@ -511,6 +512,27 @@ export function computeIndicator(
     firstArchivedSec != null ? Math.floor((nowSec - firstArchivedSec) / SECONDS_PER_DAY) : null;
   const longArchiveSpan =
     archiveSpanDays != null && archiveSpanDays >= ESTABLISHED_ARCHIVE_SPAN_DAYS;
+
+  // ---- ESTABLISHMENT IS A DISJUNCTION OF TWO INSTRUMENTS (Story 24, Move 05
+  // Reading A): either Wayback's span OR Common Crawl's presence may satisfy it;
+  // NEITHER may deny it. CC is primary (Stage 1.5: it answers fast and reliably
+  // where Wayback does not); Wayback supplies the richer span when it answers.
+  const cc = byKey.get("cc_established");
+  const ccChecked = checked("cc_established"); // status ok (200 present OR 404 absent)
+  const ccPresent = ccChecked && cc?.valueText != null; // 200 with a crawl label
+  const ccAbsent = ccChecked && cc?.valueText == null; // 404 — checked, found nothing
+
+  // WAYBACK's three establishment states, named so the predicate can reason:
+  const waybackKnown = checked("wayback_first");
+  const waybackShort = waybackKnown && !longArchiveSpan; // checked, and the span is short
+
+  // HOLDS: established if EITHER instrument says so.
+  const established = ccPresent || longArchiveSpan;
+  // KNOWN: we can answer "established?" when either establishes, OR when BOTH
+  // instruments returned a definitive negative. A CC 404 alone is NOT definitive
+  // (coverage asymmetry — weak evidence), so "known-false" needs Wayback also
+  // known-short. This is the 404 refinement: CC absence never denies on its own.
+  const establishmentKnown = established || (ccAbsent && waybackShort);
   const reputationChecked = checked("trustpilot");
   const spfChecked = checked("dns_spf");
   const dmarcChecked = checked("dns_dmarc");
@@ -770,7 +792,10 @@ export function computeIndicator(
   // practice (one CDX call) but they are not the same fact, and the predicate
   // names signals rather than collectors so it stays true if that ever changes.
   undecidableFor("green", [
-    { known: checked("wayback_first"), holds: longArchiveSpan, signal: "wayback_first" },
+    // Establishment is now the disjunction: unknown only when NEITHER instrument
+    // could answer (Wayback failed AND CC failed/absent-without-a-short-span).
+    // A CC 404 does not make it known — it falls through to Wayback (Story 24).
+    { known: establishmentKnown, holds: established, signal: "establishment" },
     { known: spfChecked, holds: spf, signal: "dns_spf" },
     { known: true, holds: concerns.length === 0, signal: "concerns" },
   ]);
@@ -834,8 +859,8 @@ export function computeIndicator(
   // What is NOT built here, deliberately: CONTINUITY (captures across most of
   // the intervening years) and OPERATOR continuity. Both are post-MVP; the gap
   // they leave is disclosed in the caveat above rather than papered over. Span
-  // alone is the available fix, not the correct one.
-  const established = longArchiveSpan;
+  // alone is the available fix, not the correct one. (`established` is the
+  // two-instrument disjunction computed above — Story 24, Move 05 Reading A.)
 
   // Q6 (18.3 §3.3): Green requires SPF. A MISSING DMARC no longer blocks Green —
   // finding F2 measured ~24% of established organisations without one, so the old
@@ -853,22 +878,33 @@ export function computeIndicator(
   const clean = spfEstablished && concerns.length === 0;
   if (established && clean) {
     const reasons: Reason[] = [];
-    // THE FACT, NOT THE INFERENCE (§3.4.5 / Part 4). "Archived since 2009" is
-    // true of a recycled domain; "operating since 2009" is not, and we are not
-    // entitled to it until operator continuity exists. The copy states what the
-    // archive records and stops there.
-    // Carries the capture COUNT as trailing context so the assembler does not
-    // have to publish a second, near-identical archive line beside this one
-    // (§3.4.3: span leads, count follows). Span first, always — the count on its
-    // own measures crawler attention.
-    reasons.push({
-      text:
-        `Archived since ${isoDay(firstArchivedSec!).slice(0, 4)} — the Wayback Machine's record for this ` +
-        `domain spans ~${humanAge(archiveSpanDays!)}` +
-        (snapshots != null ? ` (${snapshots} capture${snapshots === 1 ? "" : "s"} recorded)` : "") +
-        `.`,
-      source: firstArchived?.source ?? null,
-    });
+    // THE ESTABLISHING REASON. Wayback's span is the RICHER claim, so it leads
+    // whenever it is available; CC carries it otherwise, in its OWN wording with
+    // its OWN source — never reusing the span sentence (Story 24).
+    if (longArchiveSpan) {
+      // THE FACT, NOT THE INFERENCE (§3.4.5 / Part 4). "Archived since 2009" is
+      // true of a recycled domain; "operating since 2009" is not, and we are not
+      // entitled to it until operator continuity exists. Span leads; the capture
+      // count follows as trailing context (§3.4.3), so the assembler need not
+      // publish a second near-identical archive line.
+      reasons.push({
+        text:
+          `Archived since ${isoDay(firstArchivedSec!).slice(0, 4)} — the Wayback Machine's record for this ` +
+          `domain spans ~${humanAge(archiveSpanDays!)}` +
+          (snapshots != null ? ` (${snapshots} capture${snapshots === 1 ? "" : "s"} recorded)` : "") +
+          `.`,
+        source: firstArchived?.source ?? null,
+      });
+    } else {
+      // CC-only establishment: the deliberately WEAKER claim (Stage 1.5) —
+      // point-in-time presence, not a continuous span. Its own words, its own
+      // source. CC presence is sound positive evidence; the coverage asymmetry
+      // (CC absence is weak) is recorded in the rubric basis, not here.
+      reasons.push({
+        text: `Present in Common Crawl's ${CC_THRESHOLD_LABEL} crawl — on the live web at least that far back.`,
+        source: cc?.source ?? null,
+      });
+    }
     // CORROBORATING, never a route of its own (§3.4.4). Capped: a pre-2018 first
     // cert is a floor, not a start date, and the copy says which it is.
     if (certChecked && firstCert?.valueNum != null) {

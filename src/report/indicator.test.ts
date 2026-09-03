@@ -28,7 +28,7 @@ const results = (signals: Signal[]): CollectorResult[] => [{ collector: "t", sig
 const CHECKED_KEYS = [
   "domain_registration_date", "domain_age_days", "registrar",
   "dns_spf", "dns_dmarc", "dns_a", "dns_mx", "hosting_provider",
-  "wayback_snapshot_count", "wayback_thin_archive", "wayback_first", "trustpilot", "phishtank_listed", "urlhaus_listed",
+  "wayback_snapshot_count", "wayback_thin_archive", "wayback_first", "cc_established", "trustpilot", "phishtank_listed", "urlhaus_listed",
 ];
 const checkedBaseline = (...overrides: Signal[]): CollectorResult[] => {
   const by = new Map(overrides.map((o) => [o.key, o]));
@@ -528,6 +528,63 @@ describe("rubric-path coverage", () => {
  * Denied by a FALSE conjunct is a conclusion; denied by an unknown one is a gap
  * wearing a conclusion's clothes.
  */
+describe("establishment disjunction — CC + Wayback (Story 24)", () => {
+  const CC = S("Common Crawl", "u-cc");
+  const ccPresent = sig("cc_established", { valueText: "February/March 2024", source: CC });
+  const ccAbsent = sig("cc_established", { valueText: null, source: CC }); // 200-but-404: checked, absent
+  const ccFailed = sig("cc_established", { status: "failed" });
+  const wbFailed = [sig("wayback_first", { status: "failed" }), sig("wayback_snapshot_count", { status: "failed" }), sig("wayback_thin_archive", { status: "failed" })];
+  const recent = new Date((NOW - 200 * 86400) * 1000).toISOString().slice(0, 10);
+  const wbShort = sig("wayback_first", { valueText: recent, source: S("Wayback CDX", "u-cdx") });
+
+  it("CC present + Wayback FAILED → GREEN, established via CC, in CC's own words", () => {
+    const ind = computeIndicator("x.com", established([ccPresent, ...wbFailed]), noPivot, NOW);
+    expect(ind.state).toBe("green");
+    expect(ind.undecided).toBeNull();
+    const main = ind.reasons.filter((r) => r.kind !== "caveat");
+    const est = main.find((r) => /Common Crawl/.test(r.text))!;
+    expect(est).toBeDefined();
+    expect(est.source).toEqual(CC);
+    // NEVER Wayback's span sentence for a CC-derived fact.
+    expect(main.every((r) => !/Archived since/.test(r.text))).toBe(true);
+  });
+
+  it("CC 404 + Wayback span → GREEN via Wayback's RICHER claim", () => {
+    // established() sets a long wayback span; cc absent. Wayback leads.
+    const ind = computeIndicator("x.com", established([ccAbsent]), noPivot, NOW);
+    expect(ind.state).toBe("green");
+    const main = ind.reasons.filter((r) => r.kind !== "caveat");
+    expect(main.some((r) => /Archived since/.test(r.text))).toBe(true);
+    expect(main.some((r) => /Common Crawl/.test(r.text))).toBe(false);
+  });
+
+  it("CC 404 + Wayback FAILED → NO VERDICT (the refinement: CC absence never denies)", () => {
+    const ind = computeIndicator("x.com", established([ccAbsent, ...wbFailed]), noPivot, NOW);
+    expect(ind.undecided).not.toBeNull();
+    expect(ind.undecided!.map((u) => u.blocked)).toContain("green");
+  });
+
+  it("CC 404 + Wayback KNOWN-SHORT → AMBER, a real verdict (both instruments definitively negative)", () => {
+    const ind = computeIndicator("x.com", established([ccAbsent, wbShort]), noPivot, NOW);
+    expect(ind.state).toBe("amber");
+    expect(ind.undecided).toBeNull();
+  });
+
+  it("CC FAILED + Wayback FAILED → NO VERDICT", () => {
+    const ind = computeIndicator("x.com", established([ccFailed, ...wbFailed]), noPivot, NOW);
+    expect(ind.undecided).not.toBeNull();
+    expect(ind.undecided!.map((u) => u.blocked)).toContain("green");
+  });
+
+  it("CC present alone satisfies establishment — Wayback is not required (Move 05 Reading A)", () => {
+    // Wayback short AND CC present → established (CC), not denied. Reading B
+    // (both required) is rejected; this proves either suffices.
+    const ind = computeIndicator("x.com", established([ccPresent, wbShort]), noPivot, NOW);
+    expect(ind.state).toBe("green");
+    expect(ind.reasons.some((r) => /Common Crawl/.test(r.text))).toBe(true);
+  });
+});
+
 describe("no-verdict (Story 21)", () => {
   it("archive unknown while SPF holds and nothing is flagged → NO VERDICT", () => {
     // Green denied by an unknown conjunct. This is B11 and B5's `github.com`.
@@ -539,7 +596,7 @@ describe("no-verdict (Story 21)", () => {
     );
     expect(ind.undecided).not.toBeNull();
     expect(ind.undecided!.map((u) => u.blocked)).toContain("green");
-    expect(ind.undecided!.flatMap((u) => u.unknown)).toContain("wayback_first");
+    expect(ind.undecided!.flatMap((u) => u.unknown)).toContain("establishment");
   });
 
   it("SPF unknown while the archive establishes and nothing is flagged → NO VERDICT", () => {

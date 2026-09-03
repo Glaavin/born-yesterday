@@ -6,9 +6,10 @@ import { collectDns } from "../signals/dns-signals";
 import { collectThreats, type ThreatsDeps } from "../signals/threats";
 import { collectReputation } from "../signals/reputation";
 import { collectAiPivot } from "../signals/ai-pivot";
+import { collectCommonCrawl } from "../signals/common-crawl";
 
 /**
- * Collector orchestrator (Story 16 §B). Runs all six collectors in PARALLEL under
+ * Collector orchestrator (Story 16 §B). Runs all collectors in PARALLEL under
  * ONE shared 8s deadline (the budget Story 9's harness accepts via opts.signal).
  * Partial-OK: a collector that errors/times out yields ok:false + nulls and NEVER
  * kills the run. NOTE: the WHOIS (port-43) and TLS (443) socket sidecars keep
@@ -40,7 +41,7 @@ function withDeadline(fetcher: Fetcher, signal: AbortSignal): Fetcher {
   return (opts) => fetcher({ ...opts, signal: opts.signal ?? signal });
 }
 
-/** Build the six collector specs, each forwarding the deadline into its harness calls. */
+/** Build the collector specs, each forwarding the deadline into its harness calls. */
 export function buildCollectorSpecs(domain: string, deps: CollectAllDeps): CollectorSpec[] {
   const f = (s: AbortSignal) => withDeadline(deps.fetcher, s);
   return [
@@ -78,6 +79,11 @@ export function buildCollectorSpecs(domain: string, deps: CollectAllDeps): Colle
     },
     { name: "reputation", run: (s) => collectReputation(domain, { fetcher: f(s) }) },
     { name: "ai-pivot", run: (s) => collectAiPivot(domain, { fetcher: f(s) }) },
+    // Common Crawl RACES the Wayback (ai-pivot) establishment call. Different
+    // host, so the per-host budget/rate limiter never contend (Story 24 Q2); it
+    // usually answers in ~400ms while Wayback is slow, so establishment holds via
+    // whichever returns a sound answer inside the deadline (Move 05 Reading A).
+    { name: "common-crawl", run: (s) => collectCommonCrawl(domain, { fetcher: f(s) }) },
   ];
 }
 
