@@ -19,9 +19,41 @@ export interface Snapshot {
   original: string;
 }
 
-export const cdxUrl = (domain: string): string =>
+const CDX_BASE = (domain: string): string =>
   `https://web.archive.org/cdx/search/cdx?url=${encodeURIComponent(domain)}` +
   `&output=json&fl=timestamp,original&filter=statuscode:200&collapse=timestamp:8`;
+
+/**
+ * The FULL capture list. Retained for the offline qualifiers in `scripts/`,
+ * which run patiently and off the request path.
+ *
+ * NOT FOR THE HOT PATH. W0 measured this at 4–14 seconds from production
+ * against an 8-second collection deadline, which is the whole of B12: the
+ * archive check was not being refused, it was blowing our own budget.
+ */
+export const cdxUrl = CDX_BASE;
+
+/**
+ * How many rows the hot path asks for. Sized to answer `count < THIN_SNAPSHOT_COUNT`
+ * EXACTLY without fetching a list that may run to thousands:
+ *
+ *   fewer than this many rows come back ⇒ that IS the exact count
+ *   exactly this many come back         ⇒ the count is ≥ this, which is all the
+ *                                          thinness rule ever needed to know
+ *
+ * Must stay ≥ `THIN_SNAPSHOT_COUNT` in `report/indicator.ts`, which a test
+ * asserts — `signals/` must not import from `report/`, so the coupling is
+ * enforced rather than expressed.
+ */
+export const THIN_PROBE_LIMIT = 5;
+
+/** Oldest captures, ascending — gives the FIRST capture and the thinness answer. */
+export const cdxFirstUrl = (domain: string): string =>
+  `${CDX_BASE(domain)}&limit=${THIN_PROBE_LIMIT}`;
+
+/** The most recent capture only. `fastLatest` lets the server stop early. */
+export const cdxLastUrl = (domain: string): string =>
+  `${CDX_BASE(domain)}&fastLatest=true&limit=-1`;
 
 export const snapshotUrl = (ts: string, original: string): string =>
   `https://web.archive.org/web/${ts}id_/${original}`;
@@ -33,14 +65,21 @@ export function tsToIso(ts: string | null): string | null {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
+/**
+ * One bounded CDX query. `which` selects the endpoint AND the cache key — the
+ * two responses are different shapes for the same domain, so they must not
+ * share an entry.
+ */
 export async function fetchCdx(
   domain: string,
   fetcher: Fetcher,
+  which: "first" | "last" | "full" = "full",
 ): Promise<{ ok: boolean; json: string | null }> {
+  const url = which === "first" ? cdxFirstUrl(domain) : which === "last" ? cdxLastUrl(domain) : cdxUrl(domain);
   const res = await fetcher({
     source: "wayback-cdx",
-    key: domain,
-    url: cdxUrl(domain),
+    key: `${domain}:${which}`,
+    url,
     ttlSeconds: CDX_TTL_SECONDS,
     kind: "third-party",
     timeoutMs: WAYBACK_TIMEOUT_MS,
