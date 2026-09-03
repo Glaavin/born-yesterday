@@ -168,6 +168,12 @@ export const YOUNG_DOMAIN_DAYS = 180;
  * cannot fix an upper bound — any value ≥ 4 produces identical verdicts across
  * all 49 — so the choice of five over forty is meaning, not measurement.
  *
+ * READ VIA `wayback_thin_archive` SINCE B12. The collector answers
+ * "count < THIN_SNAPSHOT_COUNT" with a bounded 5-row probe and carries the
+ * answer as a boolean, because the full capture list was blowing our own
+ * 8-second deadline. The threshold is unchanged and still lives here; a test
+ * asserts the probe stays wide enough to decide it.
+ *
  * KNOWN LIMIT (Stage 3): §5.2 rescues this constant by arguing that "a young
  * domain has had no time to accumulate captures regardless of popularity."
  * That argument is FALSIFIABLE AT THE MARGIN and the corpus does not exercise
@@ -487,7 +493,14 @@ export function computeIndicator(
   const ageDays = num(byKey.get("domain_age_days"));
   const ageChecked = checked("domain_age_days");
   const snapshots = num(byKey.get("wayback_snapshot_count"));
-  const archiveChecked = checked("wayback_snapshot_count");
+  // THINNESS IS READ FROM ITS OWN SIGNAL, not inferred from the count (B12).
+  // The hot path fetches a bounded 5-row CDX probe, so the exact count is often
+  // unavailable — but "fewer than THIN_SNAPSHOT_COUNT" is answered exactly by
+  // that probe and carried here. The count remains a neutral finding when it is
+  // exact, and is never floored: `signal_history` is append-only, so a floored
+  // number would be a permanent fake.
+  const thinSig = byKey.get("wayback_thin_archive");
+  const archiveChecked = checked("wayback_thin_archive");
   // ---- Archive SPAN (18.3 §3.4.6). `wayback_first` has been collected since
   // Helium and never consumed; the capture count it sat beside was consumed and
   // measured the wrong thing. Guarded on status: a check that did not complete
@@ -748,7 +761,7 @@ export function computeIndicator(
   // correct rule turned into an outage. Blue's evidence is domain age and
   // archive depth. The check still runs and still publishes; it no longer gates.
   const young = ageChecked && ageDays != null && ageDays < YOUNG_DOMAIN_DAYS;
-  const thinArchive = archiveChecked && snapshots != null && snapshots < THIN_SNAPSHOT_COUNT;
+  const thinArchive = archiveChecked && thinSig?.valueText === "Thin";
 
   // Populate the predicate HERE: every conjunct it reads is now settled, and
   // this sits before the first non-Red return so no return site can escape it.
@@ -763,7 +776,7 @@ export function computeIndicator(
   ]);
   undecidableFor("blue", [
     { known: ageChecked, holds: young, signal: "domain_age_days" },
-    { known: archiveChecked, holds: thinArchive, signal: "wayback_snapshot_count" },
+    { known: archiveChecked, holds: thinArchive, signal: "wayback_thin_archive" },
   ]);
 
   if (young && thinArchive) {
@@ -772,10 +785,17 @@ export function computeIndicator(
         text: `Too little public footprint to assess yet: registered ~${humanAge(ageDays!)} ago.`,
         source: reg?.source ?? null,
       },
-      {
-        text: `${snapshots} archived capture${snapshots === 1 ? "" : "s"} on the Wayback Machine.`,
-        source: byKey.get("wayback_snapshot_count")?.source ?? null,
-      },
+      // Only when the count is EXACT. Blue implies few captures by definition,
+      // so this is nearly always present; when the probe could not pin it down
+      // the line is omitted rather than floored.
+      ...(snapshots != null
+        ? [
+            {
+              text: `${snapshots} archived capture${snapshots === 1 ? "" : "s"} on the Wayback Machine.`,
+              source: byKey.get("wayback_snapshot_count")?.source ?? null,
+            },
+          ]
+        : []),
     ];
     return verdict("blue-thin-footprint", "blue", blueReasons);
   }

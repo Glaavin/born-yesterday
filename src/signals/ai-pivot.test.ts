@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { AI_TERMS, stripToText, matchAiTerms } from "./ai-keywords";
 import { parseCdx } from "./wayback";
 import { collectAiPivot, type AiPivotDeps } from "./ai-pivot";
+import { signalsToHistory } from "./types";
 import type { Fetcher, FetchResult } from "../lib/cached-fetch";
 
 const fetchOk = (body: string): FetchResult => ({ ok: true, status: 200, body, fromCache: false });
@@ -116,15 +117,72 @@ describe("collectAiPivot", () => {
 
     expect(r.ok).toBe(true);
     const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
+    // Three rows is fewer than THIN_PROBE_LIMIT, so the count is EXACT and publishes.
     expect(by.wayback_snapshot_count.valueNum).toBe(3);
+    expect(by.wayback_snapshot_count.status).toBe("ok");
+    expect(by.wayback_thin_archive.valueText).toBe("Thin");
     expect(by.wayback_first.valueText).toBe("2013-01-01");
     expect(by.wayback_last.valueText).toBe("2023-03-01");
-    // earliest sampled snapshot with AI language is 2018 (machine learning), not 2023
-    expect(by.ai_language_first_seen.valueText).toBe("2018-06-01");
-    expect(by.ai_language_first_seen.note).toBe('matched "machine learning"');
-    expect(by.ai_language_first_seen.source?.url).toContain("20180601000000id_/");
     expect(by.ai_language_current.valueText).toBe("Mentions AI");
     expect(by.ai_language_current.note).toBe('matched "AI-driven"');
+  });
+
+  it("the AI-onset scan is NOT ATTEMPTED on the hot path, and cannot claim it looked", async () => {
+    // B12: sampling captures needs the full list we no longer fetch, and W0 saw
+    // the SECOND consecutive CDX call hang for 30s — a per-capture fan-out is
+    // exactly the burst that fails. Deferred to W1's bounded sampler.
+    //
+    // The point of this test is the FIFTH instance of the convention: an
+    // unscanned onset must never present as "we looked and found nothing".
+    const r = await collectAiPivot("example.com", { fetcher: aiFetcher() });
+    const onset = r.signals.find((s) => s.key === "ai_language_first_seen")!;
+
+    expect(onset.status).toBe("not_attempted");
+    expect(onset.valueText).toBeNull();
+    // No source: a claim we did not make cites nothing (§6.2).
+    expect(onset.source).toBeNull();
+    expect(onset.note).toMatch(/deferred to async enrichment/);
+  });
+
+  it("a deep archive publishes NO count — a floor would be a permanent fake", async () => {
+    // signal_history is append-only. A floored valueNum writes literal 5s for a
+    // domain with thousands of captures, indistinguishable from a real count,
+    // forever. The thinness ANSWER travels as a boolean instead.
+    const deep = Array.from({ length: 9 }, (_, i) => [`20${10 + i}0101000000`, "http://example.com/"]);
+    const r = await collectAiPivot("example.com", {
+      fetcher: aiFetcher({ cdx: { ok: true, status: 200, fromCache: false, body: JSON.stringify([["timestamp", "original"], ...deep]) } }),
+    });
+    const by = Object.fromEntries(r.signals.map((s) => [s.key, s]));
+
+    expect(by.wayback_snapshot_count.valueNum).toBeNull();
+    expect(by.wayback_snapshot_count.valueText).toBeNull();
+    expect(by.wayback_snapshot_count.status).toBe("not_attempted");
+    expect(by.wayback_snapshot_count.source).toBeNull();
+    // The rule still gets its answer.
+    expect(by.wayback_thin_archive.status).toBe("ok");
+    expect(by.wayback_thin_archive.valueText).toBe("Not thin");
+  });
+
+  it("no floored count can reach the append-only record", () => {
+    // The decisive reason for the boolean. `signal_history` never rewrites, so
+    // a floored valueNum would be a fake count sitting beside real ones forever,
+    // with nothing in the row to tell them apart. This asserts the shape at the
+    // writer, not just at the collector.
+    const deep = Array.from({ length: 9 }, (_, i) => [`20${10 + i}0101000000`, "http://example.com/"]);
+    return collectAiPivot("example.com", {
+      fetcher: aiFetcher({ cdx: { ok: true, status: 200, fromCache: false, body: JSON.stringify([["timestamp", "original"], ...deep]) } }),
+    }).then((r) => {
+      const rows = signalsToHistory("example.com", r.signals, 1_700_000_000);
+      const count = rows.find((x) => x.signalType === "wayback_snapshot_count")!;
+      expect(count.valueNum).toBeNull();
+      expect(count.valueText).toBeNull();
+      expect(count.status).toBe("not_attempted");
+      // and the boolean IS recorded — additive, no migration needed
+      const thin = rows.find((x) => x.signalType === "wayback_thin_archive")!;
+      expect(thin).toBeDefined();
+      expect(thin.valueText).toBe("Not thin");
+      expect(thin.status).toBe("ok");
+    });
   });
 
   it("partial: Wayback ok but live homepage blocked → current 'not checked', still ok:true", async () => {

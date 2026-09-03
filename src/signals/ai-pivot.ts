@@ -1,7 +1,7 @@
 import type { Fetcher } from "../lib/cached-fetch";
-import type { CollectorResult, Signal, SignalSource, SignalStatus } from "./types";
+import type { CollectorResult, Signal, SignalSource } from "./types";
 import { stripToText, matchAiTerms, mostSpecific } from "./ai-keywords";
-import { fetchCdx, parseCdx, fetchSnapshot, pickSnapshots, snapshotUrl, tsToIso, cdxUrl } from "./wayback";
+import { fetchCdx, parseCdx, tsToIso, cdxFirstUrl, THIN_PROBE_LIMIT } from "./wayback";
 import { fetchHomepage, homepageUrl } from "./homepage";
 
 /**
@@ -23,60 +23,67 @@ export async function collectAiPivot(
   domain: string,
   deps: AiPivotDeps,
 ): Promise<CollectorResult> {
-  const cdxSource: SignalSource = { label: "Wayback CDX", url: cdxUrl(domain) };
+  const cdxSource: SignalSource = { label: "Wayback CDX", url: cdxFirstUrl(domain) };
 
-  // --- Wayback CDX history ---
-  let count = 0;
-  // Did the CDX query actually COMPLETE? Zero captures is a finding; a failed or
-  // timed-out query is NOT. Conflating them let a failed call publish as "0
-  // archived captures" (a false stated fact), so the two are tracked separately.
+  // --- Wayback CDX: TWO BOUNDED QUERIES, never the full list (B12 / W0) ---
+  //
+  // W0 measured the full-list fetch at 4–14 seconds from production against an
+  // 8-second collection deadline. archive.org was never refusing us — we were
+  // blowing our own budget, and the check had been failing since 27 August.
+  //
+  // `limit=5` ascending answers TWO questions in one call: the first capture,
+  // and whether the count is below THIN_SNAPSHOT_COUNT. Fewer than five rows is
+  // the exact count; exactly five means "at least five", which is all the
+  // thinness rule ever needed.
   let cdxChecked = false;
   let firstTs: string | null = null;
   let lastTs: string | null = null;
-  let snapshots: { ts: string; original: string }[] = [];
+  let rowCount: number | null = null;
   try {
-    const r = await fetchCdx(domain, deps.fetcher);
-    if (r.ok && r.json) {
-      const p = parseCdx(r.json);
-      // Status comes from the PARSE, not the fetch: a 200 with a malformed body
-      // is a failed observation, not "zero captures" (docs/conventions.md).
+    const rFirst = await fetchCdx(domain, deps.fetcher, "first");
+    if (rFirst.ok && rFirst.json) {
+      const p = parseCdx(rFirst.json);
+      // Status from the PARSE, not the fetch: a 200 with a malformed body is a
+      // failed observation, not "zero captures" (docs/conventions.md).
       if (p) {
         cdxChecked = true;
-        count = p.count;
         firstTs = p.firstTs;
-        lastTs = p.lastTs;
-        snapshots = p.snapshots;
+        rowCount = p.count;
+      }
+    }
+    if (cdxChecked) {
+      const rLast = await fetchCdx(domain, deps.fetcher, "last");
+      if (rLast.ok && rLast.json) {
+        const pl = parseCdx(rLast.json);
+        if (pl) lastTs = pl.lastTs;
       }
     }
   } catch {
     // non-throwing — Wayback unreachable just means no archive signals
   }
 
-  // --- Earliest archived AI language (scan representative snapshots, ascending) ---
-  let aiFirst: { dateIso: string | null; term: string; url: string } | null = null;
-  // Did every sampled capture actually load? A PARTIAL scan cannot conclude
-  // "no AI language" — it can only report that the scan did not complete
-  // (Story 18.3 §2.6: a partial scan never produces a conclusion).
-  let scanGaps = false;
-  for (const s of pickSnapshots(snapshots)) {
-    try {
-      const r = await fetchSnapshot(s.ts, s.original, deps.fetcher);
-      if (!r.ok || r.html == null) scanGaps = true;
-      if (r.ok && r.html) {
-        const terms = matchAiTerms(stripToText(r.html));
-        if (terms && terms.length) {
-          aiFirst = {
-            dateIso: tsToIso(s.ts),
-            term: mostSpecific(terms)!,
-            url: snapshotUrl(s.ts, s.original),
-          };
-          break; // ascending order ⇒ first match is the earliest sampled match
-        }
-      }
-    } catch {
-      scanGaps = true; // skip a bad snapshot, but remember the scan is incomplete
-    }
-  }
+  // EXACT only. `rowCount === THIN_PROBE_LIMIT` means "at least five", not five.
+  const exactCount = rowCount != null && rowCount < THIN_PROBE_LIMIT ? rowCount : null;
+  const thinArchive = rowCount != null ? rowCount < THIN_PROBE_LIMIT : null;
+
+  // --- The AI-language onset scan ---
+  //
+  // A GUARD, NOT A COMMENT. This is the fifth place the same defect has been
+  // found: `status: "ok"` with a null value asserts "we looked and there was
+  // nothing", and that assertion is only true if a scan actually ran. The union
+  // below makes the false version UNCONSTRUCTABLE — "ok" is reachable only from
+  // `found` or `scanned`, and `scanned` cannot be built without a sample count.
+  //
+  // On the hot path only `not-scanned` is producible: sampling captures needs
+  // the full list we deliberately no longer fetch, and W0 showed the second
+  // consecutive CDX call hanging for 30s, so a per-capture fan-out is exactly
+  // the burst that fails. The observation is absent from fresh reports until
+  // W1's bounded sampler. It is neutral content since the §2.7 demotion.
+  type Onset =
+    | { kind: "found"; dateIso: string | null; term: string; url: string }
+    | { kind: "scanned"; sampled: number }
+    | { kind: "not-scanned"; why: string };
+  const onset: Onset = { kind: "not-scanned", why: "deferred to async enrichment (W1); no capture list on the hot path" };
 
   // --- Live homepage current status ---
   let currentText: string | null = null; // "Mentions AI" | "Does not mention AI" | null
@@ -97,26 +104,76 @@ export async function collectAiPivot(
     // blocked/robots/timeout ⇒ "not checked"
   }
 
-  // The onset scan's outcome, distinct from its value:
-  //   not_attempted — CDX never listed the captures, so nothing was scanned
-  //   ok            — a match was found, OR every sampled capture was read and
-  //                   none mentioned AI (a finding)
-  //   failed        — the scan was incomplete, so "no AI language" is NOT a
-  //                   conclusion we are entitled to draw
-  const aiOnsetStatus: SignalStatus = !cdxChecked
-    ? "not_attempted"
-    : aiFirst || !scanGaps
-      ? "ok"
-      : "failed";
+  /**
+   * THE GUARD. `status: "ok"` on this signal asserts a scan happened and
+   * concluded; with a null value it asserts "we looked and there was nothing".
+   * Mapping through the union means that assertion cannot be made without a
+   * shape that proves the scan ran — `ok` is reachable only from `found` or
+   * `scanned`, and `scanned` carries the sample count that justifies it.
+   */
+  const onsetSignal = (o: Onset): Signal => {
+    switch (o.kind) {
+      case "found":
+        return {
+          key: "ai_language_first_seen",
+          label: "AI language first seen",
+          valueText: o.dateIso,
+          valueNum: null,
+          source: { label: "Wayback snapshot", url: o.url },
+          status: "ok",
+          note: `matched "${o.term}"`,
+        };
+      case "scanned":
+        return {
+          key: "ai_language_first_seen",
+          label: "AI language first seen",
+          valueText: null,
+          valueNum: null,
+          // A completed scan that found nothing IS a finding, cited to the
+          // captures we read (§1.1) — which is why it needs a sample count.
+          source: cdxSource,
+          status: "ok",
+          note: `no AI term in ${o.sampled} sampled captures`,
+        };
+      case "not-scanned":
+        return {
+          key: "ai_language_first_seen",
+          label: "AI language first seen",
+          valueText: null,
+          valueNum: null,
+          source: null,
+          status: "not_attempted",
+          note: o.why,
+        };
+    }
+  };
 
   const signals: Signal[] = [
     {
+      // EXACT COUNTS ONLY, and the reason is the append-only record.
+      // `signal_history` never rewrites, so a floored value — literal 5s for a
+      // domain with 4,000 captures — becomes a fake count indistinguishable
+      // from a real one, permanently. There is no "at least 5" copy either:
+      // the thinness ANSWER lives in the boolean below, and this signal stays a
+      // number or stays silent.
       key: "wayback_snapshot_count",
       label: "Wayback captures",
-      // CHECKED (even at zero) ⇒ a sourced value. NOT checked ⇒ null, and callers
-      // must not substitute a number for it.
-      valueText: cdxChecked ? String(count) : null,
-      valueNum: cdxChecked ? count : null,
+      valueText: exactCount != null ? String(exactCount) : null,
+      valueNum: exactCount,
+      source: exactCount != null ? cdxSource : null,
+      status: exactCount != null ? "ok" : cdxChecked ? "not_attempted" : "failed",
+      note:
+        exactCount == null && cdxChecked
+          ? "exact count deferred to async enrichment (W1); the thinness answer is wayback_thin_archive"
+          : undefined,
+    },
+    {
+      // The thinness ANSWER, carried as a boolean rather than inferred from a
+      // number we may not have. This is what the rule reads.
+      key: "wayback_thin_archive",
+      label: "Thin archive",
+      valueText: thinArchive == null ? null : thinArchive ? "Thin" : "Not thin",
+      valueNum: null,
       source: cdxChecked ? cdxSource : null,
       status: cdxChecked ? "ok" : "failed",
     },
@@ -133,24 +190,12 @@ export async function collectAiPivot(
       label: "Last archived",
       valueText: tsToIso(lastTs),
       valueNum: null,
-      source: cdxChecked ? cdxSource : null,
-      status: cdxChecked ? "ok" : "failed",
+      // The last-capture call is separate and can fail on its own — W0 saw the
+      // SECOND consecutive CDX call hang for 30s. Its status is its own.
+      source: lastTs != null ? cdxSource : null,
+      status: lastTs != null ? "ok" : "failed",
     },
-    {
-      key: "ai_language_first_seen",
-      label: "AI language first seen",
-      valueText: aiFirst?.dateIso ?? null,
-      valueNum: null,
-      // Found ⇒ cite the capture that matched. Scanned everything and found
-      // nothing ⇒ a FINDING, cited to the captures we read. Otherwise no source.
-      source: aiFirst
-        ? { label: "Wayback snapshot", url: aiFirst.url }
-        : aiOnsetStatus === "ok"
-          ? cdxSource
-          : null,
-      status: aiOnsetStatus,
-      note: aiFirst ? `matched "${aiFirst.term}"` : undefined,
-    },
+    onsetSignal(onset),
     {
       key: "ai_language_current",
       label: "AI language now",
@@ -162,7 +207,7 @@ export async function collectAiPivot(
     },
   ];
 
-  const reachable = snapshots.length > 0 || liveReached;
+  const reachable = cdxChecked || liveReached;
   return {
     collector: "ai-pivot",
     signals,
