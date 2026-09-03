@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 import { isFresh, REPORT_TTL_SECONDS } from "./freshness";
 import { decideServe } from "./decide";
 import { sessionKey } from "./quota";
-import { serveReport, type ServeDeps } from "./serve";
+import { META_GENERATION_MS, META_OPERATOR_RUN } from "./meta-signals";
+import { serveReport, SEARCH_LIMIT_PER_DAY, type ServeDeps } from "./serve";
 import { recentReports } from "./recent";
 import type { Report } from "../components/report-state";
 import type { ReportRow } from "../db/schema";
@@ -85,7 +86,7 @@ describe("sessionKey (§10 — no PII)", () => {
 
 function makeDeps(over: Partial<ServeDeps> = {}) {
   const collect = vi.fn(async (domain: string) => ({ report: aReport(domain), signals: [aSignal] }));
-  const persist = vi.fn(async () => {});
+  const persist = vi.fn<(d: string, r: unknown, s: unknown, n: number) => Promise<void>>(async () => {});
   const persistAttempt = vi.fn(async () => {});
   const enrich = vi.fn(async () => {});
   const incrementQuota = vi.fn(async () => 1);
@@ -130,6 +131,60 @@ describe("serveReport", () => {
     // here would take the function down after the response had gone out.
     await expect(Promise.all(bg)).resolves.toBeDefined();
     expect(boom).toHaveBeenCalled();
+  });
+
+  it("OPERATOR BYPASS: a request with operator=true collects even when quota is spent", async () => {
+    // Verification must not compete with the daily limit. Bypass forces the
+    // collect through; it does NOT increment quota (no daily check burned); and
+    // the generation is tagged meta_operator_run so it is not read as organic.
+    const { deps, collect, persist, incrementQuota } = makeDeps({
+      getQuota: async () => SEARCH_LIMIT_PER_DAY, // fully spent
+    });
+    const r = await serveReport("x.com", { sessionKey: "k", operator: true }, deps);
+
+    expect(r.state).toBe("served");
+    expect(collect).toHaveBeenCalled();
+    expect(incrementQuota).not.toHaveBeenCalled();
+    const persistedSignals = persist.mock.calls[0]![2] as Array<{ key: string }>;
+    expect(persistedSignals.some((s) => s.key === META_OPERATOR_RUN)).toBe(true);
+  });
+
+  it("with quota spent and NO bypass, behaviour is unchanged — limit-reached, byte-identical", async () => {
+    // The whole point of the gate is that it changes nothing when off.
+    const { deps, collect, incrementQuota } = makeDeps({ getQuota: async () => SEARCH_LIMIT_PER_DAY });
+    const r = await serveReport("x.com", { sessionKey: "k" }, deps);
+
+    expect(r.state).toBe("limit-reached");
+    expect(collect).not.toHaveBeenCalled();
+    expect(incrementQuota).not.toHaveBeenCalled();
+  });
+
+  it("an ORGANIC generation is not tagged operator", async () => {
+    const { deps, persist } = makeDeps();
+    await serveReport("x.com", { sessionKey: "k" }, deps);
+    const persistedSignals = persist.mock.calls[0]![2] as Array<{ key: string }>;
+    expect(persistedSignals.some((s) => s.key === META_OPERATOR_RUN)).toBe(false);
+  });
+
+  it("a timing row rides the history write but never reaches the served report", async () => {
+    // Story 23.1 Part 1, constraint 3 — asserted on the ASSEMBLED OUTPUT, not
+    // just the type. The mock collect returns a real report plus a timing signal
+    // in the signal list, exactly as realCollect does; the served report must
+    // not reference it anywhere, while persist still writes it.
+    const timingCollect = vi.fn(async (domain: string) => ({
+      report: aReport(domain),
+      signals: [aSignal, { key: META_GENERATION_MS, label: "t", valueText: null, valueNum: 1234, source: null, status: "ok" as const }],
+      undecided: null,
+    }));
+    const { deps, persist } = makeDeps({ collect: timingCollect });
+    const r = await serveReport("x.com", { sessionKey: "k" }, deps);
+
+    const json = JSON.stringify(r.report);
+    expect(json).not.toContain(META_GENERATION_MS);
+    expect(json).not.toContain("1234");
+    // but it WAS written to history
+    const persistedSignals = persist.mock.calls[0]![2] as Array<{ key: string }>;
+    expect(persistedSignals.some((s) => s.key === META_GENERATION_MS)).toBe(true);
   });
 
   it("enrichment runs AFTER the response, on the existing post-render path", async () => {
