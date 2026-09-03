@@ -37,7 +37,6 @@ export async function collectAiPivot(
   // thinness rule ever needed.
   let cdxChecked = false;
   let firstTs: string | null = null;
-  let lastTs: string | null = null;
   let rowCount: number | null = null;
   try {
     const rFirst = await fetchCdx(domain, deps.fetcher, "first");
@@ -51,13 +50,16 @@ export async function collectAiPivot(
         rowCount = p.count;
       }
     }
-    if (cdxChecked) {
-      const rLast = await fetchCdx(domain, deps.fetcher, "last");
-      if (rLast.ok && rLast.json) {
-        const pl = parseCdx(rLast.json);
-        if (pl) lastTs = pl.lastTs;
-      }
-    }
+    // THE LAST CAPTURE IS NOT FETCHED HERE (Story 23). Production measured it
+    // succeeding 1 time in 4 while the first call succeeded 3 in 4, and the
+    // diagnosis is not throttling: call 1 consumes most of the 8s page budget
+    // and call 2 times out against the remainder. Spacing them apart would make
+    // that worse, not better — so the second call leaves the hot path entirely
+    // and runs as async enrichment, outside the deadline and under the budget.
+    //
+    // Nothing reads `wayback_last`: audited across `report/`, the renderer and
+    // the harness before this moved. It is collected for the Reincarnation
+    // Check (§W2) and the amendment records it as "collected, never consumed".
   } catch {
     // non-throwing — Wayback unreachable just means no archive signals
   }
@@ -188,12 +190,14 @@ export async function collectAiPivot(
     {
       key: "wayback_last",
       label: "Last archived",
-      valueText: tsToIso(lastTs),
+      valueText: null,
       valueNum: null,
-      // The last-capture call is separate and can fail on its own — W0 saw the
-      // SECOND consecutive CDX call hang for 30s. Its status is its own.
-      source: lastTs != null ? cdxSource : null,
-      status: lastTs != null ? "ok" : "failed",
+      source: null,
+      // NOT `failed` — we did not call and fail, we chose not to call on this
+      // path. Enrichment appends the real row after the response; until then
+      // this records the deferral honestly rather than as an absence.
+      status: "not_attempted",
+      note: "deferred to async enrichment (Story 23); outside the collection deadline",
     },
     onsetSignal(onset),
     {

@@ -87,6 +87,7 @@ function makeDeps(over: Partial<ServeDeps> = {}) {
   const collect = vi.fn(async (domain: string) => ({ report: aReport(domain), signals: [aSignal] }));
   const persist = vi.fn(async () => {});
   const persistAttempt = vi.fn(async () => {});
+  const enrich = vi.fn(async () => {});
   const incrementQuota = vi.fn(async () => 1);
   const bg: Array<Promise<void>> = [];
   const deps: ServeDeps = {
@@ -96,10 +97,11 @@ function makeDeps(over: Partial<ServeDeps> = {}) {
     collect: over.collect ?? collect,
     persist: over.persist ?? persist,
     persistAttempt: over.persistAttempt ?? persistAttempt,
+    enrich: over.enrich ?? enrich,
     now: over.now ?? (() => NOW),
     runBackground: over.runBackground ?? ((fn) => void bg.push(fn())),
   };
-  return { deps, collect, persist, persistAttempt, incrementQuota, bg };
+  return { deps, collect, persist, persistAttempt, enrich, incrementQuota, bg };
 }
 
 describe("serveReport", () => {
@@ -108,6 +110,36 @@ describe("serveReport", () => {
     const r = await serveReport("not a domain", { sessionKey: "k" }, deps);
     expect(r.state).toBe("error");
     expect(collect).not.toHaveBeenCalled();
+  });
+
+  it("the hot path completes even when enrichment THROWS", async () => {
+    // "Must not fail the hot path" is exactly the kind of promise that quietly
+    // stops being true, so it is asserted rather than commented. Enrichment runs
+    // on the SAME post-render mechanism as the stale-refresh — one background
+    // path, not two — and the reader must never learn that it failed.
+    const boom = vi.fn(async () => {
+      throw new Error("enrichment exploded");
+    });
+    const { deps, bg, persist } = makeDeps({ enrich: boom });
+    const r = await serveReport("x.com", { sessionKey: "k" }, deps);
+
+    expect(r.state).toBe("served");
+    expect(r.report?.domain).toBe("x.com");
+    expect(persist).toHaveBeenCalled();
+    // The background task settles without rejecting — an unhandled rejection
+    // here would take the function down after the response had gone out.
+    await expect(Promise.all(bg)).resolves.toBeDefined();
+    expect(boom).toHaveBeenCalled();
+  });
+
+  it("enrichment runs AFTER the response, on the existing post-render path", async () => {
+    const { deps, enrich, bg } = makeDeps();
+    await serveReport("x.com", { sessionKey: "k" }, deps);
+    // Queued on runBackground rather than awaited inline: the reader did not
+    // wait for it.
+    expect(bg.length).toBe(1);
+    await Promise.all(bg);
+    expect(enrich).toHaveBeenCalledWith("x.com", NOW);
   });
 
   it("NO VERDICT: no report row is written, and the attempt still is", async () => {

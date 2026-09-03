@@ -37,6 +37,78 @@ const DEFAULT_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 /** Only these URL schemes are ever fetched (defense-in-depth vs file:/gopher:/data:). */
 const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
 
+/* ============================================================================
+   PER-HOST POLITENESS BUDGET
+   ----------------------------------------------------------------------------
+   A cap on CONCURRENT in-flight calls per host, applied to every collector
+   uniformly so no source story has to reimplement burst protection.
+
+   Each budget carries its BASIS, the way the rubric constants do:
+     MEASURED — W0 or production sized it
+     REASONED — a judgement from adjacent evidence
+
+   THE DEFAULT IS NO LIMIT, deliberately. DNS, RDAP and the threat feeds have
+   never demonstrated a burst problem, and inventing a constraint for a source
+   that has not shown one costs latency and buys nothing.
+
+   NO RETRIES ANYWHERE NEAR THIS. W0's evidence is that a throttled Wayback call
+   HANGS rather than refusing — you pay the full timeout to learn nothing — so a
+   retry is a second full timeout, not a second chance.
+   ========================================================================== */
+export interface HostBudget {
+  /** Maximum concurrent in-flight calls to this host. */
+  max: number;
+  basis: "MEASURED" | "REASONED";
+  why: string;
+}
+
+export const HOST_BUDGETS: Readonly<Record<string, HostBudget>> = {
+  "web.archive.org": {
+    max: 1,
+    basis: "MEASURED",
+    why: "W0: the second consecutive CDX call hung for 30s with no response. Production confirmed it — call 2 succeeded 1 of 4 while call 1 succeeded 3 of 4.",
+  },
+  "archive.org": {
+    max: 1,
+    basis: "MEASURED",
+    why: "Same operator and same throttle as web.archive.org; the Availability API answered in 364ms but shares the budget rather than being assumed exempt.",
+  },
+  "index.commoncrawl.org": {
+    max: 1,
+    basis: "REASONED",
+    why: "W0: single lookups were 358-394ms, but the 5-call monthly walk degraded to a 502 and a 13.6s response. Sequence behaviour is the pattern Story 24 would depend on, so it gets a budget before it gets traffic — not after.",
+  },
+};
+
+/**
+ * In-flight counts per host. Per-instance and best-effort: serverless memory is
+ * ephemeral, so this bounds a single function instance rather than the fleet.
+ * That is the right scope for the failure we measured — the burst that hurt us
+ * was one report making consecutive calls, not many reports colliding.
+ */
+const inFlight = new Map<string, number>();
+
+function takeBudget(host: string): boolean {
+  const budget = HOST_BUDGETS[host];
+  if (!budget) return true; // no limit declared → no limit imposed
+  const n = inFlight.get(host) ?? 0;
+  if (n >= budget.max) return false;
+  inFlight.set(host, n + 1);
+  return true;
+}
+
+function releaseBudget(host: string): void {
+  if (!HOST_BUDGETS[host]) return;
+  const n = inFlight.get(host) ?? 0;
+  if (n <= 1) inFlight.delete(host);
+  else inFlight.set(host, n - 1);
+}
+
+/** Test-only: reset the in-flight table between cases. */
+export function __resetBudgets(): void {
+  inFlight.clear();
+}
+
 function concatChunks(parts: Uint8Array[]): Uint8Array {
   let len = 0;
   for (const p of parts) len += p.byteLength;
@@ -94,7 +166,13 @@ export type FetchResult =
   | { ok: true; status: number; body: string; fromCache: boolean; truncated?: boolean }
   | {
       ok: false;
-      error: "timeout" | "http" | "network" | "robots-disallowed" | "blocked";
+      /**
+       * `budget-exhausted` is WE CHOSE NOT TO CALL. It is deliberately distinct
+       * from `timeout`, which is we called and nothing came back — the
+       * observation-failure convention applies to our own refusals too, and a
+       * caller that cannot tell them apart cannot report honestly.
+       */
+      error: "timeout" | "http" | "network" | "robots-disallowed" | "blocked" | "budget-exhausted";
       status?: number;
     };
 
@@ -345,6 +423,22 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
       if (hit) return { ok: true, status: 200, body: hit.payload, fromCache: true };
     }
 
+    // 2) POLITENESS BUDGET. Taken AFTER the cache check — a cache hit makes no
+    //    call and must not consume a token — and released in `finally` below so
+    //    a throw cannot leak one. Fails fast rather than queueing: a queued call
+    //    would still be waiting when the 8s page deadline fires, which converts
+    //    "we chose not to call" into "we called and it did not answer" — the
+    //    exact conflation this error code exists to prevent.
+    if (!takeBudget(parsed.hostname)) {
+      return { ok: false, error: "budget-exhausted" };
+    }
+    try {
+      return await withBudget();
+    } finally {
+      releaseBudget(parsed.hostname);
+    }
+
+    async function withBudget(): Promise<FetchResult> {
     const init = {
       method: opts.method ?? "GET",
       headers: { ...opts.headers, "user-agent": USER_AGENT },
@@ -454,6 +548,7 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
     }
 
     return { ok: false, error: "http", status: lastStatus }; // retries exhausted on 429/5xx
+    }
   }
 
   return doFetch;

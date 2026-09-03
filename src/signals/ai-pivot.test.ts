@@ -122,7 +122,11 @@ describe("collectAiPivot", () => {
     expect(by.wayback_snapshot_count.status).toBe("ok");
     expect(by.wayback_thin_archive.valueText).toBe("Thin");
     expect(by.wayback_first.valueText).toBe("2013-01-01");
-    expect(by.wayback_last.valueText).toBe("2023-03-01");
+    // Story 23: the last capture leaves the hot path. NOT `failed` — we chose
+    // not to call, which is a different fact from calling and getting nothing.
+    expect(by.wayback_last.status).toBe("not_attempted");
+    expect(by.wayback_last.valueText).toBeNull();
+    expect(by.wayback_last.note).toMatch(/deferred to async enrichment/);
     expect(by.ai_language_current.valueText).toBe("Mentions AI");
     expect(by.ai_language_current.note).toBe('matched "AI-driven"');
   });
