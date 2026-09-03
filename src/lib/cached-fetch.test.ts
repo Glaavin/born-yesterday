@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { createFetcher, USER_AGENT, type FetcherDeps, type FetchImpl } from "./cached-fetch";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { createFetcher, HOST_BUDGETS, __resetBudgets, USER_AGENT, type FetcherDeps, type FetchImpl } from "./cached-fetch";
 
 // A minimal Response-like stub (status + text() + optional headers, for redirects).
 const resp = (status: number, body = "", headers: Record<string, string> = {}) => ({
@@ -450,6 +450,107 @@ describe("cached-fetch harness", () => {
     if (r.ok) {
       expect(r.body.length).toBe(10);
       expect(r.truncated).toBe(true);
+    }
+  });
+});
+
+describe("per-host politeness budget (Story 23)", () => {
+  beforeEach(() => __resetBudgets());
+
+  /** A fetch impl that parks until released, so two calls really do overlap. */
+  const parkedFetcher = () => {
+    let release!: () => void;
+    const parked = new Promise<void>((r) => (release = r));
+    let firstStarted!: () => void;
+    // Resolves once a call has actually REACHED the network layer. Awaiting a
+    // tick is not enough — SSRF resolution and cache lookup sit in front of it,
+    // so a race here would test scheduling rather than the budget.
+    const started1 = new Promise<void>((r) => (firstStarted = r));
+    let started = 0;
+    const f = createFetcher({
+      fetchImpl: async () => {
+        started++;
+        firstStarted();
+        await parked;
+        return { status: 200, headers: new Headers(), text: async () => "{}" } as never;
+      },
+      cache: { get: async () => null, set: async () => {} },
+      resolveHost: async () => ["93.184.216.34"],
+      sleep: async () => {},
+    });
+    return { f, release: () => release(), started: () => started, started1 };
+  };
+
+  it("a second CONCURRENT call to a budgeted host fails fast instead of piling on", async () => {
+    const { f, release, started, started1 } = parkedFetcher();
+    const opts = {
+      source: "wayback-cdx", key: "a", kind: "third-party" as const, ttlSeconds: 0,
+      url: "https://web.archive.org/cdx/search/cdx?url=a",
+    };
+    const first = f(opts);
+    await started1; // the first call is genuinely in flight
+    const second = await f({ ...opts, key: "b" });
+
+    expect(second).toEqual({ ok: false, error: "budget-exhausted" });
+    // It never left the process: the burst W0 measured is the thing we stop.
+    expect(started()).toBe(1);
+    release();
+    expect((await first).ok).toBe(true);
+  });
+
+  it("budget-exhausted is DISTINGUISHABLE from a timeout", async () => {
+    // "We chose not to call" and "we called and nothing came back" are different
+    // facts. The observation-failure convention applies to our own refusals too.
+    const { f, release, started1 } = parkedFetcher();
+    const opts = {
+      source: "wayback-cdx", key: "a", kind: "third-party" as const, ttlSeconds: 0,
+      url: "https://web.archive.org/cdx/search/cdx?url=a",
+    };
+    const first = f(opts);
+    await started1;
+    const refused = await f({ ...opts, key: "b" });
+    release();
+    await first;
+
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) {
+      expect(refused.error).toBe("budget-exhausted");
+      expect(refused.error).not.toBe("timeout");
+    }
+  });
+
+  it("the token is RELEASED, so a later call to the same host still goes out", async () => {
+    const { f, release, started } = parkedFetcher();
+    const opts = {
+      source: "wayback-cdx", key: "a", kind: "third-party" as const, ttlSeconds: 0,
+      url: "https://web.archive.org/cdx/search/cdx?url=a",
+    };
+    release();
+    await f(opts);
+    await f({ ...opts, key: "b" });
+    expect(started()).toBe(2);
+  });
+
+  it("an UNBUDGETED host is not limited — we do not invent constraints", async () => {
+    // DNS, RDAP and the threat feeds have never shown a burst problem.
+    const { f, release, started } = parkedFetcher();
+    const opts = {
+      source: "doh", key: "a", kind: "third-party" as const, ttlSeconds: 0,
+      url: "https://dns.google/resolve?name=a",
+    };
+    const a = f(opts);
+    const b = f({ ...opts, key: "b" });
+    release();
+    await Promise.all([a, b]);
+    expect(started()).toBe(2);
+  });
+
+  it("every budget records its basis, so none can be a number nobody can defend", () => {
+    for (const [host, b] of Object.entries(HOST_BUDGETS)) {
+      expect(["MEASURED", "REASONED"]).toContain(b.basis);
+      expect(b.why.length).toBeGreaterThan(40);
+      expect(b.max).toBeGreaterThanOrEqual(1);
+      expect(host).toMatch(/\./);
     }
   });
 });

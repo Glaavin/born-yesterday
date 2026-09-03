@@ -1,4 +1,5 @@
 import type { Fetcher } from "../lib/cached-fetch";
+import type { Signal, SignalSource } from "./types";
 
 /**
  * Wayback (mvp-spec §2B) — CDX capture history + representative archived
@@ -157,4 +158,42 @@ export function pickSnapshots(snapshots: Snapshot[], k = MAX_SNAPSHOTS): Snapsho
     }
   }
   return out;
+}
+
+/**
+ * ASYNC ENRICHMENT — the last archived capture.
+ *
+ * Runs AFTER the response, outside the 8-second collection deadline and under
+ * the per-host politeness budget. Returns the signals to append, or an empty
+ * array if it could not be obtained: a failed enrichment is invisible to the
+ * reader, because the report never claimed it would be there.
+ *
+ * Non-throwing, like every collector. The hot path must not fail because of it.
+ */
+export async function enrichWaybackLast(
+  domain: string,
+  fetcher: Fetcher,
+  source: SignalSource,
+): Promise<Signal[]> {
+  try {
+    const r = await fetchCdx(domain, fetcher, "last");
+    if (!r.ok || !r.json) return [];
+    const p = parseCdx(r.json);
+    // Status from the PARSE, not the fetch (docs/conventions.md).
+    if (!p) return [];
+    const iso = tsToIso(p.lastTs);
+    if (iso == null) return [];
+    return [
+      {
+        key: "wayback_last",
+        label: "Last archived",
+        valueText: iso,
+        valueNum: null,
+        source,
+        status: "ok",
+      },
+    ];
+  } catch {
+    return [];
+  }
 }
