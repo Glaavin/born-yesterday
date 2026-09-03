@@ -2,7 +2,7 @@
 
 **Purpose.** One place for what is *not* settled, so nobody rediscovers it and nobody ships assuming otherwise. Every entry names where the reasoning lives.
 
-**Status:** current as of **2026-08-27**, end of the Lithium build run (PRs #44–#62, deployed to production).
+**Status:** current as of **2026-09-03** (Beryllium in progress; B13 added). Earlier baseline: end of the Lithium build run (PRs #44–#62).
 **Companion documents:** `docs/decisions/story-18-3-amendment.md` (the reasoning), `docs/conventions.md` (the rules that came out of it), `docs/mvp-spec.md` §2E (the published rubric).
 
 **Reading rule.** A flaw listed here is **disclosed, not hidden**. Several are live in the product on purpose, with the cost accepted explicitly. What is *not* acceptable is discovering one of them fresh and treating it as new.
@@ -157,6 +157,16 @@ This is the argument *for* the ruling rather than against it: **a per-route patc
 **The archive check failed on more than half its attempts across 30 days.** Small n — there is almost no traffic — but the split is stark and it is the *only* check failing at all.
 
 **So the answer to §3.2's question is: it will fire often, and that is the symptom §3.2 said to read it as.** Story 21 makes the failure honest rather than misleading; it does not make it rare. The upstream fix is the other half of B11 — a second establishment instrument, or far more aggressive CDX caching — and **neither is in Story 21's scope.**
+
+### B13. `wayback_last` enrichment is fragile — production-measured, a W1 input
+**Found closing Story 23's open question, 2026-09-03.**
+
+The async-enrichment mechanism (Vercel `after()`) **works** — `ghost.org` proved it: a `wayback_last ok` row landed 6 seconds after the response. But it is unreliable enough that **W1 must treat `wayback_last` as frequently absent**, for two stacked reasons:
+
+- **Upstream:** enrichment only fires on a *served* report (a no-verdict returns before the enrichment call). Across 11 fresh domains, only **2 reached a served report** — the archive (B12) timed out inside the 8 s deadline on the other 9, so enrichment was never attempted.
+- **The mechanism:** of those 2, **1 enriched and 1 did not** (`todoist.com`). One case cannot distinguish `after()` not completing from the CDX call failing under the politeness budget.
+
+**Consequence for W1 / continuity:** anything that leans on `wayback_last` — or on `after()`-based enrichment generally — must tolerate the value being missing on most generations, and should not assume a single background write lands. This is not a defect to fix here; it is the reliability envelope the roadmap needs before Story 24 builds continuity on it. Root cause is B12 (archive latency); the two are one problem seen at different layers.
 
 ### B7. The layout still argues where the prose no longer does
 Everything in `positive[]` publishes under a **Positive** badge, so a capture count there asserts that heavy crawling is reassuring — **exactly what §3.4.3 denies.** This is §3.4.5 surviving in the layout after being removed from the wording.
