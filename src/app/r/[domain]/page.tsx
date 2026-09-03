@@ -13,7 +13,7 @@ import {
 } from "@/components/report-state";
 import { serveReport } from "@/serve/serve";
 import { buildServeDeps } from "@/serve/runtime";
-import { sessionKey } from "@/serve/quota";
+import { sessionKey, isOperatorRequest } from "@/serve/quota";
 
 const DISCLAIMER =
   "Born Yesterday reports are assembled from public data and fixed, published rubrics. They’re informational, not legal, financial, or professional advice — and every signal links to its source. Think we got something wrong? Request a correction.";
@@ -130,9 +130,14 @@ export default async function ReportPage({
   // RequestMeta.identified (Tier 1 · 1c).
   const identified = forwarded != null && forwarded.trim().length > 0;
   const ip = clientIpFrom(forwarded);
+  // OPERATOR quota bypass (Story 23.1) — verification only. Fails closed: with
+  // BY_OPERATOR_KEY unset (its production default) this is always false and the
+  // serve path is byte-identical to before. The header is compared to a private
+  // env value, never a client-visible secret.
+  const operator = isOperatorRequest(h.get("x-by-operator"), process.env.BY_OPERATOR_KEY);
   const deps = buildServeDeps((fn) => after(fn)); // background refresh runs after the response
 
-  const result = await serveReport(input, { sessionKey: sessionKey(ip), identified }, deps);
+  const result = await serveReport(input, { sessionKey: sessionKey(ip), identified, operator }, deps);
 
   if (result.state === "error") {
     return (
