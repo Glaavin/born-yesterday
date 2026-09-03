@@ -2,6 +2,7 @@ import type { Report } from "../components/report-state";
 import type { Signal } from "../signals/types";
 import { cachedFetch } from "../lib/cached-fetch";
 import { enrichWaybackLast, cdxLastUrl } from "../signals/wayback";
+import { generationTimingSignal } from "./meta-signals";
 import { socketWhois } from "../signals/whois";
 import { socketTlsConnect } from "../signals/tls";
 import { collectAll } from "../report/collect-all";
@@ -44,6 +45,10 @@ export async function realCollect(
   domain: string,
   nowSec: number,
 ): Promise<{ report: Report; signals: Signal[]; undecided: Undecided[] | null }> {
+  // Wall-clock of the whole generation. Per-collector timing is deliberately
+  // NOT taken: `collect-all` does not track it and Story 23.1's scope forbids
+  // refactoring it to. Total only (Part 1).
+  const startedMs = Date.now();
   const results = await collectAll(
     domain,
     {
@@ -62,7 +67,12 @@ export async function realCollect(
   const derivations = derive(results, nowSec);
   const indicator = computeIndicator(domain, results, derivations, nowSec);
   const report = assembleReport(domain, results, derivations, indicator, nowSec);
-  const signals = results.flatMap((r) => r.signals);
+  // The timing signal is appended AFTER assembly and is NOT a member of
+  // `results`, so it can reach neither the findings, the sources, nor the
+  // "Surfaces N signals" count — all of which are computed over `results`. It
+  // rides the existing history write via this flattened array (Part 1,
+  // constraints 2 and 3).
+  const signals = [...results.flatMap((r) => r.signals), generationTimingSignal(Date.now() - startedMs)];
   // Carried OUT of collect rather than thrown: collectors are non-throwing by
   // design, so Tier 1's catch path never sees this. The caller decides.
   return { report, signals, undecided: indicator.undecided };

@@ -38,3 +38,21 @@ export function sessionKey(clientIp: string, salt: string = resolveSalt()): stri
 export function utcDay(nowSec: number): string {
   return new Date(nowSec * 1000).toISOString().slice(0, 10);
 }
+
+/**
+ * OPERATOR quota bypass gate (Story 23.1). FAILS CLOSED by construction:
+ *
+ *   - `BY_OPERATOR_KEY` unset or empty  → false (the normal quota applies)
+ *   - request header absent             → false
+ *   - header present but not equal       → false
+ *
+ * A timing-safe compare is not warranted: this is a dev/verification gate, not
+ * an auth boundary, the key is a private env value never shipped to a client,
+ * and it grants only quota bypass — never anything Tier 1 hardened. Only an
+ * exact, non-empty match of a configured key opens it.
+ */
+export function isOperatorRequest(headerValue: string | null | undefined, envKey: string | undefined): boolean {
+  if (!envKey) return false; // unset/empty → closed
+  if (!headerValue) return false;
+  return headerValue === envKey;
+}
