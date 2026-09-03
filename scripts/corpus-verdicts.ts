@@ -104,6 +104,17 @@ function build(o: Obs, pivot: Obs | undefined): CollectorResult[] {
       sig("reputation_complaints", "ok", "Search the web for complaints", null, "web"),
       sig("reddit_search", "ok", "Search Reddit for mentions", null, "reddit"),
     ]},
+    // Common Crawl was not collected in 18.2. Modelled as ABSENT (status ok,
+    // no value) — CC's DEFAULT production outcome for a domain not in the
+    // threshold crawl, which is what these corpus domains would return. This
+    // preserves the pre-Story-24 verdicts (deep domains establish via Wayback's
+    // span regardless; young domains stay Amber via CC-404 + short-span). It
+    // deliberately does NOT model any CC PRESENCE: the corpus cannot exercise
+    // CC's positive contribution — that is the §5.1 instance, and it is why the
+    // production verification, not this delta, is the gate.
+    { collector: "common-crawl", ok: true, signals: [
+      sig("cc_established", "ok", null, null, "cc"),
+    ]},
     { collector: "ai-pivot", ok: wbOk, signals: [
       // B12: the hot path publishes a count only when EXACT (<5 rows). The
       // observations hold full counts, so this models what production would now
