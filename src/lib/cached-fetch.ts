@@ -88,6 +88,115 @@ export const HOST_BUDGETS: Readonly<Record<string, HostBudget>> = {
  */
 const inFlight = new Map<string, number>();
 
+/* ============================================================================
+   PER-HOST RATE LIMITER (Story 23.2) — CALLS PER MINUTE, alongside (not
+   replacing) the concurrency budget above. Both constraints apply.
+   ----------------------------------------------------------------------------
+   THE DEFECT THIS FIXES: the concurrency budget prevents SIMULTANEOUS calls,
+   which was never the constraint. Seven SEQUENTIAL calls to Common Crawl (each
+   one-in-flight, satisfying the budget completely) tripped a 503 wall in
+   Story 24 Q1. Both archive hosts rate-limit per minute.
+
+   ALGORITHM: token bucket per host. Composes naturally with the concurrency
+   budget — the budget gates the instantaneous slot, the bucket gates the rate.
+   Refills continuously at `ratePerMin`; `burst` is the bucket capacity.
+
+   VALUES ARE REASONED, NOT MEASURED. We have no measured limit for either host,
+   only ONE observation (CC 503 at 7 sequential). Err SLOW: pre-traffic, a
+   too-slow limiter costs nothing, while too-fast risks archive.org's hour-long
+   firewall block (which doubles on repeat). So both are set well below the
+   softest published community figure.
+
+   FAIL FAST, NEVER WAIT — see the deadline reasoning at the call site. And
+   NEVER RETRY into a 429/503 (Story 23's rule); instead a 429/503 ARMS A
+   COOLDOWN so subsequent calls to that host defer rather than pile on.
+
+   PER-INSTANCE, BEST-EFFORT — same limitation as the concurrency budget above.
+   Serverless memory is ephemeral, so this bounds ONE warm instance, not the
+   fleet. That is the exact scenario that tripped the 503 (one instance firing a
+   sequence) and the exact scenario Story 24's verification reproduces; a
+   fan-out across many cold instances is not bounded, and honestly cannot be
+   without shared state we are not adding pre-traffic.
+   ========================================================================== */
+export interface HostRate {
+  /** Sustained calls per minute. */
+  ratePerMin: number;
+  /** Bucket capacity — the largest instantaneous burst allowed. */
+  burst: number;
+  basis: "MEASURED" | "REASONED";
+  why: string;
+}
+
+export const HOST_RATES: Readonly<Record<string, HostRate>> = {
+  "web.archive.org": {
+    ratePerMin: 15,
+    burst: 3,
+    basis: "REASONED",
+    why: "The maintained `wayback` library dropped its default to 24/min in June 2026 to match Wayback's hard limits; we sit below that. Exceeding earns an hour-long firewall block, so err slow.",
+  },
+  "archive.org": {
+    ratePerMin: 15,
+    burst: 3,
+    basis: "REASONED",
+    why: "Same operator and limit as web.archive.org (Availability API shares the host).",
+  },
+  "index.commoncrawl.org": {
+    ratePerMin: 10,
+    burst: 2,
+    basis: "REASONED",
+    why: "Limit unpublished; one observation — 503 at 7 sequential calls (Story 24 Q1). 10/min is conservative below that single sample; NOT to be read as 'the limit is ~10'.",
+  },
+};
+
+/** 429 is the escalating one (hour-block on repeat) → a long hard stop. */
+const RATE_429_COOLDOWN_MS = 5 * 60 * 1000; // REASONED — err long
+/** 503 is the softer 'slow down' → a short stop. */
+const RATE_503_COOLDOWN_MS = 60 * 1000; // REASONED
+
+interface Bucket {
+  tokens: number;
+  lastRefillMs: number;
+  /** While `now < blockedUntilMs`, every call to this host defers (a 429/503 armed it). */
+  blockedUntilMs: number;
+}
+const buckets = new Map<string, Bucket>();
+
+/** Consume one token, or return false to defer. Never blocks. */
+function takeRate(host: string, nowMs: number): boolean {
+  const cfg = HOST_RATES[host];
+  if (!cfg) return true; // unconfigured host → no rate limit imposed
+  const b = buckets.get(host) ?? { tokens: cfg.burst, lastRefillMs: nowMs, blockedUntilMs: 0 };
+  if (nowMs < b.blockedUntilMs) {
+    buckets.set(host, b);
+    return false; // in a 429/503 cooldown
+  }
+  const refill = ((nowMs - b.lastRefillMs) / 60_000) * cfg.ratePerMin;
+  b.tokens = Math.min(cfg.burst, b.tokens + refill);
+  b.lastRefillMs = nowMs;
+  if (b.tokens < 1) {
+    buckets.set(host, b);
+    return false;
+  }
+  b.tokens -= 1;
+  buckets.set(host, b);
+  return true;
+}
+
+/**
+ * A 429/503 from the host feeds back: arm a cooldown so we slow down rather than
+ * continue at the configured rate. NOT a retry — the response is still returned
+ * to the caller as-is; this only governs FUTURE calls to the host.
+ */
+function armRateCooldown(host: string, status: number, nowMs: number): void {
+  const cfg = HOST_RATES[host];
+  if (!cfg) return;
+  const b = buckets.get(host) ?? { tokens: cfg.burst, lastRefillMs: nowMs, blockedUntilMs: 0 };
+  const cooldown = status === 429 ? RATE_429_COOLDOWN_MS : RATE_503_COOLDOWN_MS;
+  b.blockedUntilMs = Math.max(b.blockedUntilMs, nowMs + cooldown);
+  b.tokens = 0;
+  buckets.set(host, b);
+}
+
 function takeBudget(host: string): boolean {
   const budget = HOST_BUDGETS[host];
   if (!budget) return true; // no limit declared → no limit imposed
@@ -104,9 +213,10 @@ function releaseBudget(host: string): void {
   else inFlight.set(host, n - 1);
 }
 
-/** Test-only: reset the in-flight table between cases. */
+/** Test-only: reset the in-flight table AND the rate buckets between cases. */
 export function __resetBudgets(): void {
   inFlight.clear();
+  buckets.clear();
 }
 
 function concatChunks(parts: Uint8Array[]): Uint8Array {
@@ -172,7 +282,13 @@ export type FetchResult =
        * observation-failure convention applies to our own refusals too, and a
        * caller that cannot tell them apart cannot report honestly.
        */
-      error: "timeout" | "http" | "network" | "robots-disallowed" | "blocked" | "budget-exhausted";
+      /**
+       * `rate-limited` is WE DEFERRED TO STAY UNDER A PER-MINUTE LIMIT (Story
+       * 23.2). A THIRD distinct outcome alongside `budget-exhausted` (we chose
+       * not to make a concurrent call) and `timeout` (we called and nothing came
+       * back). The observation-failure convention forbids collapsing them.
+       */
+      error: "timeout" | "http" | "network" | "robots-disallowed" | "blocked" | "budget-exhausted" | "rate-limited";
       status?: number;
     };
 
@@ -433,6 +549,22 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
       return { ok: false, error: "budget-exhausted" };
     }
     try {
+      // 3) RATE LIMIT (Story 23.2). Checked here, INSIDE the budget try so the
+      //    concurrency slot is released on defer, and only once we are actually
+      //    about to call (a rate-limited call must not have spent a token it
+      //    could not use).
+      //
+      //    WAITING DOES NOT COUNT AGAINST THE 8s DEADLINE — because we never
+      //    wait. If no token is available we return `rate-limited` immediately,
+      //    exactly as the concurrency budget fails fast, and for the same
+      //    reason: a call that blocked for a token and then ran would still be
+      //    in flight when the deadline fired and would surface as a `timeout` —
+      //    the precise conflation requirement 4 forbids. Pacing across a burst
+      //    is achieved by DECLINING the over-rate call (the host never sees it,
+      //    so the 503/firewall-block never triggers), not by holding it.
+      if (!takeRate(parsed.hostname, now())) {
+        return { ok: false, error: "rate-limited" };
+      }
       return await withBudget();
     } finally {
       releaseBudget(parsed.hostname);
@@ -528,6 +660,14 @@ export function createFetcher(deps: Partial<FetcherDeps> = {}): Fetcher {
       if (out.kind === "too-many") return { ok: false, error: "http", status: out.status };
 
       const status = out.res.status;
+      // Story 23.2: a 429/503 from a RATE-CONFIGURED host is the host telling us
+      // to slow down. Arm its cooldown and DO NOT retry into it — retrying past
+      // a 429 is exactly what earns archive.org's escalating firewall block. The
+      // response is still returned as-is below; only future calls are governed.
+      if ((status === 429 || status === 503) && HOST_RATES[parsed.hostname]) {
+        armRateCooldown(parsed.hostname, status, now());
+        return { ok: false, error: "http", status };
+      }
       const retryable = status === 429 || status >= 500;
       if (retryable && n < maxRetries) {
         lastStatus = status;
