@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { createFetcher, HOST_BUDGETS, __resetBudgets, USER_AGENT, type FetcherDeps, type FetchImpl } from "./cached-fetch";
+import { createFetcher, HOST_BUDGETS, __resetBudgets, HOST_RATES, USER_AGENT, type FetcherDeps, type FetchImpl } from "./cached-fetch";
 
 // A minimal Response-like stub (status + text() + optional headers, for redirects).
 const resp = (status: number, body = "", headers: Record<string, string> = {}) => ({
@@ -550,6 +550,129 @@ describe("per-host politeness budget (Story 23)", () => {
       expect(["MEASURED", "REASONED"]).toContain(b.basis);
       expect(b.why.length).toBeGreaterThan(40);
       expect(b.max).toBeGreaterThanOrEqual(1);
+      expect(host).toMatch(/\./);
+    }
+  });
+});
+
+describe("per-host rate limiter (Story 23.2)", () => {
+  beforeEach(() => __resetBudgets());
+
+  // A clock we control, so the token-bucket refill is deterministic — not
+  // wall-clock-dependent. `now` is injectable exactly for this.
+  const at = (getMs: () => number) => {
+    let ok200 = 0;
+    const f = createFetcher({
+      fetchImpl: async () => {
+        ok200++;
+        return { status: 200, headers: new Headers(), text: async () => "{}" } as never;
+      },
+      cache: { get: async () => null, set: async () => {} },
+      resolveHost: async () => ["93.184.216.34"],
+      sleep: async () => {},
+      now: getMs,
+    });
+    return { f, sent: () => ok200 };
+  };
+  const cc = (key: string) => ({
+    source: "cc", key, kind: "third-party" as const, ttlSeconds: 0,
+    url: `https://index.commoncrawl.org/CC-MAIN-2026-34-index?url=${key}`,
+  });
+
+  it("the (burst+1)th call inside the window is DEFERRED, not sent to the host", async () => {
+    // CC config: burst 2. At a frozen clock, the 3rd call has no token.
+    const ms = 1_000_000;
+    const { f, sent } = at(() => ms);
+    const r1 = await f(cc("a"));
+    const r2 = await f(cc("b"));
+    const r3 = await f(cc("c"));
+    expect(r1.ok).toBe(true);
+    expect(r2.ok).toBe(true);
+    expect(r3).toEqual({ ok: false, error: "rate-limited" });
+    expect(sent()).toBe(2); // the 3rd never left the process — the host never sees the burst
+  });
+
+  it("a token refills after enough time and the next call goes out", async () => {
+    let ms = 1_000_000;
+    const { f, sent } = at(() => ms);
+    await f(cc("a"));
+    await f(cc("b"));
+    expect((await f(cc("c"))).ok).toBe(false); // bucket empty
+    ms += 7_000; // > 60s/10 per-min = one token every 6s → 7s yields one
+    expect((await f(cc("d"))).ok).toBe(true);
+    expect(sent()).toBe(3);
+  });
+
+  it("rate-limited is DISTINGUISHABLE from budget-exhausted and from timeout", async () => {
+    const ms = 1_000_000;
+    const { f } = at(() => ms);
+    await f(cc("a"));
+    await f(cc("b"));
+    const deferred = await f(cc("c"));
+    expect(deferred.ok).toBe(false);
+    if (!deferred.ok) {
+      expect(deferred.error).toBe("rate-limited");
+      expect(deferred.error).not.toBe("budget-exhausted");
+      expect(deferred.error).not.toBe("timeout");
+    }
+  });
+
+  it("a 429 arms a cooldown: subsequent calls to that host defer even with tokens", async () => {
+    let ms = 1_000_000;
+    let status = 200;
+    const f = createFetcher({
+      fetchImpl: async () => ({ status, headers: new Headers(), text: async () => "" } as never),
+      cache: { get: async () => null, set: async () => {} },
+      resolveHost: async () => ["93.184.216.34"],
+      sleep: async () => {},
+      now: () => ms,
+    });
+    status = 429;
+    const hit = await f(cc("a")); // returns the 429 as http, and arms the cooldown
+    expect(hit.ok).toBe(false);
+    status = 200; // host would now answer — but we must not ask
+    const next = await f(cc("b"));
+    expect(next).toEqual({ ok: false, error: "rate-limited" });
+    ms += 5 * 60 * 1000 + 1; // past the 429 cooldown
+    expect((await f(cc("c"))).ok).toBe(true);
+  });
+
+  it("a 429 is NOT retried — one attempt, then the http error", async () => {
+    let calls = 0;
+    const f = createFetcher({
+      fetchImpl: async () => { calls++; return { status: 429, headers: new Headers(), text: async () => "" } as never; },
+      cache: { get: async () => null, set: async () => {} },
+      resolveHost: async () => ["93.184.216.34"],
+      sleep: async () => {},
+      now: () => 1_000_000,
+    });
+    const r = await f({ ...cc("a"), maxRetries: 2 });
+    expect(r).toEqual({ ok: false, error: "http", status: 429 });
+    expect(calls).toBe(1); // retrying into a 429 is what earns the firewall block
+  });
+
+  it("a host with NO rate config is unaffected — many rapid calls all go out", async () => {
+    const f = createFetcher({
+      fetchImpl: async () => ({ status: 200, headers: new Headers(), text: async () => "{}" } as never),
+      cache: { get: async () => null, set: async () => {} },
+      resolveHost: async () => ["93.184.216.34"],
+      sleep: async () => {},
+      now: () => 1_000_000,
+    });
+    let ok = true;
+    for (let i = 0; i < 8; i++) {
+      const r = await f({ source: "doh", key: `k${i}`, kind: "third-party", ttlSeconds: 0, url: `https://dns.google/resolve?name=k${i}` });
+      ok = ok && r.ok;
+    }
+    expect(ok).toBe(true); // DNS/RDAP/threat feeds have shown no rate problem
+  });
+
+  it("every rate config carries a basis and a reason", () => {
+    for (const [host, r] of Object.entries(HOST_RATES)) {
+      expect(["MEASURED", "REASONED"]).toContain(r.basis);
+      expect(r.why.length).toBeGreaterThan(40);
+      expect(r.ratePerMin).toBeGreaterThan(0);
+      expect(r.burst).toBeGreaterThanOrEqual(1);
       expect(host).toMatch(/\./);
     }
   });
