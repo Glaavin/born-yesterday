@@ -81,8 +81,35 @@ Green 32 · Amber 9 · Blue 6 · Red 0 · no-verdict 2, before and after. **Zero
 
 **Instrument provenance, per the convention from last story:** the corpus harness `scripts/corpus-verdicts.ts` is the live one in the repo and was regenerated for the B12 signal change. The stale local preview script that produced a false defect report last story was rebuilt from it and is not used here.
 
-## 6 · Production verification
-**Follows promotion.** To report: `wayback_first` success rate (should hold ≥ 3 of 4), page times (should fall below the 8.3–9.0 s cluster now the hot path makes one archive call), whether `wayback_last` appears in `signal_history` via enrichment and at what rate, and whether the second-call hang occurs anywhere.
+## 6 · Production verification — DONE (2026-09-03, via the Story 23.1 operator bypass)
+
+**Enrichment works.** `ghost.org` is the unambiguous proof: the hot path wrote
+`wayback_last not_attempted` at 16:52:58, the response went out, and **6 seconds
+later** `after()` completed and appended `wayback_last ok "2026-09-03"` at
+16:53:04. That is the mechanism W1 needs, confirmed on our plan.
+
+**But it is not reliable, and the reason is stacked failure — carried into W1
+as B13 (`docs/open-items.md`).** Enrichment only fires on a *served* report (a
+no-verdict returns before the enrichment call). Across 11 fresh domains the
+archive was slow enough that **only 2 reached a served report**, and of those
+two, **1 enriched** (`ghost.org`) and **1 did not** (`todoist.com`, hot-path row
+only after several minutes). So:
+
+- **Upstream:** 9 of 11 never reached a served report — the archive gave up
+  inside the 8 s deadline first, so enrichment was never attempted. Anything
+  built on `wayback_last` inherits that.
+- **The mechanism itself:** even when it fires it does not always complete
+  (`todoist.com`). One case cannot distinguish `after()` not finishing from the
+  CDX call failing under the budget. **W1 must treat `wayback_last` as
+  frequently absent** — exactly what §3's build-log warning already said, now
+  with production evidence.
+
+**Timing + page times (Story 23.1 instrumentation, same batch):** 12 timing
+rows. No-verdict runs cluster at **~8000 ms** — they hit the deadline, which is
+*why* they are no-verdict — while the served reports came in **3.2–6.4 s**, under
+the 8.3–9.0 s pre-fix cluster. So the hot path did get faster where it produces
+a verdict; the slow tail is the archive timing out, not our own second call
+(which no longer runs on the hot path).
 
 ## 7 · Contradictions with W0 / B12
 **None.** This story is built on those findings and re-derives nothing. The one place it *departs* from the roadmap's framing is Part 1's scope: §5-W1 implies a politeness budget would fix the second call, and the B12 production data shows it would not — the deadline, not the throttle, is what kills it. That is recorded above as the design's premise rather than as a contradiction of a measurement.
