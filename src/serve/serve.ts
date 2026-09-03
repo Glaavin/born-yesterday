@@ -58,6 +58,12 @@ export interface ServeDeps {
   ) => Promise<{ report: Report; signals: Signal[]; undecided?: Undecided[] | null }>;
   /** Record the ATTEMPT only — history, no report row (Story 21). */
   persistAttempt: (domain: string, signals: Signal[], nowSec: number) => Promise<void>;
+  /**
+   * ASYNC ENRICHMENT (Story 23) — signals fetched AFTER the response, outside
+   * the collection deadline. Appends to history; the reader never waits on it
+   * and never sees it fail.
+   */
+  enrich: (domain: string, nowSec: number) => Promise<void>;
   /** Persist (getOrCreateDomain + saveReport + appendSignalHistory). */
   persist: (domain: string, report: Report, signals: Signal[], nowSec: number) => Promise<void>;
   now: () => number; // epoch SECONDS
@@ -156,6 +162,19 @@ export async function serveReport(
         return { state: "error", freshness: "none" };
       }
       if (decision.consumesQuota) await deps.incrementQuota(meta.sessionKey, day);
+      // ENRICHMENT RUNS AFTER THE RESPONSE, on the SAME post-render mechanism
+      // the stale-refresh already uses — one background path, not two. It is
+      // fire-and-forget by construction: the report above is already built, and
+      // the swallow below means a throwing enrichment cannot reach the reader.
+      // Asserted by test, because "must not fail the hot path" is the kind of
+      // promise that quietly stops being true.
+      deps.runBackground(async () => {
+        try {
+          await deps.enrich(domain, deps.now());
+        } catch {
+          // A failed enrichment is invisible: the report never claimed it.
+        }
+      });
       return { state: "served", report, freshness: "new" };
     }
 

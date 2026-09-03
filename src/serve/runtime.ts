@@ -1,6 +1,7 @@
 import type { Report } from "../components/report-state";
 import type { Signal } from "../signals/types";
 import { cachedFetch } from "../lib/cached-fetch";
+import { enrichWaybackLast, cdxLastUrl } from "../signals/wayback";
 import { socketWhois } from "../signals/whois";
 import { socketTlsConnect } from "../signals/tls";
 import { collectAll } from "../report/collect-all";
@@ -67,6 +68,22 @@ export async function realCollect(
   return { report, signals, undecided: indicator.undecided };
 }
 
+/**
+ * ENRICHMENT (Story 23). Fetches what the hot path deliberately skipped and
+ * appends it to history, so it is present on the NEXT generation. Runs outside
+ * the collection deadline — no `signal` is passed — and under the per-host
+ * politeness budget, which applies to every call through the harness.
+ */
+export async function realEnrich(domain: string, nowSec: number): Promise<void> {
+  const signals = await enrichWaybackLast(domain, cachedFetch, {
+    label: "Wayback CDX",
+    url: cdxLastUrl(domain),
+  });
+  if (!signals.length) return; // nothing obtained — record nothing, claim nothing
+  await getOrCreateDomain(domain);
+  await appendSignalHistory(signalsToHistory(domain, signals, nowSec));
+}
+
 /** Record the attempt: ensure the domain and APPEND history — no report row. */
 export async function realPersistAttempt(
   domain: string,
@@ -106,6 +123,7 @@ export function buildServeDeps(runBackground: (fn: () => Promise<void>) => void)
     collect: realCollect,
     persist: realPersist,
     persistAttempt: realPersistAttempt,
+    enrich: realEnrich,
     now: () => Math.floor(Date.now() / 1000),
     runBackground,
   };
