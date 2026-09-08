@@ -197,6 +197,8 @@ Everything in `positive[]` publishes under a **Positive** badge, so a capture co
 >
 > Archive span is the one classification that is **context-dependent**, and deliberately so: the same fact is establishing evidence on a Green report, the disqualifier on `bolt.new`, and actively misleading on `secondlibrary.com` (§3.4.8). The assembler already knows the verdict, so this is **routing, never a rule**.
 
+**B7a — same shape, surfaced by Story 25 (W2). The Reincarnation double-print.** On a Green reincarnation report the archive year now appears **twice** — in `positive[]` as Green's establishing reason (the span, deliberately not suppressed per ruling 18.3.27) and in `neutral[]` as the pair's archive half ("Archived pages exist from 2014."). This is the honest consequence of *"do not suppress the span, publish the pair,"* **not a defect** — but it is the **same underlying problem as B7**: the archive fact's channel is decided by which verdict claimed it first, not by its role, so on a recycled-domain Green report the reader sees the span vouching (positive) and the same date revealing recycling (neutral). Both want routing decided by **role**, not by which channel gathered the fact. Story 20's presentation pass should see **one** problem here, not two — the clean fix (route Green's archive establishing reason to neutral when the pair fires) is an `indicator.ts` / positive-routing change, out of scope for the additive W2 story.
+
 ### B8. Blue's colon does what the pivot's semicolon did
 > *"Too little public footprint to assess yet: registered ~5 months ago."*
 
@@ -250,3 +252,4 @@ These exist because the obvious move is the wrong one.
 4. **Do not read a clean corpus delta as proof** for a path the corpus does not exercise (§5.1) — and **diff reasons, not just states** (`conventions.md`).
 5. **Never present a reasoned or definitional threshold as calibrated** (§5.2). The corpus is in the repo; anyone can check.
 6. **Observation failure is not absence** (`conventions.md`). It has recurred at four layers.
+7. **Do not use Common Crawl absence as corroboration** — the W2 reincarnation "synergy" idea (three sources triangulating a parked recycled domain). **CLOSED, not deferred.** CC coverage correlates with link-graph prominence, so CC absence is weak evidence of anything (Story 24's own recorded finding); using it as corroboration would lean on the exact property we documented as unreliable. Roadmap §5-W2 proposed it; Story 24 retired it. Publishing it standalone is absence-as-evidence (item 6); composing it into a conclusion is prohibited. Do not rediscover it.
