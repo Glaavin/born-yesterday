@@ -17,7 +17,7 @@ import type { CollectorResult, Signal, SignalStatus } from "../src/signals/types
 import { computeIndicator, RUBRIC_PATHS, type RubricPath } from "../src/report/indicator";
 import { derive } from "../src/report/derive";
 
-const NOW = Math.floor(Date.parse("2026-08-24T00:00:00Z") / 1000);
+export const NOW = Math.floor(Date.parse("2026-08-24T00:00:00Z") / 1000);
 const read = (f: string) =>
   readFileSync(f, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
 
@@ -44,7 +44,7 @@ const epoch = (iso: string | null | undefined): number | null => {
   return Number.isNaN(ms) ? null : Math.floor(ms / 1000);
 };
 
-function build(o: Obs, pivot: Obs | undefined): CollectorResult[] {
+export function build(o: Obs, pivot: Obs | undefined): CollectorResult[] {
   const ageOk = o.age?.status === "collected" && o.age?.registration_date;
   const idSt: SignalStatus = ageOk ? "ok" : "failed";
   const regSec = ageOk ? epoch(o.age.registration_date) : null;
@@ -296,4 +296,6 @@ function main() {
   reportPathCoverage(seen);
   declareBlindSpots();
 }
-main();
+// Only run when invoked directly — importing `build`/`NOW` (e.g. from
+// corpus-assembled.ts) must NOT trigger a full corpus print onto stdout.
+if (process.argv[1] && /corpus-verdicts\.ts$/.test(process.argv[1])) main();

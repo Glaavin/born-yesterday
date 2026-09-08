@@ -35,6 +35,9 @@ export async function collectDomainIdentity(
   let regFrom: Source = null;
   let registrar: string | null = null;
   let registrarFrom: Source = null;
+  // The most recent RDAP `transfer` event, if any (Story 25, W2). RDAP-only —
+  // parseWhois does not read transfers, so this never comes from the fallback.
+  let transferIso: string | null = null;
 
   // Did each registry lookup COMPLETE? A registry that answers without a
   // creation date (common for .edu and several ccTLDs) is a checked-empty
@@ -60,6 +63,7 @@ export async function collectDomainIdentity(
         registrar = p.registrar;
         registrarFrom = "rdap";
       }
+      if (p?.transferDate) transferIso = p.transferDate;
     }
   } catch {
     // non-throwing contract — fall through to WHOIS
@@ -95,6 +99,10 @@ export async function collectDomainIdentity(
     regFrom = null;
   }
   const ageDays = regSec != null ? Math.floor((nowSec - regSec) / SECONDS_PER_DAY) : null;
+
+  // Transfer date: gate on a cleanly-PARSED date, same discipline as registration.
+  const transferSec = isoToEpochSec(transferIso);
+  if (transferIso != null && transferSec == null) transferIso = null;
 
   // At least one registry answered ⇒ the check RAN.
   const lookupStatus: SignalStatus = rdapOk || whoisOk ? "ok" : "failed";
@@ -137,6 +145,19 @@ export async function collectDomainIdentity(
       source: srcFor(registrarFrom),
       status: lookupStatus,
       note: noteFor(registrarFrom),
+    },
+    // REGISTRAR TRANSFER — a neutral dated fact (Story 25, W2). RDAP-only, so
+    // its status tracks whether the RDAP lookup ran, NOT the combined lookup: a
+    // WHOIS-only answer cannot speak to transfers. valueText null with status
+    // "ok" is "RDAP ran, no transfer event" — a finding for history, but NEVER
+    // published as absence (the assembler prints this only when a date exists).
+    {
+      key: "domain_transfer_date",
+      label: "Registrar transfer",
+      valueText: transferIso,
+      valueNum: transferSec,
+      source: rdapOk ? sources.rdap : null,
+      status: rdapOk ? "ok" : "failed",
     },
   ];
 

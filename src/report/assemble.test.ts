@@ -272,3 +272,188 @@ describe("assembleReport", () => {
     expect(report.summary).not.toMatch(EDITORIAL);
   });
 });
+
+// ---- Story 25 (W2) ---------------------------------------------------------
+
+const epoch = (iso: string): number => Math.floor(Date.parse(iso) / 1000);
+
+describe("registrar transfer — a neutral dated fact (Story 25, W2)", () => {
+  const withTransfer = (o: Partial<Signal>): CollectorResult[] => [
+    { collector: "domain-identity", ok: true, signals: [sig("domain_transfer_date", o)] },
+  ];
+
+  it("publishes the transfer date as a bare dated fact in NEUTRAL — no connective, no companion clause", () => {
+    const report = assembleReport(
+      "eff.org",
+      withTransfer({ valueText: "2010-08-19T00:00:00Z", valueNum: epoch("2010-08-19T00:00:00Z"), source: S("RDAP registration record", "u-rdap") }),
+      { pivot: null },
+      IND("amber", []),
+      NOW,
+    );
+    expect(report.neutral?.some((f) => f.text === "Registrar transfer recorded 2010-08-19.")).toBe(true);
+    // never a positive, never a flag — it feeds no verdict, neutral channel only.
+    expect(report.positive.some((f) => /transfer/i.test(f.text))).toBe(false);
+    expect(report.flagged.some((f) => /transfer/i.test(f.text))).toBe(false);
+  });
+
+  it("no transfer event → NOTHING is published (absence is never rendered as absence)", () => {
+    const report = assembleReport(
+      "example.com",
+      withTransfer({ valueText: null, status: "ok", source: S("RDAP registration record", "u-rdap") }),
+      { pivot: null },
+      IND("amber", []),
+      NOW,
+    );
+    expect(report.neutral?.some((f) => /transfer/i.test(f.text))).toBe(false);
+  });
+
+  it("a failed RDAP lookup does not publish a transfer line", () => {
+    const report = assembleReport(
+      "example.com",
+      withTransfer({ valueText: null, status: "failed", source: null }),
+      { pivot: null },
+      IND("amber", []),
+      NOW,
+    );
+    expect(report.neutral?.some((f) => /transfer/i.test(f.text))).toBe(false);
+  });
+});
+
+describe("the Reincarnation Check — publish the pair, never suppress the span (Story 25, W2)", () => {
+  // secondlibrary.com's shape: registered 2023, archived 2014, and GREEN in the
+  // corpus model — the §3.4.8 over-vouching case the check exists to surface.
+  const reincarnationSignals: CollectorResult[] = [
+    { collector: "domain-identity", ok: true, signals: [
+      sig("domain_registration_date", { valueText: "2023-10-29T07:22:28Z", valueNum: epoch("2023-10-29T07:22:28Z"), source: S("RDAP registration record", "u-rdap") }),
+    ]},
+    { collector: "ai-pivot", ok: true, signals: [
+      sig("wayback_first", { valueText: "2014-01-03", source: S("Wayback CDX", "u-cdx") }),
+    ]},
+  ];
+  // On Green the registration date reaches neutral as the indicator's demoted
+  // observation, and the archive span is the establishing reason (→ positive).
+  const greenInd = IND(
+    "green",
+    [
+      { text: "Archived since 2014 — the Wayback Machine's record for this domain spans ~13 years (2 captures recorded).", source: S("Wayback CDX", "u-cdx") },
+      { text: "Domain registered 2023-10-29. A registration date records when the domain name was first registered, not when its current operator began using it.", source: S("RDAP registration record", "u-rdap"), kind: "caveat" },
+    ],
+    "green-established-clean",
+  );
+
+  it("fires on a Green report: adds the archive half to NEUTRAL, reusing the registration date already there", () => {
+    const report = assembleReport("secondlibrary.com", reincarnationSignals, { pivot: null }, greenInd, NOW);
+    // The pair, as two independent neutral statements — no connective between them.
+    expect(report.neutral?.some((f) => /^Domain registered 2023-10-29/.test(f.text))).toBe(true);
+    expect(report.neutral?.some((f) => f.text === "Archived pages exist from 2014.")).toBe(true);
+    // The span is NOT suppressed — it remains Green's establishing evidence.
+    expect(report.positive.some((f) => /^Archived since 2014/.test(f.text))).toBe(true);
+    // No editorial framing, no "despite/however/but".
+    expect(report.neutral?.some((f) => /\b(despite|however|but)\b/i.test(f.text))).toBe(false);
+    // The registration date is not printed twice in neutral.
+    expect(report.neutral?.filter((f) => /registered 2023/i.test(f.text)).length).toBe(1);
+  });
+
+  it("supplies BOTH halves when neither is already in neutral (Green report, age < the note threshold)", () => {
+    const recent: CollectorResult[] = [
+      { collector: "domain-identity", ok: true, signals: [
+        sig("domain_registration_date", { valueText: "2026-01-01T00:00:00Z", valueNum: epoch("2026-01-01T00:00:00Z"), source: S("RDAP registration record", "u-rdap") }),
+      ]},
+      { collector: "ai-pivot", ok: true, signals: [
+        sig("wayback_first", { valueText: "2014-01-03", source: S("Wayback CDX", "u-cdx") }),
+      ]},
+    ];
+    // Green: the archive span is the establishing reason (→ positive[], stated),
+    // so it is NOT in neutral; and there is no registration caveat (age < the
+    // note threshold). Neither half is present, so the check supplies both.
+    const green = IND(
+      "green",
+      [{ text: "Archived since 2014 — the Wayback Machine's record for this domain spans ~13 years.", source: S("Wayback CDX", "u-cdx") }],
+      "green-established-clean",
+    );
+    const report = assembleReport("x.com", recent, { pivot: null }, green, NOW);
+    expect(report.neutral?.some((f) => f.text === "Registered 2026.")).toBe(true);
+    expect(report.neutral?.some((f) => f.text === "Archived pages exist from 2014.")).toBe(true);
+  });
+
+  it("does not restate the archive fact when it is already in neutral (non-Green): the existing line completes the pair", () => {
+    const recent: CollectorResult[] = [
+      { collector: "domain-identity", ok: true, signals: [
+        sig("domain_registration_date", { valueText: "2026-01-01T00:00:00Z", valueNum: epoch("2026-01-01T00:00:00Z"), source: S("RDAP registration record", "u-rdap") }),
+      ]},
+      { collector: "ai-pivot", ok: true, signals: [
+        sig("wayback_first", { valueText: "2014-01-03", source: S("Wayback CDX", "u-cdx") }),
+      ]},
+    ];
+    // Amber: gatherFindings already puts "Archived on the Wayback Machine since
+    // 2014" in neutral, so the check supplies only the missing registration half.
+    const report = assembleReport("x.com", recent, { pivot: null }, IND("amber", []), NOW);
+    expect(report.neutral?.some((f) => f.text === "Registered 2026.")).toBe(true);
+    const archiveLines = report.neutral?.filter((f) => /2014/.test(f.text) && /archived/i.test(f.text)) ?? [];
+    expect(archiveLines).toHaveLength(1); // the existing line, not a duplicate
+  });
+
+  it("does NOT fire when the archive does not precede registration", () => {
+    const notReincarnation: CollectorResult[] = [
+      { collector: "domain-identity", ok: true, signals: [
+        sig("domain_registration_date", { valueText: "2015-01-01T00:00:00Z", valueNum: epoch("2015-01-01T00:00:00Z"), source: S("RDAP registration record", "u-rdap") }),
+      ]},
+      { collector: "ai-pivot", ok: true, signals: [
+        sig("wayback_first", { valueText: "2020-01-01", source: S("Wayback CDX", "u-cdx") }),
+      ]},
+    ];
+    const report = assembleReport("x.com", notReincarnation, { pivot: null }, IND("amber", []), NOW);
+    expect(report.neutral?.some((f) => /pages exist from/i.test(f.text))).toBe(false);
+  });
+
+  it("does NOT fire when either date's check did not complete (status guard)", () => {
+    const regFailed: CollectorResult[] = [
+      { collector: "domain-identity", ok: false, signals: [
+        sig("domain_registration_date", { valueText: null, valueNum: null, status: "failed", source: null }),
+      ]},
+      { collector: "ai-pivot", ok: true, signals: [
+        sig("wayback_first", { valueText: "2014-01-03", source: S("Wayback CDX", "u-cdx") }),
+      ]},
+    ];
+    const report = assembleReport("x.com", regFailed, { pivot: null }, IND("amber", []), NOW);
+    expect(report.neutral?.some((f) => /pages exist from/i.test(f.text))).toBe(false);
+  });
+
+  it("uses Common Crawl's own wording when CC is the archive instrument (no Wayback date)", () => {
+    // Registered after the CC threshold crawl, present in it → CC predates
+    // registration. CC never borrows Wayback's span sentence (Story 24's rule).
+    const ccOnly: CollectorResult[] = [
+      { collector: "domain-identity", ok: true, signals: [
+        sig("domain_registration_date", { valueText: "2024-06-01T00:00:00Z", valueNum: epoch("2024-06-01T00:00:00Z"), source: S("RDAP registration record", "u-rdap") }),
+      ]},
+      { collector: "ai-pivot", ok: true, signals: [
+        sig("wayback_first", { valueText: null, status: "failed", source: null }),
+      ]},
+      { collector: "common-crawl", ok: true, signals: [
+        sig("cc_established", { valueText: "February/March 2024", source: S("Common Crawl", "u-cc") }),
+      ]},
+    ];
+    const report = assembleReport("x.com", ccOnly, { pivot: null }, IND("amber", []), NOW);
+    expect(report.neutral?.some((f) => f.text === "Present in Common Crawl’s February/March 2024 crawl.")).toBe(true);
+    expect(report.neutral?.some((f) => /pages exist from/i.test(f.text))).toBe(false); // not Wayback's sentence
+  });
+
+  it("picks the EARLIEST archive presence that precedes registration, across instruments", () => {
+    // Wayback's earliest capture is AFTER registration, but CC's point-in-time
+    // presence precedes it — so the check must fire via CC, not miss because
+    // Wayback happened to be checked first.
+    const mixed: CollectorResult[] = [
+      { collector: "domain-identity", ok: true, signals: [
+        sig("domain_registration_date", { valueText: "2024-06-01T00:00:00Z", valueNum: epoch("2024-06-01T00:00:00Z"), source: S("RDAP registration record", "u-rdap") }),
+      ]},
+      { collector: "ai-pivot", ok: true, signals: [
+        sig("wayback_first", { valueText: "2024-07-15", source: S("Wayback CDX", "u-cdx") }), // AFTER registration
+      ]},
+      { collector: "common-crawl", ok: true, signals: [
+        sig("cc_established", { valueText: "February/March 2024", source: S("Common Crawl", "u-cc") }), // BEFORE
+      ]},
+    ];
+    const report = assembleReport("x.com", mixed, { pivot: null }, IND("amber", []), NOW);
+    expect(report.neutral?.some((f) => f.text === "Present in Common Crawl’s February/March 2024 crawl.")).toBe(true);
+  });
+});
