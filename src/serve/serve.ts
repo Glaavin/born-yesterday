@@ -142,8 +142,30 @@ export async function serveReport(
       deps.runBackground(async () => {
         try {
           const t = deps.now();
-          const { report, signals } = await deps.collect(domain, t);
-          await deps.persist(domain, report, tag(signals), t);
+          const generated = await deps.collect(domain, t);
+          if (generated.undecided && generated.undecided.length) {
+            // NO VERDICT ON A REFRESH (Story 21.1 fix). The same rule as the
+            // collect branch below, and for the same two reasons — this path
+            // previously did neither, which made the marker's count a floor
+            // rather than the exact rate it claims to be:
+            //
+            //  · DO NOT OVERWRITE THE CACHED REPORT. `realCollect` returns an
+            //    assembled report even when the rubric could not decide, so
+            //    persisting here would replace a real (if stale) verdict with a
+            //    fallback one and freeze it for the seven-day TTL — precisely
+            //    the B11 scenario the collect branch refuses to create. The
+            //    stale report the visitor already received stands.
+            //  · STILL MARK IT. A no-verdict reached by refresh is a no-verdict;
+            //    leaving it unmarked would under-count the rate the marker
+            //    exists to measure.
+            await deps.persistAttempt(
+              domain,
+              tag([...generated.signals, noVerdictSignal(generated.undecided)]),
+              t,
+            );
+            return;
+          }
+          await deps.persist(domain, generated.report, tag(generated.signals), t);
         } catch {
           // Refresh failed; the stale report was already served. Nothing to do.
         }

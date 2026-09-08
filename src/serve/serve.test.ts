@@ -241,6 +241,48 @@ describe("serveReport", () => {
     expect(marker?.valueText).toBe("blue:domain_age_days,wayback_thin_archive;green:dns_spf,establishment");
   });
 
+  it("a STALE-REFRESH that comes back NO-VERDICT is marked, and does NOT overwrite the cached report", async () => {
+    // The other path to a no-verdict. It previously did neither thing: the
+    // outcome went unmarked (making the "exact" rate a floor) and the assembled
+    // fallback report overwrote a real verdict for the full seven-day TTL — the
+    // B11 freeze the collect branch exists to refuse.
+    const stale = aRow({ expiresAt: NOW - 1 });
+    const undecidedCollect = vi.fn(async (domain: string) => ({
+      report: aReport(domain),
+      signals: [aSignal],
+      undecided: [{ blocked: "green" as const, unknown: ["dns_spf"] }],
+    }));
+    const { deps, persist, persistAttempt, bg } = makeDeps({
+      getReport: async () => stale,
+      collect: undecidedCollect,
+    });
+
+    const r = await serveReport("x.com", { sessionKey: "k" }, deps);
+    expect(r).toMatchObject({ state: "refreshing", freshness: "stale" }); // stale still served
+    await Promise.all(bg); // let the background refresh run
+
+    // The cached verdict is left alone rather than replaced by a non-verdict.
+    expect(persist).not.toHaveBeenCalled();
+    // ...but the outcome is still counted, with its cause.
+    expect(persistAttempt).toHaveBeenCalledTimes(1);
+    const attemptSignals = persistAttempt.mock.calls[0]![1] as Array<{ key: string; valueText: string | null }>;
+    const markers = attemptSignals.filter((s) => s.key === META_NO_VERDICT);
+    expect(markers).toHaveLength(1);
+    expect(markers[0].valueText).toBe("green:dns_spf");
+  });
+
+  it("a stale-refresh that DOES reach a verdict still writes the report and no marker", async () => {
+    const stale = aRow({ expiresAt: NOW - 1 });
+    const { deps, persist, persistAttempt, bg } = makeDeps({ getReport: async () => stale });
+    await serveReport("x.com", { sessionKey: "k" }, deps);
+    await Promise.all(bg);
+
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persistAttempt).not.toHaveBeenCalled();
+    const persistedSignals = persist.mock.calls[0]![2] as Array<{ key: string }>;
+    expect(persistedSignals.some((s) => s.key === META_NO_VERDICT)).toBe(false);
+  });
+
   it("a SERVED report never carries the no-verdict marker (no-verdict path only)", async () => {
     const { deps, persist } = makeDeps(); // default collect returns undecided: undefined → served
     const r = await serveReport("x.com", { sessionKey: "k" }, deps);
