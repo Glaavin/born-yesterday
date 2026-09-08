@@ -79,10 +79,12 @@ const startsWith = (body: string, ch: string) => body.trimStart().startsWith(ch)
  * called must revisit these labels.** A panel that confidently mislabels the hot
  * path is the exact failure the tagging exists to prevent.
  *
- * KNOWN PENDING INVERSION: Story 25 (W2) makes `direct-registry` tier 1 and
- * demotes `rdap-org` to a middle fallback. As of Story 26.1 W2 has NOT merged,
- * so the labels below are correct; W2's rebase over this merged file must flip
- * `rdap-org` → diagnostic and `direct-registry` → wired.
+ * Story 25 (W2, #120) reworked the registration chain and OWNS those entries'
+ * labels + notes: `direct-registry` is the PRIMARY tier, `iana-bootstrap` feeds
+ * it, and `rdap-org` is the FALLBACK tier. All three stay `wired` — a fallback
+ * that still gets called is still on the hot path; `wired` means "the product
+ * calls it", not "tier 1". (This comment predicted a rdap-org → diagnostic flip
+ * before W2 landed; corrected to match reality after both PRs merged — 26.1.)
  */
 export const PROBES: readonly ProbeDef[] = [
   {
