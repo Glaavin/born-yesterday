@@ -131,55 +131,64 @@ export function generationTiming(
 }
 
 /**
- * No-verdict candidate rate over time (§C — one cheap SELECT over rows that
- * already exist). A day is counted when a LOAD-BEARING check was non-`ok` for a
- * domain.
+ * No-verdict candidate rate over time (§C). A day counts a domain when a
+ * LOAD-BEARING check for some outrank-capable state could not be settled.
  *
- * THE SIGNAL LIST IS TRACED TO STORY 21's PREDICATE, not to the pre-B12 script
- * it was first modelled on. `undecidableFor` (indicator.ts) reads exactly:
+ * TRACED TO STORY 21's PREDICATE, not to the pre-B12 script it was first
+ * modelled on. `undecidableFor` (indicator.ts) reads exactly:
  *   · green: `establishment` (DERIVED), `dns_spf`, `concerns` (DERIVED, always known)
  *   · blue:  `domain_age_days`, `wayback_thin_archive`
- * So the persisted conjunct signals are `dns_spf`, `domain_age_days` and
- * `wayback_thin_archive`, plus a proxy for green's establishment term.
+ * So the load-bearing signals are `dns_spf`, `domain_age_days`,
+ * `wayback_thin_archive`, and green's DERIVED `establishment` term.
+ * (`concerns` has no persisted signal and is `known: true` always — it can
+ * never be the unknown conjunct, so there is nothing to count for it.)
  *
- * TWO CORRECTIONS over the original list (Story 26.1):
- *   (a) `wayback_snapshot_count` REMOVED. Since the B12 hotfix it is
- *       `not_attempted` BY DESIGN whenever the count is not exact (≥5 rows —
- *       i.e. every well-archived domain; ai-pivot.ts line ~166). Counting it as
- *       `<> 'ok'` marked every archived domain a load-bearing failure and drove
- *       this trend to a meaningless ~100%.
- *   (b) `wayback_thin_archive` ADDED — the boolean B12 introduced and the actual
- *       Blue thinness conjunct the predicate reads.
+ * ESTABLISHMENT IS A DISJUNCTION (Story 24): `wayback_first` span OR
+ * `cc_established` present. It is undecidable only when NEITHER instrument
+ * settled it. Story 26.1 counted `wayback_first <> 'ok'` flat, which — since
+ * Story 24, where CC rescues most deep archives Wayback can't date — was
+ * DOMINATED by the case that did NOT no-verdict. Story 26.2 expresses "both
+ * instruments failed" properly: a per-(domain, day) aggregation (`bool_or`),
+ * then `wb_first_bad AND NOT cc_present`. Measured impact on live data: e.g.
+ * 2026-09-07 flat=2 → tight=0 (both CC-rescued); 2026-09-03 flat=14 → tight=9.
+ * For pre-CC days (no `cc_established` row) `cc_present` is false, so the tight
+ * form equals the old flat one — it degrades correctly to Wayback-only history.
  *
- * DELIBERATE MISMATCH, LEFT AS AN UPPER BOUND (not invented away):
- *   · `wayback_first` stands in for green's `establishment` term, but since
- *     Story 24 establishment is a DISJUNCTION — `wayback_first` span OR
- *     `cc_established`. A domain whose `wayback_first` failed but which CC
- *     established did NOT no-verdict, yet is counted here. `cc_established` is
- *     deliberately NOT added: an OR-membership query counts a domain if ANY
- *     listed signal is non-`ok`, so adding it would over-count the opposite case
- *     (CC failed, Wayback fine). Neither single-signal form can express "BOTH
- *     establishment instruments failed", so this stays an upper bound.
- *   · `concerns` (green) has no persisted signal and is `known: true` always, so
- *     it can never be the unknown conjunct — nothing to count.
- * Read this as an UPPER BOUND on the no-verdict rate; the per-check breakdown a
- * reader gets from the status view is the exact part.
+ * STILL AN UPPER BOUND, and this is not fixable here: a no-verdict writes the
+ * SAME `signal_history` shape as a served collection minus the report row
+ * (`realPersistAttempt`), with NO distinguishing marker — traced for Story 26.2
+ * (there is no `meta_no_verdict` to count directly). Two residual sources of
+ * loosening remain: (1) `wayback_first = ok` is treated as establishment-settled
+ * even when the 913-day SPAN was short — status alone cannot see the span; a
+ * short-but-known span is a known-not-established (correctly NOT a no-verdict),
+ * so this errs toward NOT counting, not toward inflation. (2) a non-`ok` SPF/age/
+ * thin check is counted even when it was not the conjunct that gated the domain's
+ * actual verdict. The per-check status view remains the exact part.
  *
- * NOTE (out of scope, reported): `scripts/no-verdict-rate.ts` still carries the
- * uncorrected pre-B12 list and has defect (a). Fixing it is product-script
- * territory, outside `src/app/dev/source-panel/` — flagged, not touched.
+ * `cc_present` = a `cc_established` row with a non-null `value_text` (Story 24:
+ * present carries the crawl label; ABSENT is status `ok` with a NULL value and
+ * does NOT establish; a failed probe is status `failed`). So "did CC establish"
+ * is a value test, not a status test.
  */
-const CONJUNCT_SIGNALS = ["wayback_first", "wayback_thin_archive", "dns_spf", "domain_age_days"];
-
 export function noVerdictCandidatesByDay(run: SqlRunner, days: number) {
   const since = sinceEpoch(days);
   return run`
-    select to_timestamp(captured_at)::date::text as day,
-           count(distinct domain)::int           as domains_with_failure
-    from signal_history
-    where captured_at > ${since}
-      and status <> 'ok'
-      and signal_type = any(${CONJUNCT_SIGNALS})
+    with per_domain_day as (
+      select domain,
+             to_timestamp(captured_at)::date::text as day,
+             bool_or(signal_type = 'wayback_first'        and status <> 'ok')         as wb_first_bad,
+             bool_or(signal_type = 'cc_established'        and value_text is not null) as cc_present,
+             bool_or(signal_type = 'dns_spf'              and status <> 'ok')         as spf_bad,
+             bool_or(signal_type = 'domain_age_days'      and status <> 'ok')         as age_bad,
+             bool_or(signal_type = 'wayback_thin_archive' and status <> 'ok')         as thin_bad
+      from signal_history
+      where captured_at > ${since}
+      group by 1, 2
+    )
+    select day, count(*)::int as domains_with_failure
+    from per_domain_day
+    where (wb_first_bad and not cc_present)  -- establishment undecidable: neither instrument settled it
+       or spf_bad or age_bad or thin_bad
     group by 1
     order by 1 desc`;
 }

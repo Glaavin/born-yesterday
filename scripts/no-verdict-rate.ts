@@ -25,8 +25,23 @@
 import { readFileSync } from "node:fs";
 import { neon } from "@neondatabase/serverless";
 
-/** The signals the no-verdict predicate reads. Keep in step with `undecidableFor`. */
-const CONJUNCT_SIGNALS = ["wayback_first", "wayback_snapshot_count", "dns_spf", "domain_age_days"];
+/**
+ * The signals the no-verdict predicate reads. Keep in step with `undecidableFor`.
+ *
+ * `wayback_snapshot_count` was WRONG here (Story 26.2 fix): since the B12 hotfix
+ * it is `not_attempted` BY DESIGN whenever the count is not exact (every
+ * well-archived domain), so counting it `<> 'ok'` marked archived domains as
+ * failures. Replaced by `wayback_thin_archive`, the boolean B12 introduced and
+ * the actual Blue conjunct.
+ *
+ * This stays the SIMPLE upper-bound instrument: it counts `wayback_first` flat,
+ * so a domain Common Crawl established but Wayback could not date is still
+ * counted here though it did NOT no-verdict. The source panel
+ * (`noVerdictCandidatesByDay`) carries the tighter per-domain-day form that nets
+ * out CC rescues; this script is deliberately not a dashboard and keeps the
+ * looser bound.
+ */
+const CONJUNCT_SIGNALS = ["wayback_first", "wayback_thin_archive", "dns_spf", "domain_age_days"];
 
 async function main() {
   const days = Number(process.argv[2] ?? 14);
