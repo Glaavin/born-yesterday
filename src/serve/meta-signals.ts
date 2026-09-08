@@ -102,8 +102,19 @@ export function operatorRunSignal(): Signal {
  */
 export const META_NO_VERDICT = "meta_no_verdict";
 
-/** Stable, deterministic serialization of the no-verdict cause. Sorted at both
- *  levels so identical causes collapse to one `value_text` for group-by. */
+/**
+ * Stable, deterministic serialization of the no-verdict cause. Sorted at both
+ * levels so identical causes collapse to one `value_text` for group-by.
+ *
+ * FORMAT CONTRACT — DO NOT CHANGE THIS SHAPE IN PLACE. `signal_history` is
+ * append-only and permanent (PRODUCT.md's strategic asset), so every historical
+ * `meta_no_verdict` row is encoded by whatever this returned when it was written,
+ * and there is no per-row format tag to tell versions apart (A2: `schema_version`
+ * is written but never read). Redefining the shape silently makes old rows
+ * uninterpretable. A future story that needs a different shape must add a NEW
+ * signal type (e.g. `meta_no_verdict_v2`), not repurpose this one. Full contract:
+ * docs/build-log/story-21-1-no-verdict-marker.md.
+ */
 export function encodeUndecided(undecided: Undecided[]): string {
   return undecided
     .map((u) => `${u.blocked}:${[...u.unknown].sort().join(",")}`)
