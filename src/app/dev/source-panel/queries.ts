@@ -10,7 +10,8 @@ import { neon } from "@neondatabase/serverless";
  * `scripts/*.ts` instruments use), NOT the drizzle write helpers in
  * `db/queries.ts` — the panel has no reason to import a function that can
  * `insert`. The runner is INJECTED so a test can hand every query a spy and
- * assert the emitted SQL is read-only (see queries.test.ts). Values are always
+ * assert the emitted SQL is read-only (see the write-prevention sweep in
+ * handler.test.ts). Values are always
  * parameterised, never interpolated.
  *
  * WHAT THE HISTORY CANNOT SHOW — stated here because it is a real limit, not an
@@ -130,14 +131,45 @@ export function generationTiming(
 }
 
 /**
- * No-verdict candidate rate over time (§C — included because it is one cheap
- * SELECT over rows that already exist). Mirrors `scripts/no-verdict-rate.ts`:
- * a day is counted when a LOAD-BEARING check failed for a domain. Read as an
- * UPPER BOUND — history does not record which verdict was blocked, so a domain
- * that failed its archive check but still published a sourced concern is counted
- * here and did NOT actually produce a no-verdict.
+ * No-verdict candidate rate over time (§C — one cheap SELECT over rows that
+ * already exist). A day is counted when a LOAD-BEARING check was non-`ok` for a
+ * domain.
+ *
+ * THE SIGNAL LIST IS TRACED TO STORY 21's PREDICATE, not to the pre-B12 script
+ * it was first modelled on. `undecidableFor` (indicator.ts) reads exactly:
+ *   · green: `establishment` (DERIVED), `dns_spf`, `concerns` (DERIVED, always known)
+ *   · blue:  `domain_age_days`, `wayback_thin_archive`
+ * So the persisted conjunct signals are `dns_spf`, `domain_age_days` and
+ * `wayback_thin_archive`, plus a proxy for green's establishment term.
+ *
+ * TWO CORRECTIONS over the original list (Story 26.1):
+ *   (a) `wayback_snapshot_count` REMOVED. Since the B12 hotfix it is
+ *       `not_attempted` BY DESIGN whenever the count is not exact (≥5 rows —
+ *       i.e. every well-archived domain; ai-pivot.ts line ~166). Counting it as
+ *       `<> 'ok'` marked every archived domain a load-bearing failure and drove
+ *       this trend to a meaningless ~100%.
+ *   (b) `wayback_thin_archive` ADDED — the boolean B12 introduced and the actual
+ *       Blue thinness conjunct the predicate reads.
+ *
+ * DELIBERATE MISMATCH, LEFT AS AN UPPER BOUND (not invented away):
+ *   · `wayback_first` stands in for green's `establishment` term, but since
+ *     Story 24 establishment is a DISJUNCTION — `wayback_first` span OR
+ *     `cc_established`. A domain whose `wayback_first` failed but which CC
+ *     established did NOT no-verdict, yet is counted here. `cc_established` is
+ *     deliberately NOT added: an OR-membership query counts a domain if ANY
+ *     listed signal is non-`ok`, so adding it would over-count the opposite case
+ *     (CC failed, Wayback fine). Neither single-signal form can express "BOTH
+ *     establishment instruments failed", so this stays an upper bound.
+ *   · `concerns` (green) has no persisted signal and is `known: true` always, so
+ *     it can never be the unknown conjunct — nothing to count.
+ * Read this as an UPPER BOUND on the no-verdict rate; the per-check breakdown a
+ * reader gets from the status view is the exact part.
+ *
+ * NOTE (out of scope, reported): `scripts/no-verdict-rate.ts` still carries the
+ * uncorrected pre-B12 list and has defect (a). Fixing it is product-script
+ * territory, outside `src/app/dev/source-panel/` — flagged, not touched.
  */
-const CONJUNCT_SIGNALS = ["wayback_first", "wayback_snapshot_count", "dns_spf", "domain_age_days"];
+const CONJUNCT_SIGNALS = ["wayback_first", "wayback_thin_archive", "dns_spf", "domain_age_days"];
 
 export function noVerdictCandidatesByDay(run: SqlRunner, days: number) {
   const since = sinceEpoch(days);

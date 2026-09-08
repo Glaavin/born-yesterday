@@ -104,6 +104,32 @@ describe("probe result maps the harness outcome faithfully", () => {
   });
 });
 
+describe("empty-2xx — the Stage-1.5 failure mode is NOT reported as healthy (Story 26.1)", () => {
+  const emptyBody = async (): Promise<FetchResult> => ({ ok: true, status: 200, body: "", fromCache: false });
+
+  // Every probe targets a known-present fixture (example.com) or an
+  // always-content endpoint, so none should ever call an empty 200 healthy.
+  for (const id of ["wayback-cdx", "common-crawl", "crtsh", "rdap-org"]) {
+    it(`${id}: an empty 200 is 'empty-2xx', never ok/sane`, async () => {
+      const { run } = runnerSpy();
+      const res = await handlePanelAction({ action: "probe", id }, { run, fetcher: emptyBody });
+      if (res.kind !== "probe") throw new Error("expected probe");
+      expect(res.result.outcome).toBe("empty-2xx"); // not "ok"
+      expect(res.result.saneShape).not.toBe(true); // and never reported healthy
+      expect(res.result.status).toBe(200); // the transport succeeded — that is the point
+    });
+  }
+
+  it("a non-empty, wrong-shape 200 is still ok-transport but saneShape false (distinct from empty)", async () => {
+    const { run } = runnerSpy();
+    const wrongShape = async (): Promise<FetchResult> => ({ ok: true, status: 200, body: "<html>nope</html>", fromCache: false });
+    const res = await handlePanelAction({ action: "probe", id: "wayback-cdx" }, { run, fetcher: wrongShape });
+    if (res.kind !== "probe") throw new Error("expected probe");
+    expect(res.result.outcome).toBe("ok"); // answered with *something*
+    expect(res.result.saneShape).toBe(false); // just the wrong something
+  });
+});
+
 describe("request-boundary validation — bad input is an error object, never a throw", () => {
   const { run } = runnerSpy();
   const deps = { run, fetcher: okFetcher };
