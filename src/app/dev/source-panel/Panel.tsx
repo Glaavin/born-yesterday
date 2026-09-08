@@ -210,7 +210,10 @@ export default function Panel({
             generation timing
           </button>
           <button disabled={busy !== null} onClick={() => loadHistory("noverdict")}>
-            no-verdict candidates
+            no-verdict rate
+          </button>
+          <button disabled={busy !== null} onClick={() => loadHistory("noverdict-causes")}>
+            no-verdict causes
           </button>
         </div>
         {history && (

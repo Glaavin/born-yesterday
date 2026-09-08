@@ -5,7 +5,8 @@ import {
   successRateByDay,
   statusDistribution,
   generationTiming,
-  noVerdictCandidatesByDay,
+  noVerdictByDay,
+  noVerdictCauses,
   type Row,
   type SqlRunner,
 } from "./queries";
@@ -90,12 +91,22 @@ export async function handlePanelAction(body: unknown, deps: PanelDeps): Promise
     }
 
     case "noverdict": {
-      const rows = await noVerdictCandidatesByDay(deps.run, clampDays(b.days));
+      const rows = await noVerdictByDay(deps.run, clampDays(b.days));
       return {
         kind: "rows",
-        view: "no-verdict-candidates",
+        view: "no-verdict-rate",
         rows,
-        note: "Upper bound: a day with a load-bearing check failure. Not every such day produced a no-verdict.",
+        note: "Exact (Story 21.1): no_verdicts = count(meta_no_verdict); generations = count(meta_generation_ms). Series starts at the 21.1 deploy — earlier days show 0 (no backfill).",
+      };
+    }
+
+    case "noverdict-causes": {
+      const rows = await noVerdictCauses(deps.run, clampDays(b.days));
+      return {
+        kind: "rows",
+        view: "no-verdict-causes",
+        rows,
+        note: "Exact cause of each no-verdict: blocked state(s) : unknown conjunct(s). Post-21.1 only.",
       };
     }
 

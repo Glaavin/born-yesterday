@@ -6,7 +6,7 @@ import type { Undecided } from "../report/indicator";
 import { isFresh } from "./freshness";
 import { decideServe } from "./decide";
 import { SEARCH_LIMIT_PER_DAY, utcDay } from "./quota";
-import { operatorRunSignal } from "./meta-signals";
+import { operatorRunSignal, noVerdictSignal } from "./meta-signals";
 
 /**
  * Serve orchestration (mvp-spec §6) — wires the pure decision to the data layer.
@@ -142,8 +142,30 @@ export async function serveReport(
       deps.runBackground(async () => {
         try {
           const t = deps.now();
-          const { report, signals } = await deps.collect(domain, t);
-          await deps.persist(domain, report, tag(signals), t);
+          const generated = await deps.collect(domain, t);
+          if (generated.undecided && generated.undecided.length) {
+            // NO VERDICT ON A REFRESH (Story 21.1 fix). The same rule as the
+            // collect branch below, and for the same two reasons — this path
+            // previously did neither, which made the marker's count a floor
+            // rather than the exact rate it claims to be:
+            //
+            //  · DO NOT OVERWRITE THE CACHED REPORT. `realCollect` returns an
+            //    assembled report even when the rubric could not decide, so
+            //    persisting here would replace a real (if stale) verdict with a
+            //    fallback one and freeze it for the seven-day TTL — precisely
+            //    the B11 scenario the collect branch refuses to create. The
+            //    stale report the visitor already received stands.
+            //  · STILL MARK IT. A no-verdict reached by refresh is a no-verdict;
+            //    leaving it unmarked would under-count the rate the marker
+            //    exists to measure.
+            await deps.persistAttempt(
+              domain,
+              tag([...generated.signals, noVerdictSignal(generated.undecided)]),
+              t,
+            );
+            return;
+          }
+          await deps.persist(domain, generated.report, tag(generated.signals), t);
         } catch {
           // Refresh failed; the stale report was already served. Nothing to do.
         }
@@ -169,11 +191,18 @@ export async function serveReport(
           //  · NO QUOTA. The visitor asked for a report and did not get one.
           //    Tier 1 (#76) established this for a failed collect; charging here
           //    would repeat the defect it just fixed, one path over.
-          //  · HISTORY STILL RECORDED. "We attempted these checks on this date
-          //    and they failed" is what the append-only record is for, and it is
-          //    the only trace a no-verdict leaves — so it is also the
-          //    instrumentation (`scripts/no-verdict-rate.ts`).
-          await deps.persistAttempt(domain, tag(generated.signals), nowSec);
+          //  · HISTORY STILL RECORDED, WITH A MARKER. "We attempted these checks
+          //    on this date and they failed" is what the append-only record is
+          //    for. Story 21.1 stamps a `meta_no_verdict` alongside it, carrying
+          //    the decided cause, so the outcome is COUNTABLE (exact rate, with
+          //    `meta_generation_ms` as the denominator) rather than reconstructed
+          //    from a lossy proxy. It rides the SAME single history write and,
+          //    like the other meta signals, can never reach a report.
+          await deps.persistAttempt(
+            domain,
+            tag([...generated.signals, noVerdictSignal(generated.undecided)]),
+            nowSec,
+          );
           return { state: "no-verdict", freshness: "none", undecided: generated.undecided };
         }
         await deps.persist(domain, generated.report, tag(generated.signals), nowSec);

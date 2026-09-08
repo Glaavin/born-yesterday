@@ -1,4 +1,5 @@
 import type { Signal } from "../signals/types";
+import type { Undecided } from "../report/indicator";
 
 /**
  * OPERATOR INSTRUMENTATION that happens to live in a product table (Story 23.1).
@@ -68,6 +69,53 @@ export function operatorRunSignal(): Signal {
     key: META_OPERATOR_RUN,
     label: "Operator run",
     valueText: "operator",
+    valueNum: null,
+    source: null,
+    status: "ok",
+  };
+}
+
+/**
+ * NO-VERDICT MARKER (Story 21.1). Written ONLY on the no-verdict path
+ * (`serveReport`'s `persistAttempt` branch), so counting these rows is the EXACT
+ * no-verdict count — not the reconstructed upper bound the 26.1/26.2 proxy gave.
+ * The denominator is free: every generation, served or no-verdict, records a
+ * `meta_generation_ms` row, so the rate is `count(meta_no_verdict) /
+ * count(meta_generation_ms)` per day.
+ *
+ * WHY IT EXISTS: §3.2 says a no-verdict should fire rarely and, if it does not,
+ * the fix is upstream. That constraint was unevaluable — Story 21 writes no
+ * report row and (26.2) the attempt's history is byte-shaped like a served
+ * collection's, with no marker. This is the marker; it makes a DECIDED rule
+ * measurable. The panel count is a consequence, not the point.
+ *
+ * `valueText` carries the DECIDED CAUSE so the count is also the exact cause
+ * breakdown — a stable, sorted serialization of the blocked states and the
+ * conjuncts each left unknown, e.g. `green:dns_spf,establishment;blue:wayback_thin_archive`.
+ * ONE row per no-verdict outcome (not per blocked state): the primary question
+ * is the rate, cleanest as `count(rows)`; the cause distribution is a group-by
+ * over `value_text`.
+ *
+ * Same discipline as the markers above: the `meta_` prefix is the contract
+ * (nothing in `report/` reads it), and it is appended AFTER assembly so it can
+ * never reach a report or the "Surfaces N signals" count.
+ */
+export const META_NO_VERDICT = "meta_no_verdict";
+
+/** Stable, deterministic serialization of the no-verdict cause. Sorted at both
+ *  levels so identical causes collapse to one `value_text` for group-by. */
+export function encodeUndecided(undecided: Undecided[]): string {
+  return undecided
+    .map((u) => `${u.blocked}:${[...u.unknown].sort().join(",")}`)
+    .sort()
+    .join(";");
+}
+
+export function noVerdictSignal(undecided: Undecided[]): Signal {
+  return {
+    key: META_NO_VERDICT,
+    label: "No-verdict outcome",
+    valueText: encodeUndecided(undecided),
     valueNum: null,
     source: null,
     status: "ok",
