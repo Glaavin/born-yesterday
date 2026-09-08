@@ -647,6 +647,8 @@ Per `docs/conventions.md`: *a clean corpus delta is not proof for paths the corp
 
 **§5.1's lesson now has a second instance.** The first was that the corpus spans *verdicts*, not *failure modes*. The second is narrower and easier to miss: **a source being down during corpus construction silently removes a whole signal from every subsequent delta — and nothing in the delta reports it.** A delta that covers 49 domains and 0 certificates looks exactly like a delta that covers 49 domains.
 
+> **MOOT POST-STORY-27 (W4, 2026-09-08) — the gap is no longer a gap, because certificate history is no longer collected.** Everything above is preserved as the record of *why* the gap existed. What changed is not that it was filled: first-cert age was **retired** (§3.4.4), `first_cert_date` and `cert_count` were removed from `certs.ts`, and with them **the last consumer of crt.sh — so crt.sh is no longer called by the product at all.** The corpus's "0 of 49 certificates" therefore no longer describes a blind spot in a live signal; there is no live cert-history signal to be blind to. The requirement above still binds any *future* story that revives certificate history (it must re-collect crt.sh, or state it specifies against unexercised code). And the §5.1 lesson stands unchanged for every other source: a source down during corpus construction removes a signal from the delta silently. The *current* cert facts (issuer/validity/org and the negative facts) are the new instance of exactly that — the corpus carries none, so their W4 delta is **silence, not proof**.
+
 ---
 
 ## 6. Production hotfixes shipped during this pass

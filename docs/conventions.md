@@ -66,3 +66,19 @@ in a state diff is not evidence that nothing happened.**
 Related: `story-18-3-amendment.md` §5.1 — a clean delta is not proof for paths the corpus does
 not exercise. Same failure mode, one level up: this one is about what the gate *looks at*, that
 one is about what the corpus *contains*.
+
+## Two independent sources: RACE when neither answer dominates, FALL BACK when one does
+
+Move 05 asks verdict-relevant categories to carry two independent sources. How the two are
+combined depends on whether either instrument's answer is strictly better:
+
+- **Race** when the two answers are *equivalent in quality* — neither dominates, and you want
+  whichever returns first (availability). Story 24: Common Crawl vs Wayback for establishment —
+  different hosts, comparable claims, so the report holds via whichever answers inside the deadline.
+- **Fall back** when one source is *strictly richer* — racing would be a coin flip on quality,
+  because the faster answer might be the poorer one. Story 27 (W4): the live TLS handshake
+  (issuer, validity, subject org, self-signed, hostname match) strictly dominates SSLMate Cert
+  Spotter (issuer + validity only), so the handshake is primary and SSLMate backstops availability.
+
+The distinction is quality-domination, not latency. Race equivalent sources; fall back to the
+poorer one only when the richer one cannot answer.

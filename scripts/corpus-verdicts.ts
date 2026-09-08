@@ -78,10 +78,10 @@ export function build(o: Obs, pivot: Obs | undefined): CollectorResult[] {
       sig("dns_mx", "ok", o.mx?.value ?? null, null, dnsUrl),
       sig("hosting_provider", "ok", o.hosting?.value ?? null, null, dnsUrl),
     ]},
-    // crt.sh was returning 5xx throughout 18.2; TLS was not run.
+    // TLS was not run in 18.2. first_cert_date/cert_count were RETIRED in Story
+    // 27 (W4) — crt.sh is out of the product entirely — so they are no longer
+    // reconstructed here. certs feed no verdict either way.
     { collector: "certs", ok: false, signals: [
-      sig("first_cert_date", "failed", null, null, null),
-      sig("cert_count", "failed", null, null, null),
       sig("tls_issuer", "failed", null, null, null),
       sig("tls_valid_to", "failed", null, null, null),
       sig("ssl_org", "failed", null, null, null),
