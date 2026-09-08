@@ -131,64 +131,48 @@ export function generationTiming(
 }
 
 /**
- * No-verdict candidate rate over time (§C). A day counts a domain when a
- * LOAD-BEARING check for some outrank-capable state could not be settled.
+ * No-verdict rate over time — EXACT (§C, Story 21.1). The proxy is retired.
  *
- * TRACED TO STORY 21's PREDICATE, not to the pre-B12 script it was first
- * modelled on. `undecidableFor` (indicator.ts) reads exactly:
- *   · green: `establishment` (DERIVED), `dns_spf`, `concerns` (DERIVED, always known)
- *   · blue:  `domain_age_days`, `wayback_thin_archive`
- * So the load-bearing signals are `dns_spf`, `domain_age_days`,
- * `wayback_thin_archive`, and green's DERIVED `establishment` term.
- * (`concerns` has no persisted signal and is `known: true` always — it can
- * never be the unknown conjunct, so there is nothing to count for it.)
+ * Story 21.1 stamps a `meta_no_verdict` row on the no-verdict path only, so the
+ * count of those rows IS the no-verdict count — no reconstruction. The
+ * denominator is free: every generation (served or no-verdict) records a
+ * `meta_generation_ms` row, so the rate is `no_verdicts / generations` per day.
  *
- * ESTABLISHMENT IS A DISJUNCTION (Story 24): `wayback_first` span OR
- * `cc_established` present. It is undecidable only when NEITHER instrument
- * settled it. Story 26.1 counted `wayback_first <> 'ok'` flat, which — since
- * Story 24, where CC rescues most deep archives Wayback can't date — was
- * DOMINATED by the case that did NOT no-verdict. Story 26.2 expresses "both
- * instruments failed" properly: a per-(domain, day) aggregation (`bool_or`),
- * then `wb_first_bad AND NOT cc_present`. Measured impact on live data: e.g.
- * 2026-09-07 flat=2 → tight=0 (both CC-rescued); 2026-09-03 flat=14 → tight=9.
- * For pre-CC days (no `cc_established` row) `cc_present` is false, so the tight
- * form equals the old flat one — it degrades correctly to Wayback-only history.
- *
- * STILL AN UPPER BOUND, and this is not fixable here: a no-verdict writes the
- * SAME `signal_history` shape as a served collection minus the report row
- * (`realPersistAttempt`), with NO distinguishing marker — traced for Story 26.2
- * (there is no `meta_no_verdict` to count directly). Two residual sources of
- * loosening remain: (1) `wayback_first = ok` is treated as establishment-settled
- * even when the 913-day SPAN was short — status alone cannot see the span; a
- * short-but-known span is a known-not-established (correctly NOT a no-verdict),
- * so this errs toward NOT counting, not toward inflation. (2) a non-`ok` SPF/age/
- * thin check is counted even when it was not the conjunct that gated the domain's
- * actual verdict. The per-check status view remains the exact part.
- *
- * `cc_present` = a `cc_established` row with a non-null `value_text` (Story 24:
- * present carries the crawl label; ABSENT is status `ok` with a NULL value and
- * does NOT establish; a failed probe is status `failed`). So "did CC establish"
- * is a value test, not a status test.
+ * The whole 26.1/26.2 `CONJUNCT_SIGNALS` / establishment `bool_or` machinery
+ * that used to live here is GONE: it approximated a thing we can now count. Its
+ * looseness (traced in 26.2 — no marker existed to count directly, and the
+ * establishment axis was masked by `wayback_thin_archive`) was the reason this
+ * story exists. The exact series starts at the 21.1 deploy; there is no
+ * backfill, so days before it show `no_verdicts = 0` here (the pre-marker window
+ * has only the retired proxy's estimate, which is not this view's job to show).
  */
-export function noVerdictCandidatesByDay(run: SqlRunner, days: number) {
+export function noVerdictByDay(run: SqlRunner, days: number) {
   const since = sinceEpoch(days);
   return run`
-    with per_domain_day as (
-      select domain,
-             to_timestamp(captured_at)::date::text as day,
-             bool_or(signal_type = 'wayback_first'        and status <> 'ok')         as wb_first_bad,
-             bool_or(signal_type = 'cc_established'        and value_text is not null) as cc_present,
-             bool_or(signal_type = 'dns_spf'              and status <> 'ok')         as spf_bad,
-             bool_or(signal_type = 'domain_age_days'      and status <> 'ok')         as age_bad,
-             bool_or(signal_type = 'wayback_thin_archive' and status <> 'ok')         as thin_bad
-      from signal_history
-      where captured_at > ${since}
-      group by 1, 2
-    )
-    select day, count(*)::int as domains_with_failure
-    from per_domain_day
-    where (wb_first_bad and not cc_present)  -- establishment undecidable: neither instrument settled it
-       or spf_bad or age_bad or thin_bad
+    select to_timestamp(captured_at)::date::text                              as day,
+           count(*) filter (where signal_type = 'meta_generation_ms')::int    as generations,
+           count(*) filter (where signal_type = 'meta_no_verdict')::int       as no_verdicts
+    from signal_history
+    where captured_at > ${since}
+      and signal_type in ('meta_generation_ms', 'meta_no_verdict')
     group by 1
     order by 1 desc`;
+}
+
+/**
+ * Exact no-verdict CAUSE breakdown (Story 21.1). `meta_no_verdict.value_text`
+ * carries a stable serialization of the blocked states and the conjuncts each
+ * left unknown (see `encodeUndecided`), so grouping by it is the exact answer to
+ * "which check, blocking which state, caused the no-verdicts" — the real version
+ * of what the retired proxy's per-check breakdown only approximated.
+ */
+export function noVerdictCauses(run: SqlRunner, days: number) {
+  const since = sinceEpoch(days);
+  return run`
+    select value_text as cause, count(*)::int as n
+    from signal_history
+    where signal_type = 'meta_no_verdict'
+      and captured_at > ${since}
+    group by 1
+    order by 2 desc, 1`;
 }

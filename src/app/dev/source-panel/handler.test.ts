@@ -27,6 +27,7 @@ const HISTORY_ACTIONS: Record<string, unknown>[] = [
   { action: "timing", includeOperator: false },
   { action: "timing", includeOperator: true },
   { action: "noverdict", days: 14 },
+  { action: "noverdict-causes", days: 14 },
 ];
 
 const READONLY_START = /^\s*(select|with)\b/i;

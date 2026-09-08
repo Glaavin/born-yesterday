@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { isFresh, REPORT_TTL_SECONDS } from "./freshness";
 import { decideServe } from "./decide";
 import { sessionKey } from "./quota";
-import { META_GENERATION_MS, META_OPERATOR_RUN } from "./meta-signals";
+import { META_GENERATION_MS, META_OPERATOR_RUN, META_NO_VERDICT } from "./meta-signals";
 import { serveReport, SEARCH_LIMIT_PER_DAY, type ServeDeps } from "./serve";
 import { recentReports } from "./recent";
 import type { Report } from "../components/report-state";
@@ -87,7 +87,7 @@ describe("sessionKey (§10 — no PII)", () => {
 function makeDeps(over: Partial<ServeDeps> = {}) {
   const collect = vi.fn(async (domain: string) => ({ report: aReport(domain), signals: [aSignal] }));
   const persist = vi.fn<(d: string, r: unknown, s: unknown, n: number) => Promise<void>>(async () => {});
-  const persistAttempt = vi.fn(async () => {});
+  const persistAttempt = vi.fn<(d: string, s: unknown, n: number) => Promise<void>>(async () => {});
   const enrich = vi.fn(async () => {});
   const incrementQuota = vi.fn(async () => 1);
   const bg: Array<Promise<void>> = [];
@@ -213,9 +213,41 @@ describe("serveReport", () => {
     expect(r.state).toBe("no-verdict");
     expect(r.report).toBeUndefined();
     expect(persist).not.toHaveBeenCalled();
-    // History IS recorded — "we attempted these checks and they failed" is what
-    // the append-only record is for, and it is the only trace this leaves.
-    expect(persistAttempt).toHaveBeenCalledWith("x.com", [aSignal], NOW);
+    // History IS recorded — with the Story 21.1 marker. The attempt carries the
+    // collector signals PLUS one `meta_no_verdict` whose value_text is the
+    // decided cause, so the outcome is COUNTABLE rather than reconstructed.
+    expect(persistAttempt).toHaveBeenCalledTimes(1);
+    const attemptSignals = persistAttempt.mock.calls[0]![1] as Array<{ key: string; valueText: string | null }>;
+    expect(attemptSignals.some((s) => s.key === aSignal.key)).toBe(true);
+    const markers = attemptSignals.filter((s) => s.key === META_NO_VERDICT);
+    expect(markers).toHaveLength(1); // exactly one, per outcome
+    expect(markers[0].valueText).toBe("green:wayback_first"); // encoded cause
+  });
+
+  it("NO VERDICT marker encodes the FULL cause — every blocked state and its unknown conjuncts, stably sorted", async () => {
+    const undecidedCollect = vi.fn(async (domain: string) => ({
+      report: aReport(domain),
+      signals: [aSignal],
+      // Deliberately unsorted at both levels to prove the encoding sorts.
+      undecided: [
+        { blocked: "blue" as const, unknown: ["wayback_thin_archive", "domain_age_days"] },
+        { blocked: "green" as const, unknown: ["dns_spf", "establishment"] },
+      ],
+    }));
+    const { deps, persistAttempt } = makeDeps({ collect: undecidedCollect });
+    await serveReport("x.com", { sessionKey: "k" }, deps);
+    const attemptSignals = persistAttempt.mock.calls[0]![1] as Array<{ key: string; valueText: string | null }>;
+    const marker = attemptSignals.find((s) => s.key === META_NO_VERDICT);
+    expect(marker?.valueText).toBe("blue:domain_age_days,wayback_thin_archive;green:dns_spf,establishment");
+  });
+
+  it("a SERVED report never carries the no-verdict marker (no-verdict path only)", async () => {
+    const { deps, persist } = makeDeps(); // default collect returns undecided: undefined → served
+    const r = await serveReport("x.com", { sessionKey: "k" }, deps);
+    expect(r.state).toBe("served");
+    const persistedSignals = persist.mock.calls[0]![2] as Array<{ key: string }>;
+    expect(persistedSignals.some((s) => s.key === META_NO_VERDICT)).toBe(false);
+    expect(JSON.stringify(r.report)).not.toContain(META_NO_VERDICT);
   });
 
   it("NO VERDICT: the visitor is not charged a daily check", async () => {

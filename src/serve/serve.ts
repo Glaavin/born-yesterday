@@ -6,7 +6,7 @@ import type { Undecided } from "../report/indicator";
 import { isFresh } from "./freshness";
 import { decideServe } from "./decide";
 import { SEARCH_LIMIT_PER_DAY, utcDay } from "./quota";
-import { operatorRunSignal } from "./meta-signals";
+import { operatorRunSignal, noVerdictSignal } from "./meta-signals";
 
 /**
  * Serve orchestration (mvp-spec §6) — wires the pure decision to the data layer.
@@ -169,11 +169,18 @@ export async function serveReport(
           //  · NO QUOTA. The visitor asked for a report and did not get one.
           //    Tier 1 (#76) established this for a failed collect; charging here
           //    would repeat the defect it just fixed, one path over.
-          //  · HISTORY STILL RECORDED. "We attempted these checks on this date
-          //    and they failed" is what the append-only record is for, and it is
-          //    the only trace a no-verdict leaves — so it is also the
-          //    instrumentation (`scripts/no-verdict-rate.ts`).
-          await deps.persistAttempt(domain, tag(generated.signals), nowSec);
+          //  · HISTORY STILL RECORDED, WITH A MARKER. "We attempted these checks
+          //    on this date and they failed" is what the append-only record is
+          //    for. Story 21.1 stamps a `meta_no_verdict` alongside it, carrying
+          //    the decided cause, so the outcome is COUNTABLE (exact rate, with
+          //    `meta_generation_ms` as the denominator) rather than reconstructed
+          //    from a lossy proxy. It rides the SAME single history write and,
+          //    like the other meta signals, can never reach a report.
+          await deps.persistAttempt(
+            domain,
+            tag([...generated.signals, noVerdictSignal(generated.undecided)]),
+            nowSec,
+          );
           return { state: "no-verdict", freshness: "none", undecided: generated.undecided };
         }
         await deps.persist(domain, generated.report, tag(generated.signals), nowSec);
