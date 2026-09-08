@@ -54,22 +54,45 @@ export interface ProbeDef {
   wired: Wired;
   note?: string;
   build: () => ProbeRequest;
-  /** Cheap "does the 2xx body look like what this source returns" check. Only
-   *  consulted on a 2xx; a non-2xx outcome is reported as the harness error. */
+  /** Cheap "does the NON-EMPTY 2xx body look like what this source returns"
+   *  check. Only consulted on a 2xx with a non-empty body; emptiness is handled
+   *  BEFORE this (see `emptyExpected`), and a non-2xx outcome is reported as the
+   *  harness error. Never treat an empty string as sane here — `runProbe` never
+   *  calls `sane` with one. */
   sane: (body: string) => boolean;
+  /**
+   * Is an empty 2xx a LEGITIMATE answer for this probe's fixed target? Default
+   * (undefined/false) = NO: our targets are all known-present (`example.com`) or
+   * always-content endpoints, so an empty 200 is the Stage-1.5 failure mode
+   * (200-but-empty, which disqualified Wayback Availability), reported as a
+   * distinct `empty-2xx` outcome — not as healthy. Set true ONLY where an empty
+   * 200 is genuinely expected, so the exemption is visible rather than implicit.
+   */
+  emptyExpected?: boolean;
 }
 
 const startsWith = (body: string, ch: string) => body.trimStart().startsWith(ch);
 
+/**
+ * `wired` reflects the product's hot path AS OF THE LAST STORY THAT CHANGED IT,
+ * not a live read of the code — so **any story that changes which source is
+ * called must revisit these labels.** A panel that confidently mislabels the hot
+ * path is the exact failure the tagging exists to prevent.
+ *
+ * KNOWN PENDING INVERSION: Story 25 (W2) makes `direct-registry` tier 1 and
+ * demotes `rdap-org` to a middle fallback. As of Story 26.1 W2 has NOT merged,
+ * so the labels below are correct; W2's rebase over this merged file must flip
+ * `rdap-org` → diagnostic and `direct-registry` → wired.
+ */
 export const PROBES: readonly ProbeDef[] = [
   {
     id: "wayback-cdx",
     label: "Wayback CDX",
     host: "web.archive.org",
     wired: "wired",
-    note: "The establishment archive-span probe (Story 19/24). Rate-budgeted host.",
+    note: "The establishment archive-span probe (Story 19/24). Rate-budgeted host. example.com HAS captures, so an empty 200 is the Stage-1.5 failure mode (200-but-empty), reported as empty-2xx — not healthy.",
     build: () => ({ url: cdxFirstUrl(SAMPLE_DOMAIN), kind: "third-party" }),
-    sane: (b) => startsWith(b, "[") || b.trim() === "",
+    sane: (b) => startsWith(b, "["),
   },
   {
     id: "wayback-availability",
@@ -88,9 +111,9 @@ export const PROBES: readonly ProbeDef[] = [
     label: "Common Crawl index",
     host: "index.commoncrawl.org",
     wired: "wired",
-    note: `Primary establishment instrument (Story 24), threshold crawl ${CC_THRESHOLD_CRAWL}. A 404 is a VALID answer (absent), not a failure.`,
+    note: `Primary establishment instrument (Story 24), threshold crawl ${CC_THRESHOLD_CRAWL}. Absence comes back as a 404 (a distinct outcome), so a 200 SHOULD carry a record — an empty 200 is anomalous and reported as empty-2xx, not healthy.`,
     build: () => ({ url: ccIndexUrl(CC_THRESHOLD_CRAWL, SAMPLE_DOMAIN), kind: "third-party" }),
-    sane: (b) => startsWith(b, "{") || b.trim() === "",
+    sane: (b) => startsWith(b, "{"),
   },
   {
     id: "iana-bootstrap",
@@ -181,6 +204,15 @@ export function probeById(id: string): ProbeDef | undefined {
  *  can never drift from what `cached-fetch` actually returns. */
 export type FetchErrorCode = Exclude<FetchResult, { ok: true }>["error"];
 
+/**
+ * Probe outcomes = the harness's own set, PLUS one panel-level refinement of a
+ * 2xx: `empty-2xx`. "Answered with nothing" and "answered with the wrong shape"
+ * are different source behaviours (Stage 1.5's 200-but-empty was the former),
+ * and this project's convention is that such things must not collapse — so the
+ * empty case gets its own outcome rather than folding into `saneShape: false`.
+ */
+export type ProbeOutcome = "ok" | "empty-2xx" | FetchErrorCode;
+
 export interface ProbeResult {
   id: string;
   label: string;
@@ -188,12 +220,14 @@ export interface ProbeResult {
   wired: Wired;
   note?: string;
   /** The harness outcome verbatim — including `budget-exhausted` / `rate-limited`,
-   *  which the historical view CANNOT show (they are not persisted; see queries.ts). */
-  outcome: "ok" | FetchErrorCode;
+   *  which the historical view CANNOT show (they are not persisted; see queries.ts) —
+   *  plus the panel-level `empty-2xx`. */
+  outcome: ProbeOutcome;
   status?: number;
   ms: number;
   fromCache: boolean;
-  /** null when not applicable (non-2xx outcome). */
+  /** true/false only when a non-empty 2xx body was shape-checked; null otherwise
+   *  (non-2xx, or `empty-2xx` — there was no body to judge the shape of). */
   saneShape: boolean | null;
   bodyPreview?: string;
 }
@@ -229,12 +263,27 @@ export async function runProbe(def: ProbeDef, fetcher: Fetcher): Promise<ProbeRe
   };
 
   if (res.ok) {
+    // Emptiness is judged BEFORE shape. An empty 2xx from a known-present target
+    // is the Stage-1.5 failure the panel exists to catch — it must not read as
+    // healthy. Only where a probe declares `emptyExpected` is an empty 200 ok.
+    const isEmpty = res.body.trim() === "";
+    if (isEmpty && !def.emptyExpected) {
+      return {
+        ...base,
+        outcome: "empty-2xx",
+        status: res.status,
+        fromCache: res.fromCache,
+        saneShape: null, // no body to judge the shape of
+        bodyPreview: "", // the emptiness is the finding
+      };
+    }
     return {
       ...base,
       outcome: "ok",
       status: res.status,
       fromCache: res.fromCache,
-      saneShape: def.sane(res.body),
+      // An expected-empty 200 is a legitimate answer; there is no shape to check.
+      saneShape: isEmpty ? null : def.sane(res.body),
       bodyPreview: res.body.slice(0, 160),
     };
   }
