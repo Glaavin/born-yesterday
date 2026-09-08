@@ -304,28 +304,20 @@ export const ESTABLISHED_ARCHIVE_SPAN_DAYS = 913; // ~2.5 years
  *                             corroborating evidence, capped (§3.4.4).
  */
 
-// ---- Certificate Transparency: the instrument's reach (§3.4.4). ----
-/**
- * Chrome required CT compliance for certificates ISSUED AFTER 30 April 2018
- * (enforced from Chrome 68, 24 July 2018). Certificates issued before that date
- * were grandfathered and never had to be logged, and voluntary logging was
- * non-uniform — so a first-cert date earlier than this is NOT A MEASUREMENT. We
- * cannot distinguish "the first certificate was 2012" from "the first *logged*
- * certificate was 2012." Not a fact about calibration; a fact about the record.
- */
-// BASIS: none — this is a FACT ABOUT THE INSTRUMENT, not a threshold. Stage 3
-// sets no certificate constant, and the certificate gap persists: zero of 49
-// corpus domains carry certificate data (§5.3), so nothing here has ever run
-// against a real certificate. crt.sh re-checked 2026-08-26: still HTTP 502.
-export const CT_INTERPRETABLE_FROM_ISO = "2018-04-30";
-const CT_INTERPRETABLE_FROM_SEC = Math.floor(Date.parse(`${CT_INTERPRETABLE_FROM_ISO}T00:00:00Z`) / 1000);
-/**
- * Ceiling on any cert-derived age claim, in years. Sourced to the owner's decade
- * rule (§3.4.6) — beyond a decade further precision adds nothing — NOT a draft
- * calibration value.
- */
-// BASIS: none — the owner's decade rule (§3.4.6), not a calibration output.
-export const CERT_AGE_CAP_YEARS = 10;
+// ---- Certificate age: RETIRED in Story 27 (W4). ----
+// `CT_INTERPRETABLE_FROM_ISO` (2018-04-30), `CERT_AGE_CAP_YEARS` (10),
+// `certAgeClaim` and `certAgeIsFloorOnly` are GONE. First-cert age was a
+// corroborating (never establishing, §3.4.4) signal, capped because CT only
+// became comprehensive in April 2018. It was retired because its SOURCE is
+// unavailable, not because the reasoning changed: crt.sh has been down the whole
+// build (5xx → 502 → 403, re-confirmed HTTP 502 on 2026-09-08), SSLMate Cert
+// Spotter returns unexpired certs only (verified: stripe.com's earliest returned
+// cert is ~4 months old), and no other free CT history source exists. The signal
+// was demoted in Stage 3a, capped, and NEVER once run against a real certificate
+// (0 of 49 corpus domains — §5.3). Keeping a signal we cannot feed is dishonest.
+// The cap LOGIC was correct and is preserved in amendment §3.4.4 for whoever
+// revisits CT if crt.sh ever returns. certs.ts now reports the CURRENT cert only
+// (TLS handshake + SSLMate), which feeds no verdict.
 
 // ---- Q3: accumulation as a RATIO of findings to COMPLETED observations. ----
 // All three are REASONED, SYNTHETIC-ONLY (§5.2): the corpus contains zero real
@@ -393,26 +385,6 @@ const isoSec = (iso: string | null | undefined): number | null => {
 /** Epoch seconds → "YYYY-MM-DD". */
 const isoDay = (sec: number): string => new Date(sec * 1000).toISOString().slice(0, 10);
 
-/**
- * A cert-derived age, expressed to the limit of what Certificate Transparency
- * can support (§3.4.4). After CT became mandatory the date is interpretable, so
- * we state it. Before that date it is only a LOWER BOUND — earlier certificates
- * may exist and simply never have been logged — so we say "over N years" and cap
- * N at CERT_AGE_CAP_YEARS. Capping is not rounding a known number; it is
- * declining to report a number we do not have.
- *
- * Exported because `assemble.ts` publishes the same claim in `positive[]` and
- * the cap has to hold in both places or it does not hold at all.
- */
-export function certAgeClaim(firstCertSec: number, nowSec: number): string {
-  const days = Math.max(0, Math.floor((nowSec - firstCertSec) / SECONDS_PER_DAY));
-  if (firstCertSec >= CT_INTERPRETABLE_FROM_SEC) return `~${humanAge(days)}`;
-  const years = Math.min(Math.max(1, Math.floor(days / 365)), CERT_AGE_CAP_YEARS);
-  return `over ${years} year${years === 1 ? "" : "s"}`;
-}
-/** True when the cert date predates CT's mandate, i.e. is not interpretable as a start. */
-export const certAgeIsFloorOnly = (firstCertSec: number): boolean =>
-  firstCertSec < CT_INTERPRETABLE_FROM_SEC;
 
 export function computeIndicator(
   domain: string,
@@ -539,8 +511,6 @@ export function computeIndicator(
   const spf = byKey.get("dns_spf")?.valueText != null;
   const dmarc = byKey.get("dns_dmarc")?.valueText != null;
   const dnsResolved = byKey.get("dns_a")?.valueText != null || spf || dmarc;
-  const firstCert = byKey.get("first_cert_date");
-  const certChecked = checked("first_cert_date");
   const pt = byKey.get("phishtank_listed");
   const uh = byKey.get("urlhaus_listed");
   const dnsSource = (name: string) => ({
@@ -905,19 +875,10 @@ export function computeIndicator(
         source: cc?.source ?? null,
       });
     }
-    // CORROBORATING, never a route of its own (§3.4.4). Capped: a pre-2018 first
-    // cert is a floor, not a start date, and the copy says which it is.
-    if (certChecked && firstCert?.valueNum != null) {
-      const floorOnly = certAgeIsFloorOnly(firstCert.valueNum);
-      reasons.push({
-        text:
-          `TLS certificates logged for this domain for ${certAgeClaim(firstCert.valueNum, nowSec)}` +
-          (floorOnly
-            ? ` (Certificate Transparency logging only became comprehensive in ${CT_INTERPRETABLE_FROM_ISO.slice(0, 4)}, so this is a floor, not a start date).`
-            : "."),
-        source: firstCert.source ?? null,
-      });
-    }
+    // First-cert corroboration RETIRED in Story 27 (W4) — the source is
+    // unavailable (crt.sh down; SSLMate is unexpired-only). See the tombstone
+    // near the former CT constants. The current cert is reported by certs.ts as a
+    // neutral fact and never contributes to this establishing reason set.
     if (spf) {
       reasons.push({ text: "Email authentication configured (SPF present).", source: byKey.get("dns_spf")?.source ?? null });
     }

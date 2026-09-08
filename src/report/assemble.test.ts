@@ -457,3 +457,86 @@ describe("the Reincarnation Check — publish the pair, never suppress the span 
     expect(report.neutral?.some((f) => f.text === "Present in Common Crawl’s February/March 2024 crawl.")).toBe(true);
   });
 });
+
+// ---- Story 27 (W4): current-certificate facts + negative facts -------------
+
+describe("certificate facts — current cert only, neutral, wired to nothing (Story 27, W4)", () => {
+  const certResults = (sigs: Signal[]): CollectorResult[] => [{ collector: "certs", ok: true, signals: sigs }];
+
+  it("publishes issuer + validity + organization as neutral facts", () => {
+    const report = assembleReport(
+      "stripe.com",
+      certResults([
+        sig("tls_issuer", { valueText: "DigiCert", source: S("Live TLS handshake", "u-tls") }),
+        sig("tls_valid_to", { valueText: "2026-12-10T23:59:59.000Z", source: S("Live TLS handshake", "u-tls") }),
+        sig("ssl_org", { valueText: "Stripe, Inc.", source: S("Live TLS handshake", "u-tls") }),
+      ]),
+      { pivot: null },
+      IND("amber", []),
+      NOW, // 2026-06-26 → not expired
+    );
+    expect(report.neutral?.some((f) => f.text === "Current certificate issued by DigiCert, valid until 2026-12-10.")).toBe(true);
+    expect(report.neutral?.some((f) => f.text === "The certificate lists the organization Stripe, Inc.")).toBe(true);
+    // neutral only — never positive/flagged (feeds no verdict)
+    expect(report.positive.some((f) => /certificate/i.test(f.text))).toBe(false);
+    expect(report.flagged.some((f) => /certificate/i.test(f.text))).toBe(false);
+  });
+
+  it("an expired certificate is a negative fact; the issuer line drops the 'valid until' clause", () => {
+    const report = assembleReport(
+      "x.com",
+      certResults([
+        sig("tls_issuer", { valueText: "Let's Encrypt", source: S("Live TLS handshake", "u-tls") }),
+        sig("tls_valid_to", { valueText: "2026-03-04T23:59:59.000Z", source: S("Live TLS handshake", "u-tls") }), // before NOW
+      ]),
+      { pivot: null },
+      IND("amber", []),
+      NOW,
+    );
+    expect(report.neutral?.some((f) => f.text === "Certificate expired 2026-03-04.")).toBe(true);
+    expect(report.neutral?.some((f) => f.text === "Current certificate issued by Let's Encrypt.")).toBe(true);
+    expect(report.neutral?.some((f) => /valid until/.test(f.text))).toBe(false);
+  });
+
+  it("self-signed and hostname-mismatch publish as bare neutral facts", () => {
+    const report = assembleReport(
+      "x.com",
+      certResults([
+        sig("tls_self_signed", { valueText: "self-signed", source: S("Live TLS handshake", "u-tls") }),
+        sig("tls_hostname_mismatch", { valueText: "mismatch", source: S("Live TLS handshake", "u-tls") }),
+      ]),
+      { pivot: null },
+      IND("amber", []),
+      NOW,
+    );
+    expect(report.neutral?.some((f) => f.text === "Certificate is self-signed.")).toBe(true);
+    expect(report.neutral?.some((f) => f.text === "The certificate does not list this domain among its names.")).toBe(true);
+    // wired to nothing
+    expect(report.flagged).toEqual([]);
+  });
+
+  it("does NOT render a first-cert-age line even if a stale first_cert_date signal appears (retired)", () => {
+    const report = assembleReport(
+      "x.com",
+      certResults([sig("first_cert_date", { valueNum: 1300000000, source: S("crt.sh", "u-crt") })]),
+      { pivot: null },
+      IND("amber", []),
+      NOW,
+    );
+    expect(report.neutral?.some((f) => /TLS certificates logged/.test(f.text))).toBe(false);
+  });
+
+  it("checked-empty negative facts (status ok, null) publish nothing — absence is never asserted", () => {
+    const report = assembleReport(
+      "x.com",
+      certResults([
+        sig("tls_self_signed", { valueText: null, source: S("Live TLS handshake", "u-tls") }),
+        sig("tls_hostname_mismatch", { valueText: null, source: S("Live TLS handshake", "u-tls") }),
+      ]),
+      { pivot: null },
+      IND("amber", []),
+      NOW,
+    );
+    expect(report.neutral?.some((f) => /self-signed|does not list/.test(f.text))).toBe(false);
+  });
+});

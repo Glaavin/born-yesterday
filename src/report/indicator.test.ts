@@ -334,7 +334,10 @@ describe("computeIndicator (the locked rubric, in order)", () => {
     expect(c!.source).toEqual(S("RDAP", "u-rdap")); // OBSERVATION caveats carry a source
   });
 
-  it("a pre-2018 first certificate is CAPPED and labelled a floor, and corroborates only", () => {
+  it("first-cert age is RETIRED (Story 27, W4) — a first_cert_date produces NO establishing cert reason", () => {
+    // The source is unavailable (crt.sh down; SSLMate unexpired-only), so the
+    // signal was removed rather than kept un-feedable. Even given a first_cert_date
+    // the indicator no longer publishes any "TLS certificates logged…" reason.
     const ind = computeIndicator(
       "x.com",
       established([
@@ -346,32 +349,12 @@ describe("computeIndicator (the locked rubric, in order)", () => {
       noPivot,
       NOW,
     );
-    expect(ind.state).toBe("green");
-    const cert = ind.reasons.find((x) => /TLS certificates/.test(x.text))!;
-    expect(cert.text).toMatch(/over 10 years/); // capped, not "~15 years"
-    expect(cert.text).toMatch(/floor, not a start date/);
-    expect(cert.text).not.toMatch(/~1[0-9] years/);
+    expect(ind.state).toBe("green"); // green via the archive span the `established` helper supplies
+    expect(ind.reasons.some((x) => /TLS certificates/.test(x.text))).toBe(false);
+    expect(ind.reasons.some((x) => /floor, not a start date/.test(x.text))).toBe(false);
   });
 
-  it("a POST-2018 first certificate is stated precisely — the cap binds only where CT cannot reach", () => {
-    const ind = computeIndicator(
-      "x.com",
-      established([
-        sig("first_cert_date", {
-          valueNum: Math.floor(Date.parse("2021-03-01T00:00:00Z") / 1000),
-          source: S("crt.sh", "u-crt"),
-        }),
-      ]),
-      noPivot,
-      NOW,
-    );
-    const cert = ind.reasons.find((x) => /TLS certificates/.test(x.text))!;
-    expect(cert.text).toMatch(/~5 years/);
-    expect(cert.text).not.toMatch(/floor/);
-    expect(cert.text).not.toMatch(/over \d/);
-  });
-
-  it("a certificate alone cannot establish GREEN — it is corroboration, not a route", () => {
+  it("a certificate alone cannot establish GREEN — it is not a route (retired)", () => {
     const ind = computeIndicator(
       "x.com",
       established([
