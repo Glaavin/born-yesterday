@@ -83,6 +83,7 @@ describe("parseRdap (pure)", () => {
     expect(parseRdap(RDAP_COM)).toEqual({
       registrationDate: "1997-09-15T04:00:00Z",
       registrar: "MarkMonitor Inc.",
+      transferDate: null, // no transfer event in this record
     });
   });
 
@@ -90,11 +91,16 @@ describe("parseRdap (pure)", () => {
     expect(parseRdap(RDAP_IO)).toEqual({
       registrationDate: "2013-06-20T00:00:00Z",
       registrar: "Gandi SAS",
+      transferDate: null,
     });
   });
 
   it("returns nulls when fields are absent — never guesses", () => {
-    expect(parseRdap(RDAP_MISSING)).toEqual({ registrationDate: null, registrar: null });
+    expect(parseRdap(RDAP_MISSING)).toEqual({
+      registrationDate: null,
+      registrar: null,
+      transferDate: null,
+    });
   });
 
   it("returns null on malformed JSON — unparseable is not 'no registration data'", () => {
@@ -244,6 +250,47 @@ describe("collectDomainIdentity", () => {
     expect(date.valueText).toBeNull();
     expect(date.valueNum).toBeNull();
     expect(r.signals.find((s) => s.key === "domain_age_days")!.valueNum).toBeNull();
+  });
+
+  it("emits a sourced domain_transfer_date when RDAP carries a transfer event", async () => {
+    const RDAP_TRANSFER = JSON.stringify({
+      events: [
+        { eventAction: "registration", eventDate: "1990-10-10T00:00:00Z" },
+        { eventAction: "transfer", eventDate: "2010-08-19T00:00:00Z" },
+      ],
+      entities: [{ roles: ["registrar"], vcardArray: ["vcard", [["fn", {}, "text", "Gandi"]]] }],
+    });
+    const deps = baseDeps({
+      fetcher: vi.fn(async () => fetchOk(RDAP_TRANSFER)) as unknown as Fetcher,
+    });
+
+    const r = await collectDomainIdentity("eff.org", deps);
+    const t = r.signals.find((s) => s.key === "domain_transfer_date")!;
+    expect(t.valueText).toBe("2010-08-19T00:00:00Z");
+    expect(t.status).toBe("ok");
+    expect(t.source).toEqual({ label: "RDAP registration record", url: "https://rdap.org/domain/eff.org" });
+  });
+
+  it("no transfer event → domain_transfer_date is checked-empty (status ok, null), NOT published as absence", async () => {
+    const deps = baseDeps({
+      fetcher: vi.fn(async () => fetchOk(RDAP_COM)) as unknown as Fetcher, // registration only
+    });
+    const r = await collectDomainIdentity("example.com", deps);
+    const t = r.signals.find((s) => s.key === "domain_transfer_date")!;
+    expect(t.status).toBe("ok"); // RDAP ran
+    expect(t.valueText).toBeNull(); // and found no transfer
+  });
+
+  it("RDAP failed, WHOIS supplied the date → transfer is 'failed' (WHOIS cannot speak to transfers)", async () => {
+    const deps = baseDeps({
+      fetcher: vi.fn(async () => fetchFail()) as unknown as Fetcher, // RDAP 404 both tiers
+      whoisQuery: vi.fn(async () => WHOIS_COM),
+    });
+    const r = await collectDomainIdentity("example.com", deps);
+    const t = r.signals.find((s) => s.key === "domain_transfer_date")!;
+    expect(t.status).toBe("failed");
+    expect(t.valueText).toBeNull();
+    expect(t.source).toBeNull();
   });
 
   it("both sources fail: ok:false with null values, and does NOT throw", async () => {

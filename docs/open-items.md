@@ -168,6 +168,15 @@ The async-enrichment mechanism (Vercel `after()`) **works** — `ghost.org` prov
 
 **Consequence for W1 / continuity:** anything that leans on `wayback_last` — or on `after()`-based enrichment generally — must tolerate the value being missing on most generations, and should not assume a single background write lands. This is not a defect to fix here; it is the reliability envelope the roadmap needs before Story 24 builds continuity on it. Root cause is B12 (archive latency); the two are one problem seen at different layers.
 
+### B14. History cannot distinguish a rate-limit/budget refusal from an ordinary failure
+**Found building Story 26 (the source panel), 2026-09-08.**
+
+`signal_history.status` is DB-constrained to `ok | failed | not_attempted` (check `signal_history_status_check`), and `SignalStatus` has only those three members. The harness returns **seven** outcomes — including the two refusals it invented precisely so they would not be confused with a real failure: `rate-limited` (Story 23.2) and `budget-exhausted` (Story 23). Both are **collapsed to `failed`** before a signal is ever persisted.
+
+**Consequence:** the observation-failure convention holds at the harness boundary but is **lost at the history boundary.** Any historical read — the source panel's status distribution, the Phase-2 "what changed" digest (W1), the no-verdict instrumentation — sees a source we *declined to call* as one that *failed*. The source panel's live half shows all seven (it reads the `FetchResult` directly); its historical half is three-way and says so.
+
+**Not fixed in Story 26** (read-only; new columns were out of scope). The fix is a persistence change — either a distinct status value (needs a check-constraint migration) or a companion `meta_` row carrying the refusal reason. Corroborates that the panel behaved correctly: it surfaced its own blind spot rather than papering over it.
+
 ### B7. The layout still argues where the prose no longer does
 Everything in `positive[]` publishes under a **Positive** badge, so a capture count there asserts that heavy crawling is reassuring — **exactly what §3.4.3 denies.** This is §3.4.5 surviving in the layout after being removed from the wording.
 
@@ -187,6 +196,8 @@ Everything in `positive[]` publishes under a **Positive** badge, so a capture co
 > **Section name: "What we found."** Names the act of observing, not the meaning; does not rank itself below the other two; does not imply completeness.
 >
 > Archive span is the one classification that is **context-dependent**, and deliberately so: the same fact is establishing evidence on a Green report, the disqualifier on `bolt.new`, and actively misleading on `secondlibrary.com` (§3.4.8). The assembler already knows the verdict, so this is **routing, never a rule**.
+
+**B7a — same shape, surfaced by Story 25 (W2). The Reincarnation double-print.** On a Green reincarnation report the archive year now appears **twice** — in `positive[]` as Green's establishing reason (the span, deliberately not suppressed per ruling 18.3.27) and in `neutral[]` as the pair's archive half ("Archived pages exist from 2014."). This is the honest consequence of *"do not suppress the span, publish the pair,"* **not a defect** — but it is the **same underlying problem as B7**: the archive fact's channel is decided by which verdict claimed it first, not by its role, so on a recycled-domain Green report the reader sees the span vouching (positive) and the same date revealing recycling (neutral). Both want routing decided by **role**, not by which channel gathered the fact. Story 20's presentation pass should see **one** problem here, not two — the clean fix (route Green's archive establishing reason to neutral when the pair fires) is an `indicator.ts` / positive-routing change, out of scope for the additive W2 story.
 
 ### B8. Blue's colon does what the pivot's semicolon did
 > *"Too little public footprint to assess yet: registered ~5 months ago."*
@@ -241,3 +252,4 @@ These exist because the obvious move is the wrong one.
 4. **Do not read a clean corpus delta as proof** for a path the corpus does not exercise (§5.1) — and **diff reasons, not just states** (`conventions.md`).
 5. **Never present a reasoned or definitional threshold as calibrated** (§5.2). The corpus is in the repo; anyone can check.
 6. **Observation failure is not absence** (`conventions.md`). It has recurred at four layers.
+7. **Do not use Common Crawl absence as corroboration** — the W2 reincarnation "synergy" idea (three sources triangulating a parked recycled domain). **CLOSED, not deferred.** CC coverage correlates with link-graph prominence, so CC absence is weak evidence of anything (Story 24's own recorded finding); using it as corroboration would lean on the exact property we documented as unreliable. Roadmap §5-W2 proposed it; Story 24 retired it. Publishing it standalone is absence-as-evidence (item 6); composing it into a conclusion is prohibited. Do not rediscover it.

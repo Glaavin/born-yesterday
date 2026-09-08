@@ -37,6 +37,15 @@ import type { CollectorResult, Signal, SignalSource } from "./types";
 // wall-clock advances the vintage should be refreshed to track the threshold.
 export const CC_THRESHOLD_CRAWL = "CC-MAIN-2024-10";
 export const CC_THRESHOLD_LABEL = "February/March 2024"; // human form of the crawl, for the claim
+/**
+ * A machine-comparable date for the threshold crawl (Story 25, W2). CC presence
+ * is point-in-time — "present at least as of this crawl" — so this is the archive
+ * date the Reincarnation Check compares against registration when CC is the
+ * instrument. Deliberately the START of the crawl window (a lower bound on the
+ * presence date), so the comparison never OVER-claims how early the domain was
+ * present. Keep in step with CC_THRESHOLD_CRAWL when the vintage is refreshed.
+ */
+export const CC_THRESHOLD_ISO = "2024-03-01";
 
 const CC_TTL_SECONDS = 60 * 60 * 24 * 30; // a crawl's contents are immutable
 
