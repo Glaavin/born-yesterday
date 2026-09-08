@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { parseCrtsh } from "./crtsh";
 import {
-  parseTlsCert,
   fetchTls,
   socketTlsConnect,
   type PeerCertLike,
@@ -9,6 +8,7 @@ import {
   type TlsConnectFactory,
 } from "./tls";
 import { collectCerts, type CertsDeps } from "./certs";
+import { certspotterUrl } from "./certspotter";
 import type { Fetcher, FetchResult } from "../lib/cached-fetch";
 
 const fetchOk = (body: string): FetchResult => ({ ok: true, status: 200, body, fromCache: false });
@@ -25,7 +25,13 @@ const CERT: PeerCertLike = {
   issuer: { O: "DigiCert Inc", CN: "DigiCert TLS RSA SHA256 2020 CA1" },
   valid_from: "Mar 1 00:00:00 2024 GMT",
   valid_to: "Mar 1 23:59:59 2025 GMT",
+  subjectaltname: "DNS:stripe.com, DNS:*.stripe.com",
 };
+
+// SSLMate issuances (unexpired) for the fallback path.
+const SSLMATE = JSON.stringify([
+  { issuer: { friendly_name: "Let's Encrypt" }, not_before: "2026-06-01T00:00:00Z", not_after: "2026-08-30T00:00:00Z" },
+]);
 
 describe("parseCrtsh (pure)", () => {
   it("returns the earliest not_before + count", () => {
@@ -44,27 +50,7 @@ describe("parseCrtsh (pure)", () => {
   });
 });
 
-describe("parseTlsCert (pure)", () => {
-  it("reads issuer, validity, and subject org/OU", () => {
-    expect(parseTlsCert(CERT)).toEqual({
-      issuer: "DigiCert Inc",
-      validFrom: "2024-03-01T00:00:00.000Z",
-      validTo: "2025-03-01T23:59:59.000Z",
-      subjectO: "Stripe, Inc.",
-      subjectOU: "IT",
-    });
-  });
-
-  it("returns nulls for an empty cert", () => {
-    expect(parseTlsCert({})).toEqual({
-      issuer: null,
-      validFrom: null,
-      validTo: null,
-      subjectO: null,
-      subjectOU: null,
-    });
-  });
-});
+// parseTlsCert's own unit coverage (incl. the extended fields) lives in tls.test.ts.
 
 describe("fetchTls (host-check before connect)", () => {
   it("BLOCKS an internal-resolving domain and never connects", async () => {
@@ -132,31 +118,74 @@ describe("fetchTls (host-check before connect)", () => {
   });
 });
 
-describe("collectCerts", () => {
+describe("collectCerts (Story 27 W4 — current cert only; history retired)", () => {
   const baseDeps = (over: Partial<CertsDeps> = {}): CertsDeps => ({
-    fetcher: over.fetcher ?? (vi.fn(async () => fetchOk(CRTSH)) as unknown as Fetcher),
+    fetcher: over.fetcher ?? (vi.fn(async () => fetchOk(SSLMATE)) as unknown as Fetcher),
     resolveHost: over.resolveHost ?? (async () => ["93.184.216.34"]),
     tlsConnect: over.tlsConnect ?? (async () => CERT),
   });
 
-  it("assembles sourced signals from crt.sh + TLS; ok on first_cert_date", async () => {
+  it("no longer emits certificate-HISTORY signals (first_cert_date / cert_count are retired)", async () => {
     const r = await collectCerts("stripe.com", baseDeps());
+    expect(r.signals.find((s) => s.key === "first_cert_date")).toBeUndefined();
+    expect(r.signals.find((s) => s.key === "cert_count")).toBeUndefined();
+  });
+
+  it("handshake success: current-cert facts sourced to the TLS handshake; ok true; SSLMate not called", async () => {
+    const fetcher = vi.fn(async () => fetchOk(SSLMATE)) as unknown as Fetcher;
+    const r = await collectCerts("stripe.com", baseDeps({ fetcher }));
 
     expect(r.ok).toBe(true);
-
-    const first = r.signals.find((s) => s.key === "first_cert_date")!;
-    expect(first.valueText).toBe("2014-03-01T00:00:00.000Z");
-    expect(first.valueNum).toBe(Math.floor(Date.parse("2014-03-01T00:00:00.000Z") / 1000));
-    expect(first.source).toEqual({
-      label: "crt.sh certificate transparency",
-      url: "https://crt.sh/?q=stripe.com&output=json",
-    });
+    expect(fetcher).not.toHaveBeenCalled(); // handshake sufficed → no fallback
 
     const issuer = r.signals.find((s) => s.key === "tls_issuer")!;
     expect(issuer.valueText).toBe("DigiCert Inc");
     expect(issuer.source).toEqual({ label: "Live TLS handshake", url: "https://stripe.com" });
-
+    expect(r.signals.find((s) => s.key === "tls_valid_from")!.valueText).toBe("2024-03-01T00:00:00.000Z");
+    expect(r.signals.find((s) => s.key === "tls_valid_to")!.valueText).toBe("2025-03-01T23:59:59.000Z");
     expect(r.signals.find((s) => s.key === "ssl_org")!.valueText).toBe("Stripe, Inc.");
+    // clean cert on a matching host → negative facts are checked-empty, never asserted
+    expect(r.signals.find((s) => s.key === "tls_self_signed")!.valueText).toBeNull();
+    expect(r.signals.find((s) => s.key === "tls_self_signed")!.status).toBe("ok");
+    expect(r.signals.find((s) => s.key === "tls_hostname_mismatch")!.valueText).toBeNull();
+  });
+
+  it("handshake FAILS → SSLMate fallback supplies issuer + validity, org stays null, note set", async () => {
+    const fetcher = vi.fn(async () => fetchOk(SSLMATE)) as unknown as Fetcher;
+    const r = await collectCerts("example.com", {
+      fetcher,
+      resolveHost: async () => ["10.0.0.1"], // TLS blocked → handshake fails
+      tlsConnect: vi.fn(async () => CERT),
+    });
+
+    expect(r.ok).toBe(true);
+    expect(fetcher).toHaveBeenCalled(); // fell back
+    const issuer = r.signals.find((s) => s.key === "tls_issuer")!;
+    expect(issuer.valueText).toBe("Let's Encrypt");
+    expect(issuer.source).toEqual({ label: "SSLMate Cert Spotter", url: certspotterUrl("example.com") });
+    expect(issuer.note).toMatch(/SSLMate fallback/);
+    // a CT index cannot supply the subject org, and the negative facts need the handshake
+    expect(r.signals.find((s) => s.key === "ssl_org")!.valueText).toBeNull();
+    expect(r.signals.find((s) => s.key === "ssl_org")!.status).toBe("failed");
+    expect(r.signals.find((s) => s.key === "tls_self_signed")!.status).toBe("failed");
+  });
+
+  it("publishes a self-signed cert as a negative fact", async () => {
+    const selfCert: PeerCertLike = {
+      subject: { CN: "internal.local", O: "Acme" },
+      issuer: { CN: "internal.local", O: "Acme" },
+      valid_from: "Jan 1 00:00:00 2026 GMT",
+      valid_to: "Jan 1 00:00:00 2027 GMT",
+      subjectaltname: "DNS:internal.local",
+    };
+    const r = await collectCerts("internal.local", baseDeps({ tlsConnect: async () => selfCert }));
+    expect(r.signals.find((s) => s.key === "tls_self_signed")!.valueText).toBe("self-signed");
+  });
+
+  it("publishes a hostname mismatch as a negative fact", async () => {
+    // CERT lists stripe.com only; querying a different host → mismatch.
+    const r = await collectCerts("not-stripe.com", baseDeps());
+    expect(r.signals.find((s) => s.key === "tls_hostname_mismatch")!.valueText).toBe("mismatch");
   });
 
   it("both sources fail → ok:false with null values, no throw", async () => {

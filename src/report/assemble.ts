@@ -2,7 +2,7 @@ import type { Report, ReportStateKey, Finding, Source } from "../components/repo
 import type { CollectorResult, Signal, SignalSource } from "../signals/types";
 import { signalsByKey } from "./signals";
 import type { Derivations } from "./derive";
-import { certAgeClaim, certAgeIsFloorOnly, type Indicator, type IndicatorState } from "./indicator";
+import { type Indicator, type IndicatorState } from "./indicator";
 import { THREAT_NOT_LISTED } from "../signals/threats";
 import { isoToEpochSec } from "../signals/dates";
 import { CC_THRESHOLD_ISO, CC_THRESHOLD_LABEL } from "../signals/common-crawl";
@@ -113,17 +113,41 @@ function gatherFindings(
     push(neutral, `${snaps} archived capture${snaps === 1 ? "" : "s"} on the Wayback Machine.`, snapSig?.source);
   }
 
-  // CERTIFICATES — NEUTRAL. They corroborate an established span; they are
-  // never a route of their own (§3.4.4), and a pre-2018 date is a floor rather
-  // than a measurement, which is stated in the copy.
-  const fc = byKey.get("first_cert_date");
-  if (fc?.status === "ok" && fc.valueNum != null) {
-    push(
-      neutral,
-      `TLS certificates logged for ${certAgeClaim(fc.valueNum, nowSec)}` +
-        (certAgeIsFloorOnly(fc.valueNum) ? " (a floor — Certificate Transparency does not reach further back)." : "."),
-      fc.source,
-    );
+  // CURRENT CERTIFICATE — NEUTRAL (Story 27, W4). First-cert AGE was retired
+  // (source unavailable; see the indicator tombstone), so this reports only the
+  // CURRENT cert from the live handshake (or SSLMate fallback): issuer, validity,
+  // and the subject organisation. Facts, no framing; they feed no verdict.
+  // A period-safe terminator: cert fields like "Stripe, Inc." already end in a
+  // dot, and "…Inc.." reads as a typo.
+  const dot = (s: string): string => (/[.!?]$/.test(s) ? s : `${s}.`);
+  const issuerSig = byKey.get("tls_issuer");
+  const validToSig = byKey.get("tls_valid_to");
+  const validToIso = validToSig?.status === "ok" ? validToSig.valueText : null;
+  const validToSec = isoToEpochSec(validToIso);
+  const expired = validToSec != null && validToSec < nowSec;
+  if (issuerSig?.status === "ok" && issuerSig.valueText != null) {
+    const validClause = validToIso != null && !expired ? `, valid until ${validToIso.slice(0, 10)}` : "";
+    push(neutral, dot(`Current certificate issued by ${issuerSig.valueText}${validClause}`), issuerSig.source);
+  }
+  const orgSig = byKey.get("ssl_org");
+  if (orgSig?.status === "ok" && orgSig.valueText != null) {
+    push(neutral, dot(`The certificate lists the organization ${orgSig.valueText}`), orgSig.source);
+  }
+
+  // NEGATIVE CERTIFICATE FACTS — near-objective, published as neutral
+  // observations and wired to NOTHING (no verdict/concern/gate). Accumulation
+  // redefinition is deferred (ruling #6); these are logged as accumulation
+  // CANDIDATES for that story. Copy reports the fact, never characterizes it.
+  if (expired && validToIso != null) {
+    push(neutral, `Certificate expired ${validToIso.slice(0, 10)}.`, validToSig?.source);
+  }
+  const selfSig = byKey.get("tls_self_signed");
+  if (selfSig?.status === "ok" && selfSig.valueText != null) {
+    push(neutral, "Certificate is self-signed.", selfSig.source);
+  }
+  const mismatchSig = byKey.get("tls_hostname_mismatch");
+  if (mismatchSig?.status === "ok" && mismatchSig.valueText != null) {
+    push(neutral, "The certificate does not list this domain among its names.", mismatchSig.source);
   }
 
   // CLEAN THREAT CHECKS — NEUTRAL, which is what the code has said all along in

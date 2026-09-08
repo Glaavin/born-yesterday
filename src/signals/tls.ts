@@ -18,6 +18,8 @@ export interface PeerCertLike {
   issuer?: { O?: string; CN?: string };
   valid_from?: string;
   valid_to?: string;
+  /** OpenSSL/Node form: 'DNS:example.com, DNS:*.example.com, IP:1.2.3.4'. */
+  subjectaltname?: string;
 }
 
 export interface TlsConnectOpts {
@@ -152,6 +154,8 @@ export function parseTlsCert(cert: PeerCertLike): {
   validTo: string | null;
   subjectO: string | null;
   subjectOU: string | null;
+  subjectCN: string | null;
+  altNames: string[];
 } {
   return {
     issuer: cert?.issuer?.O ?? cert?.issuer?.CN ?? null,
@@ -159,5 +163,58 @@ export function parseTlsCert(cert: PeerCertLike): {
     validTo: cert?.valid_to ? toISO(cert.valid_to) : null,
     subjectO: cert?.subject?.O ?? null,
     subjectOU: cert?.subject?.OU ?? null,
+    subjectCN: cert?.subject?.CN ?? null,
+    altNames: parseAltNames(cert?.subjectaltname),
   };
+}
+
+/** Parse Node's `subjectaltname` string → lowercased DNS names (IPs dropped). */
+export function parseAltNames(san: string | undefined): string[] {
+  if (!san) return [];
+  return san
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.toUpperCase().startsWith("DNS:"))
+    .map((s) => s.slice(4).trim().toLowerCase())
+    .filter((s) => s.length > 0);
+}
+
+/**
+ * PURE: is the leaf certificate self-signed? True when the issuer equals the
+ * subject (CN and O both present and equal). Conservative — if the fields we
+ * compare are absent we return false rather than assert a fact we cannot see
+ * (the observation-failure convention: not-determinable is not "self-signed").
+ */
+export function isSelfSigned(cert: PeerCertLike): boolean {
+  const s = cert?.subject ?? {};
+  const i = cert?.issuer ?? {};
+  if (!s.CN || !i.CN) return false;
+  return s.CN === i.CN && (s.O ?? null) === (i.O ?? null);
+}
+
+/** One host matches one cert name pattern (exact, or a single leftmost wildcard
+ *  label per RFC 6125: `*.example.com` matches `a.example.com`, not
+ *  `example.com` nor `a.b.example.com`). Case-insensitive. */
+export function hostMatchesPattern(host: string, pattern: string): boolean {
+  const h = host.toLowerCase();
+  const p = pattern.toLowerCase();
+  if (!p.startsWith("*.")) return h === p;
+  const suffix = p.slice(1); // ".example.com"
+  if (!h.endsWith(suffix)) return false;
+  const label = h.slice(0, h.length - suffix.length);
+  return label.length > 0 && !label.includes("."); // exactly one leftmost label
+}
+
+/**
+ * PURE: does the certificate fail to cover this hostname? True only when the
+ * cert presents names (CN and/or SANs) and NONE of them match. When the cert
+ * presents no usable names at all we return false — we cannot prove a mismatch,
+ * and asserting one would be observation-failure-as-fact.
+ */
+export function certHostnameMismatch(domain: string, cert: PeerCertLike): boolean {
+  const p = parseTlsCert(cert);
+  const names = [...p.altNames];
+  if (p.subjectCN) names.push(p.subjectCN.toLowerCase());
+  if (names.length === 0) return false;
+  return !names.some((n) => hostMatchesPattern(domain, n));
 }
