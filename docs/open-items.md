@@ -168,6 +168,15 @@ The async-enrichment mechanism (Vercel `after()`) **works** — `ghost.org` prov
 
 **Consequence for W1 / continuity:** anything that leans on `wayback_last` — or on `after()`-based enrichment generally — must tolerate the value being missing on most generations, and should not assume a single background write lands. This is not a defect to fix here; it is the reliability envelope the roadmap needs before Story 24 builds continuity on it. Root cause is B12 (archive latency); the two are one problem seen at different layers.
 
+### B14. History cannot distinguish a rate-limit/budget refusal from an ordinary failure
+**Found building Story 26 (the source panel), 2026-09-08.**
+
+`signal_history.status` is DB-constrained to `ok | failed | not_attempted` (check `signal_history_status_check`), and `SignalStatus` has only those three members. The harness returns **seven** outcomes — including the two refusals it invented precisely so they would not be confused with a real failure: `rate-limited` (Story 23.2) and `budget-exhausted` (Story 23). Both are **collapsed to `failed`** before a signal is ever persisted.
+
+**Consequence:** the observation-failure convention holds at the harness boundary but is **lost at the history boundary.** Any historical read — the source panel's status distribution, the Phase-2 "what changed" digest (W1), the no-verdict instrumentation — sees a source we *declined to call* as one that *failed*. The source panel's live half shows all seven (it reads the `FetchResult` directly); its historical half is three-way and says so.
+
+**Not fixed in Story 26** (read-only; new columns were out of scope). The fix is a persistence change — either a distinct status value (needs a check-constraint migration) or a companion `meta_` row carrying the refusal reason. Corroborates that the panel behaved correctly: it surfaced its own blind spot rather than papering over it.
+
 ### B7. The layout still argues where the prose no longer does
 Everything in `positive[]` publishes under a **Positive** badge, so a capture count there asserts that heavy crawling is reassuring — **exactly what §3.4.3 denies.** This is §3.4.5 surviving in the layout after being removed from the wording.
 
