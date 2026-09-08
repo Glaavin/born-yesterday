@@ -100,6 +100,17 @@ require visual-regression gate"). The related visual-regression CI gate is issue
 **Status:** OPEN · Threat-feed keys (above) plus `SERVER_SALT` must be set in Vercel before
 launch, or threat signals and quota hashing degrade.
 
+### Remove the dev source panel before launch (Story 26 / W8)
+**Status:** OPEN · **Surfaced:** Story 26 (W8, source-method-roadmap §5-W8)
+The read-only source-diagnosis panel at **`src/app/dev/source-panel/`** (page + `api/` route)
+is a **launch gate**: it must be **deleted** before public launch. It is env-gated
+(absent unless `BY_OPERATOR_KEY` is set), unlinked, read-only, and reuses the single Story-23.1
+operator path — but a diagnostic surface has no place on the launched public site regardless.
+Dismantle = remove the whole `src/app/dev/source-panel/` directory (self-contained: the only
+outside imports are read-only — `serve/quota`, `lib/cached-fetch` constants, signal URL builders,
+and the neon runner; nothing depends on it in return). Confirm `/dev/source-panel` 404s after.
+This entry is the durable tracker; the route files also carry a top-of-file launch-gate comment.
+
 ---
 
 ## Standing lesson — public-repo pushes are not reversible
