@@ -4,6 +4,8 @@ import { signalsByKey } from "./signals";
 import type { Derivations } from "./derive";
 import { certAgeClaim, certAgeIsFloorOnly, type Indicator, type IndicatorState } from "./indicator";
 import { THREAT_NOT_LISTED } from "../signals/threats";
+import { isoToEpochSec } from "../signals/dates";
+import { CC_THRESHOLD_ISO, CC_THRESHOLD_LABEL } from "../signals/common-crawl";
 
 /**
  * Assembly (Story 16 §E) — collector results + derivations + indicator → the
@@ -133,7 +135,90 @@ function gatherFindings(
   if (pt?.valueText === THREAT_NOT_LISTED) push(neutral, "Not listed on PhishTank (this host).", pt.source);
   if (uh?.valueText === THREAT_NOT_LISTED) push(neutral, "Not listed on URLhaus (this host).", uh.source);
 
+  // REGISTRAR TRANSFER — a NEUTRAL dated fact (Story 25, W2). A transfer means
+  // the sponsoring registrar changed; that is ALL it means. The same owner
+  // moving registrars produces one, and so does a sale — we do not know which,
+  // so the copy is a bare dated fact with no companion clause composing it into
+  // an argument (the §6.4 semicolon lesson). It feeds no verdict. Absence is
+  // never published: this fires only when a transfer date was actually found.
+  const tx = byKey.get("domain_transfer_date");
+  if (tx?.status === "ok" && tx.valueText != null) {
+    push(neutral, `Registrar transfer recorded ${tx.valueText.slice(0, 10)}.`, tx.source);
+  }
+
   return { positive, neutral };
+}
+
+/**
+ * The Reincarnation Check (Story 25, W2 · roadmap §5-W2 · amendment §3.4.8).
+ *
+ * Where the archive genuinely predates registration, publish the dated PAIR as
+ * two independent neutral statements — "Registered 2023." / "Archived pages
+ * exist from 2014." — no connective, each sourced. The reader draws the
+ * recycled-domain inference; we assert nothing. This is the owner's approved
+ * resolution of the E2 debate (ruling 18.3.27): it publishes a fact rather than
+ * suppressing Green, which the declined registration-date clamp would have done.
+ * So the span is NOT suppressed — on Green it stays the establishing evidence in
+ * positive[]; this only ADDS the neutral pair.
+ *
+ * DEDUP, not restatement: the registration date already reaches neutral as the
+ * indicator's demoted observation on domains a year or older, and on a non-Green
+ * report the archive line is already in neutral too. Each half is added only
+ * when it is not already present (the same `alreadyStated` discipline the copy
+ * pass established), so nothing prints twice — while a recently re-registered
+ * domain, which carries neither line yet, still gets the full pair.
+ *
+ * STRICT precedence and status guards (§3.4.8 / the observation-failure
+ * convention): both dates must be `status: "ok"`; a missing registration date is
+ * NOT "registered later." Wayback supplies the earliest date when it has one;
+ * otherwise Common Crawl's point-in-time presence does, in CC's OWN wording —
+ * never Wayback's span sentence (Story 24's rule). No editorial framing.
+ */
+function appendReincarnationPair(neutral: Finding[], byKey: Map<string, Signal>): void {
+  const reg = byKey.get("domain_registration_date");
+  const regSec = reg?.status === "ok" ? reg.valueNum : null;
+  const regSource = reg?.source ?? null;
+  if (regSec == null || regSource == null || reg?.valueText == null) return;
+
+  // Each instrument that can date archive presence, in its OWN wording. Wayback
+  // gives a real earliest-capture date; Common Crawl gives a point-in-time
+  // presence used as a LOWER bound (CC_THRESHOLD_ISO). Story 24's rule: CC never
+  // borrows Wayback's span sentence.
+  const candidates: { sec: number; text: string; source: SignalSource }[] = [];
+  const wf = byKey.get("wayback_first");
+  const wfSec = wf?.status === "ok" && wf.valueText ? isoToEpochSec(wf.valueText) : null;
+  if (wfSec != null && wf?.valueText && wf.source) {
+    candidates.push({ sec: wfSec, text: `Archived pages exist from ${wf.valueText.slice(0, 4)}.`, source: wf.source });
+  }
+  const cc = byKey.get("cc_established");
+  const ccSec = isoToEpochSec(CC_THRESHOLD_ISO);
+  if (cc?.status === "ok" && cc.valueText != null && cc.source && ccSec != null) {
+    candidates.push({ sec: ccSec, text: `Present in Common Crawl’s ${CC_THRESHOLD_LABEL} crawl.`, source: cc.source });
+  }
+
+  // The one predicate: an archive presence that genuinely precedes registration.
+  // Take the EARLIEST such presence — the strongest evidence and the clearest
+  // date — so the instrument with the better date wins rather than a fixed order.
+  const chosen = candidates.filter((c) => c.sec < regSec).sort((a, b) => a.sec - b.sec)[0];
+  if (!chosen) return;
+  const archiveText = chosen.text;
+  const archiveSource = chosen.source;
+
+  // Registration half — reuse the indicator's observation when it is already in
+  // neutral; otherwise supply the bare dated statement.
+  if (!neutral.some((f) => /^Domain registered /.test(f.text))) {
+    neutral.push({ text: `Registered ${reg.valueText.slice(0, 4)}.`, source: regSource });
+  }
+  // Archive half — reuse an archive line already in neutral (the non-Green case),
+  // matched by the SAME instrument (source), not by shape. Matching any
+  // archive-looking line would wrongly suppress a Common-Crawl precedence fact
+  // when an unrelated, post-registration Wayback line happens to be present. On
+  // Green the archive fact lives in positive[], so nothing here matches and the
+  // pair's archive half is added to the neutral channel.
+  const archiveAlready = neutral.some(
+    (f) => f.source.url === archiveSource.url && /archiv|crawl/i.test(f.text),
+  );
+  if (!archiveAlready) neutral.push({ text: archiveText, source: archiveSource });
 }
 
 function dedupeSources(list: SignalSource[]): Source[] {
@@ -212,6 +297,11 @@ export function assembleReport(
   // Sourced observations from the indicator (registration date, the AI-language
   // date, DMARC absent) join them.
   for (const r of observations) neutral.push({ text: r.text, source: r.source! });
+
+  // The Reincarnation pair (Story 25, W2) runs LAST, so it can reuse whatever
+  // registration/archive lines are already in neutral rather than duplicating
+  // them. Additive: it only ever pushes, never removes or rewrites.
+  appendReincarnationPair(neutral, byKey);
 
   const sources = dedupeSources([
     ...results.flatMap((c) =>
